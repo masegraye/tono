@@ -25,6 +25,25 @@ Run each module from the command line:
 - iOS app: `./kotlin run -m iosApp`
 - Web app: `./kotlin run -m webApp`
 
+### UI showcase and Omarchy theming
+
+The shared module is a tabbed showcase of what Compose Multiplatform offers on every target: Material 3 components,
+inputs, lazy lists and pagers, animations, canvas drawing, and gestures. One file per tab lives in
+[shared/src](./shared/src) (`Section*.kt`).
+
+The app takes its colors from the [Omarchy](https://omarchy.org/) desktop theme
+([OmarchyTheme.kt](./shared/src/OmarchyTheme.kt)):
+
+- On desktop it reads the applied theme's palette from `~/.local/state/omarchy/current/theme/colors.toml`, maps it onto
+  a Material 3 color scheme, and watches that directory, so `omarchy theme set <name>` re-themes the running app
+  immediately.
+- On Android, iOS and web, and on desktops without Omarchy, it falls back to four stock Omarchy palettes that are
+  embedded in the app. The Theming tab switches between them.
+- Under Hyprland the desktop app renders at the focused monitor's scale. Set `KMP_UI_SCALE` (for example `1.5`) to
+  override it.
+
+`./kotlin test -p jvm` also renders every tab offscreen to `build/showcase-renders/*.png`.
+
 ### Testing
 
 Run the project's tests with `./kotlin test`, or `./kotlin test -m <module>` for a single module.

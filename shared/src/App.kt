@@ -1,49 +1,148 @@
 package org.example.kotlintest
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.safeContentPadding
-import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.reload.DevelopmentEntryPoint
-import org.jetbrains.compose.resources.painterResource
 
-import org.example.kotlintest.resources.Res
-import org.example.kotlintest.resources.compose_multiplatform
+private val SECTION_TITLES = listOf(
+    "Components", "Inputs", "Lists", "Motion", "Canvas", "Theming", "Platform",
+)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 @Preview
 @DevelopmentEntryPoint
 fun App() {
-    MaterialTheme {
-        var showContent by remember { mutableStateOf(false) }
-        Column(
-            modifier = Modifier
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .safeContentPadding()
-                .fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Button(onClick = { showContent = !showContent }) {
-                Text("Click me!")
-            }
-            AnimatedVisibility(showContent) {
-                val greeting = remember { Greeting().greet() }
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Image(painterResource(Res.drawable.compose_multiplatform), null)
-                    Text("Compose: $greeting")
+    // Live Omarchy palette. On desktop this is the colors.toml of the theme Omarchy has
+    // applied; on Android/iOS/web it is null and a bundled stock palette is used instead.
+    // awaitOmarchyThemeChange() is a filesystem watch, so `omarchy theme set ...` (or the
+    // theme menu) re-themes the running app immediately.
+    var systemPalette by remember { mutableStateOf(readOmarchyPalette()) }
+    var selectedSlug by remember { mutableStateOf<String?>(null) } // null = follow the system
+    var darkOverride by remember { mutableStateOf<Boolean?>(null) } // null = follow the palette
+    LaunchedEffect(Unit) {
+        while (true) {
+            awaitOmarchyThemeChange()
+            systemPalette = readOmarchyPalette()
+            // A desktop theme change wins over a manual light/dark flip made in the app.
+            darkOverride = null
+        }
+    }
+
+    val palette = remember(systemPalette, selectedSlug) {
+        selectedSlug?.let { slug -> bundledOmarchyPalettes.firstOrNull { it.slug == slug } }
+            ?: systemPalette
+            ?: bundledOmarchyPalettes.first()
+    }
+    val dark = darkOverride ?: palette.isDark
+    val live = selectedSlug == null && systemPalette != null
+
+    MaterialTheme(colorScheme = omarchyColorScheme(palette, dark), shapes = omarchyShapes()) {
+        val snackbarHostState = remember { SnackbarHostState() }
+        val scope = rememberCoroutineScope()
+        var section by remember { mutableStateOf(0) }
+        val platformName = remember { getPlatform().name }
+
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text(
+                                "KMP UI Showcase",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                "$platformName · ${if (live) "Omarchy: " else ""}${palette.displayName}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
+                    actions = {
+                        Text("Dark", style = MaterialTheme.typography.labelMedium)
+                        Switch(
+                            checked = dark,
+                            onCheckedChange = { darkOverride = it },
+                            modifier = Modifier.padding(start = 8.dp, end = 16.dp),
+                        )
+                    },
+                )
+            },
+            floatingActionButton = {
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                message = "Snackbars work on every platform",
+                                actionLabel = "OK",
+                                withDismissAction = true,
+                            )
+                        }
+                    },
+                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    text = { Text("Snackbar") },
+                )
+            },
+        ) { padding ->
+            Column(Modifier.fillMaxSize().padding(padding)) {
+                PrimaryScrollableTabRow(selectedTabIndex = section, edgePadding = 8.dp) {
+                    SECTION_TITLES.forEachIndexed { index, title ->
+                        Tab(
+                            selected = section == index,
+                            onClick = { section = index },
+                            text = { Text(title) },
+                        )
+                    }
+                }
+                Crossfade(targetState = section, label = "section") { index ->
+                    when (index) {
+                        0 -> SectionBasics()
+                        1 -> SectionInputs()
+                        2 -> SectionLists()
+                        3 -> SectionMotion()
+                        4 -> SectionCanvas()
+                        5 -> SectionTheming(
+                            palette = palette,
+                            live = live,
+                            selectedSlug = selectedSlug,
+                            dark = dark,
+                            onSelect = { selectedSlug = it },
+                            onDarkToggle = { darkOverride = it },
+                        )
+                        else -> SectionPlatform()
+                    }
                 }
             }
         }

@@ -1,0 +1,10 @@
+package org.example.kotlintest
+
+import kotlinx.coroutines.awaitCancellation
+
+// Omarchy is a Linux desktop; web falls back to the bundled palettes.
+actual fun readOmarchyPalette(): OmarchyPalette? = null
+
+actual fun listOmarchyThemeSlugs(): List<String> = emptyList()
+
+actual suspend fun awaitOmarchyThemeChange(): Unit = awaitCancellation()
