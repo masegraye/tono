@@ -25,7 +25,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.areAnyPressed
+import androidx.compose.ui.input.pointer.isAltPressed
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isPrimaryPressed
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.isShiftPressed
+import androidx.compose.ui.input.pointer.isTertiaryPressed
+import org.example.kotlintest.ghostty.MouseAction
+import org.example.kotlintest.ghostty.MouseButton
+import org.example.kotlintest.ghostty.MouseInput
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -94,6 +106,32 @@ fun TerminalView(
         if (columns >= 2 && rows >= 1) onDesiredGrid(GridSize(columns, rows, cell.width.roundToInt(), cell.height.roundToInt()))
     }
 
+    fun report(event: PointerEvent, action: MouseAction, button: MouseButton?, scrollRows: Int = 0) {
+        val position = event.changes.firstOrNull()?.position ?: return
+        val grid = terminal.grid.value ?: return
+        // Only over the terminal itself: the pane can be larger than a terminal sized by another client.
+        if (position.x < 0f || position.y < 0f || position.x >= grid.columns * cell.width || position.y >= grid.rows * cell.height) {
+            if (scrollRows != 0) terminal.scroll(scrollRows)
+            return
+        }
+        val modifiers = event.keyboardModifiers
+        // The encoder counts in whole pixels and cells are drawn a fraction wide, so the
+        // position is restated on a whole-pixel grid, where it falls in the same cell.
+        val cellWidth = cell.width.roundToInt().coerceAtLeast(1)
+        val cellHeight = cell.height.roundToInt().coerceAtLeast(1)
+        terminal.mouse(
+            MouseInput(
+                action, button,
+                x = position.x / cell.width * cellWidth,
+                y = position.y / cell.height * cellHeight,
+                cellWidth = cellWidth, cellHeight = cellHeight,
+                shift = modifiers.isShiftPressed, control = modifiers.isCtrlPressed, alt = modifiers.isAltPressed,
+                anyButtonDown = event.buttons.areAnyPressed,
+            ),
+            scrollRows,
+        )
+    }
+
     val focusRequester = remember { FocusRequester() }
     var hasKeyboard by remember { mutableStateOf(false) }
     LaunchedEffect(focused, focusRequests) { if (focused) focusRequester.requestFocus() }
@@ -120,9 +158,26 @@ fun TerminalView(
                 true
             }
             .pointerInput(Unit) { detectTapGestures { onFocusRequested(); focusRequester.requestFocus() } }
+            // The pointer, for programs that track it (Neovim, htop, tmux). Each event is
+            // offered to the terminal, which knows what its program asked to be told.
+            .onPointerEvent(PointerEventType.Press) { event -> mouseButton(event.button)?.let { report(event, MouseAction.Press, it) } }
+            .onPointerEvent(PointerEventType.Release) { event -> mouseButton(event.button)?.let { report(event, MouseAction.Release, it) } }
+            .onPointerEvent(PointerEventType.Move) { event ->
+                val held = when {
+                    event.buttons.isPrimaryPressed -> MouseButton.Left
+                    event.buttons.isSecondaryPressed -> MouseButton.Right
+                    event.buttons.isTertiaryPressed -> MouseButton.Middle
+                    else -> null
+                }
+                report(event, MouseAction.Motion, held)
+            }
             .onPointerEvent(PointerEventType.Scroll) { event ->
                 val delta = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
-                if (delta != 0f) terminal.scroll((delta * SCROLL_ROWS_PER_NOTCH).roundToInt().coerceIn(-50, 50).let { if (it == 0) if (delta > 0) 1 else -1 else it })
+                if (delta == 0f) return@onPointerEvent
+                // A notch is a press of a wheel button to a program that tracks the mouse,
+                // and otherwise scrolls this terminal's own history.
+                val rows = (delta * SCROLL_ROWS_PER_NOTCH).roundToInt().coerceIn(-50, 50).let { if (it == 0) if (delta > 0) 1 else -1 else it }
+                report(event, MouseAction.Press, if (delta < 0) MouseButton.WheelUp else MouseButton.WheelDown, scrollRows = rows)
             },
     ) {
         val current = frame
@@ -203,3 +258,11 @@ private fun DrawScope.drawCursor(cursor: TerminalCursor, frame: TerminalFrame, c
 }
 
 private const val SCROLL_ROWS_PER_NOTCH = 3f
+
+/** The terminal's name for a pointer button, or null for one it has none for. */
+private fun mouseButton(button: PointerButton?): MouseButton? = when (button) {
+    PointerButton.Primary -> MouseButton.Left
+    PointerButton.Secondary -> MouseButton.Right
+    PointerButton.Tertiary -> MouseButton.Middle
+    else -> null
+}

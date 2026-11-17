@@ -186,4 +186,38 @@ class GhosttyTerminalTest {
             0x555555, 0xFF5555, 0x55FF55, 0xFFFF55, 0x5555FF, 0xFF55FF, 0x55FFFF, 0xFFFFFF,
         )
     }
+
+    private fun at(column: Int, row: Int, action: MouseAction, button: MouseButton?, shift: Boolean = false, down: Boolean = action == MouseAction.Press) =
+        MouseInput(action, button, x = column * 8f + 3f, y = row * 16f + 5f, cellWidth = 8, cellHeight = 16, shift = shift, anyButtonDown = down)
+
+    private fun GhosttyMouse.report(terminal: GhosttyTerminal, input: MouseInput) = String(encode(terminal, input)).replace("\u001b", "ESC")
+
+    @Test
+    fun `a program that has not asked for the mouse is sent nothing`() = terminal().use { terminal ->
+        GhosttyMouse().use { mouse ->
+            assertEquals("", mouse.report(terminal, at(3, 1, MouseAction.Press, MouseButton.Left)))
+            assertEquals("", mouse.report(terminal, at(3, 1, MouseAction.Press, MouseButton.WheelUp)))
+        }
+    }
+
+    @Test
+    fun `clicks, the wheel and drags are reported by cell once a program asks`() = terminal().use { terminal ->
+        GhosttyMouse().use { mouse ->
+            // What Neovim sends: report presses, releases and drags, in the SGR form.
+            terminal.write("\u001b[?1002h\u001b[?1006h")
+            assertEquals("ESC[<0;4;2M", mouse.report(terminal, at(3, 1, MouseAction.Press, MouseButton.Left)))
+            assertEquals("ESC[<32;6;2M", mouse.report(terminal, at(5, 1, MouseAction.Motion, MouseButton.Left, down = true)))
+            assertEquals("", mouse.report(terminal, at(5, 1, MouseAction.Motion, MouseButton.Left, down = true)), "still in the same cell")
+            assertEquals("ESC[<0;6;2m", mouse.report(terminal, at(5, 1, MouseAction.Release, MouseButton.Left)))
+            assertEquals("ESC[<64;1;1M", mouse.report(terminal, at(0, 0, MouseAction.Press, MouseButton.WheelUp)))
+            assertEquals("ESC[<65;1;1M", mouse.report(terminal, at(0, 0, MouseAction.Press, MouseButton.WheelDown)))
+            // Just moving, with no button down, is only wanted in the any-motion mode.
+            assertEquals("", mouse.report(terminal, at(9, 2, MouseAction.Motion, null)))
+            terminal.write("\u001b[?1003h")
+            assertEquals("ESC[<35;11;3M", mouse.report(terminal, at(10, 2, MouseAction.Motion, null)))
+            // And when the program stops asking, nothing more is sent.
+            terminal.write("\u001b[?1003l\u001b[?1002l")
+            assertEquals("", mouse.report(terminal, at(3, 1, MouseAction.Press, MouseButton.Left)))
+        }
+    }
 }

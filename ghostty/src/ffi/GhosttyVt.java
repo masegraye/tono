@@ -3127,6 +3127,996 @@ public class GhosttyVt extends GhosttyVt$shared {
     public static int GHOSTTY_SGR_UNDERLINE_MAX_VALUE() {
         return GHOSTTY_SGR_UNDERLINE_MAX_VALUE;
     }
+    private static final int GHOSTTY_MOUSE_ACTION_PRESS = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_ACTION_PRESS = 0
+     * }
+     */
+    public static int GHOSTTY_MOUSE_ACTION_PRESS() {
+        return GHOSTTY_MOUSE_ACTION_PRESS;
+    }
+    private static final int GHOSTTY_MOUSE_ACTION_RELEASE = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_ACTION_RELEASE = 1
+     * }
+     */
+    public static int GHOSTTY_MOUSE_ACTION_RELEASE() {
+        return GHOSTTY_MOUSE_ACTION_RELEASE;
+    }
+    private static final int GHOSTTY_MOUSE_ACTION_MOTION = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_ACTION_MOTION = 2
+     * }
+     */
+    public static int GHOSTTY_MOUSE_ACTION_MOTION() {
+        return GHOSTTY_MOUSE_ACTION_MOTION;
+    }
+    private static final int GHOSTTY_MOUSE_ACTION_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_ACTION_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_MOUSE_ACTION_MAX_VALUE() {
+        return GHOSTTY_MOUSE_ACTION_MAX_VALUE;
+    }
+    private static final int GHOSTTY_MOUSE_BUTTON_UNKNOWN = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_BUTTON_UNKNOWN = 0
+     * }
+     */
+    public static int GHOSTTY_MOUSE_BUTTON_UNKNOWN() {
+        return GHOSTTY_MOUSE_BUTTON_UNKNOWN;
+    }
+    private static final int GHOSTTY_MOUSE_BUTTON_LEFT = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_BUTTON_LEFT = 1
+     * }
+     */
+    public static int GHOSTTY_MOUSE_BUTTON_LEFT() {
+        return GHOSTTY_MOUSE_BUTTON_LEFT;
+    }
+    private static final int GHOSTTY_MOUSE_BUTTON_RIGHT = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_BUTTON_RIGHT = 2
+     * }
+     */
+    public static int GHOSTTY_MOUSE_BUTTON_RIGHT() {
+        return GHOSTTY_MOUSE_BUTTON_RIGHT;
+    }
+    private static final int GHOSTTY_MOUSE_BUTTON_MIDDLE = (int)3L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_BUTTON_MIDDLE = 3
+     * }
+     */
+    public static int GHOSTTY_MOUSE_BUTTON_MIDDLE() {
+        return GHOSTTY_MOUSE_BUTTON_MIDDLE;
+    }
+    private static final int GHOSTTY_MOUSE_BUTTON_FOUR = (int)4L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_BUTTON_FOUR = 4
+     * }
+     */
+    public static int GHOSTTY_MOUSE_BUTTON_FOUR() {
+        return GHOSTTY_MOUSE_BUTTON_FOUR;
+    }
+    private static final int GHOSTTY_MOUSE_BUTTON_FIVE = (int)5L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_BUTTON_FIVE = 5
+     * }
+     */
+    public static int GHOSTTY_MOUSE_BUTTON_FIVE() {
+        return GHOSTTY_MOUSE_BUTTON_FIVE;
+    }
+    private static final int GHOSTTY_MOUSE_BUTTON_SIX = (int)6L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_BUTTON_SIX = 6
+     * }
+     */
+    public static int GHOSTTY_MOUSE_BUTTON_SIX() {
+        return GHOSTTY_MOUSE_BUTTON_SIX;
+    }
+    private static final int GHOSTTY_MOUSE_BUTTON_SEVEN = (int)7L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_BUTTON_SEVEN = 7
+     * }
+     */
+    public static int GHOSTTY_MOUSE_BUTTON_SEVEN() {
+        return GHOSTTY_MOUSE_BUTTON_SEVEN;
+    }
+    private static final int GHOSTTY_MOUSE_BUTTON_EIGHT = (int)8L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_BUTTON_EIGHT = 8
+     * }
+     */
+    public static int GHOSTTY_MOUSE_BUTTON_EIGHT() {
+        return GHOSTTY_MOUSE_BUTTON_EIGHT;
+    }
+    private static final int GHOSTTY_MOUSE_BUTTON_NINE = (int)9L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_BUTTON_NINE = 9
+     * }
+     */
+    public static int GHOSTTY_MOUSE_BUTTON_NINE() {
+        return GHOSTTY_MOUSE_BUTTON_NINE;
+    }
+    private static final int GHOSTTY_MOUSE_BUTTON_TEN = (int)10L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_BUTTON_TEN = 10
+     * }
+     */
+    public static int GHOSTTY_MOUSE_BUTTON_TEN() {
+        return GHOSTTY_MOUSE_BUTTON_TEN;
+    }
+    private static final int GHOSTTY_MOUSE_BUTTON_ELEVEN = (int)11L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_BUTTON_ELEVEN = 11
+     * }
+     */
+    public static int GHOSTTY_MOUSE_BUTTON_ELEVEN() {
+        return GHOSTTY_MOUSE_BUTTON_ELEVEN;
+    }
+    private static final int GHOSTTY_MOUSE_BUTTON_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_BUTTON_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_MOUSE_BUTTON_MAX_VALUE() {
+        return GHOSTTY_MOUSE_BUTTON_MAX_VALUE;
+    }
+
+    private static class ghostty_mouse_event_new {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_mouse_event_new");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_mouse_event_new(const GhosttyAllocator *allocator, GhosttyMouseEvent *event)
+     * }
+     */
+    public static FunctionDescriptor ghostty_mouse_event_new$descriptor() {
+        return ghostty_mouse_event_new.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_mouse_event_new(const GhosttyAllocator *allocator, GhosttyMouseEvent *event)
+     * }
+     */
+    public static MethodHandle ghostty_mouse_event_new$handle() {
+        return ghostty_mouse_event_new.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_mouse_event_new(const GhosttyAllocator *allocator, GhosttyMouseEvent *event)
+     * }
+     */
+    public static MemorySegment ghostty_mouse_event_new$address() {
+        return ghostty_mouse_event_new.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_mouse_event_new(const GhosttyAllocator *allocator, GhosttyMouseEvent *event)
+     * }
+     */
+    public static int ghostty_mouse_event_new(MemorySegment allocator, MemorySegment event) {
+        var mh$ = ghostty_mouse_event_new.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_mouse_event_new", allocator, event);
+            }
+            return (int)mh$.invokeExact(allocator, event);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_mouse_event_free {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_mouse_event_free");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_free(GhosttyMouseEvent event)
+     * }
+     */
+    public static FunctionDescriptor ghostty_mouse_event_free$descriptor() {
+        return ghostty_mouse_event_free.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_free(GhosttyMouseEvent event)
+     * }
+     */
+    public static MethodHandle ghostty_mouse_event_free$handle() {
+        return ghostty_mouse_event_free.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_free(GhosttyMouseEvent event)
+     * }
+     */
+    public static MemorySegment ghostty_mouse_event_free$address() {
+        return ghostty_mouse_event_free.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_free(GhosttyMouseEvent event)
+     * }
+     */
+    public static void ghostty_mouse_event_free(MemorySegment event) {
+        var mh$ = ghostty_mouse_event_free.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_mouse_event_free", event);
+            }
+            mh$.invokeExact(event);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_mouse_event_set_action {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_INT
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_mouse_event_set_action");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_action(GhosttyMouseEvent event, GhosttyMouseAction action)
+     * }
+     */
+    public static FunctionDescriptor ghostty_mouse_event_set_action$descriptor() {
+        return ghostty_mouse_event_set_action.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_action(GhosttyMouseEvent event, GhosttyMouseAction action)
+     * }
+     */
+    public static MethodHandle ghostty_mouse_event_set_action$handle() {
+        return ghostty_mouse_event_set_action.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_action(GhosttyMouseEvent event, GhosttyMouseAction action)
+     * }
+     */
+    public static MemorySegment ghostty_mouse_event_set_action$address() {
+        return ghostty_mouse_event_set_action.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_action(GhosttyMouseEvent event, GhosttyMouseAction action)
+     * }
+     */
+    public static void ghostty_mouse_event_set_action(MemorySegment event, int action) {
+        var mh$ = ghostty_mouse_event_set_action.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_mouse_event_set_action", event, action);
+            }
+            mh$.invokeExact(event, action);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_mouse_event_set_button {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_INT
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_mouse_event_set_button");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_button(GhosttyMouseEvent event, GhosttyMouseButton button)
+     * }
+     */
+    public static FunctionDescriptor ghostty_mouse_event_set_button$descriptor() {
+        return ghostty_mouse_event_set_button.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_button(GhosttyMouseEvent event, GhosttyMouseButton button)
+     * }
+     */
+    public static MethodHandle ghostty_mouse_event_set_button$handle() {
+        return ghostty_mouse_event_set_button.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_button(GhosttyMouseEvent event, GhosttyMouseButton button)
+     * }
+     */
+    public static MemorySegment ghostty_mouse_event_set_button$address() {
+        return ghostty_mouse_event_set_button.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_button(GhosttyMouseEvent event, GhosttyMouseButton button)
+     * }
+     */
+    public static void ghostty_mouse_event_set_button(MemorySegment event, int button) {
+        var mh$ = ghostty_mouse_event_set_button.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_mouse_event_set_button", event, button);
+            }
+            mh$.invokeExact(event, button);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_mouse_event_clear_button {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_mouse_event_clear_button");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_clear_button(GhosttyMouseEvent event)
+     * }
+     */
+    public static FunctionDescriptor ghostty_mouse_event_clear_button$descriptor() {
+        return ghostty_mouse_event_clear_button.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_clear_button(GhosttyMouseEvent event)
+     * }
+     */
+    public static MethodHandle ghostty_mouse_event_clear_button$handle() {
+        return ghostty_mouse_event_clear_button.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_clear_button(GhosttyMouseEvent event)
+     * }
+     */
+    public static MemorySegment ghostty_mouse_event_clear_button$address() {
+        return ghostty_mouse_event_clear_button.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_clear_button(GhosttyMouseEvent event)
+     * }
+     */
+    public static void ghostty_mouse_event_clear_button(MemorySegment event) {
+        var mh$ = ghostty_mouse_event_clear_button.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_mouse_event_clear_button", event);
+            }
+            mh$.invokeExact(event);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_mouse_event_set_mods {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_SHORT
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_mouse_event_set_mods");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_mods(GhosttyMouseEvent event, GhosttyMods mods)
+     * }
+     */
+    public static FunctionDescriptor ghostty_mouse_event_set_mods$descriptor() {
+        return ghostty_mouse_event_set_mods.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_mods(GhosttyMouseEvent event, GhosttyMods mods)
+     * }
+     */
+    public static MethodHandle ghostty_mouse_event_set_mods$handle() {
+        return ghostty_mouse_event_set_mods.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_mods(GhosttyMouseEvent event, GhosttyMods mods)
+     * }
+     */
+    public static MemorySegment ghostty_mouse_event_set_mods$address() {
+        return ghostty_mouse_event_set_mods.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_mods(GhosttyMouseEvent event, GhosttyMods mods)
+     * }
+     */
+    public static void ghostty_mouse_event_set_mods(MemorySegment event, short mods) {
+        var mh$ = ghostty_mouse_event_set_mods.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_mouse_event_set_mods", event, mods);
+            }
+            mh$.invokeExact(event, mods);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_mouse_event_set_position {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            GhosttyVt.C_POINTER,
+            GhosttyMousePosition.layout()
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_mouse_event_set_position");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_position(GhosttyMouseEvent event, GhosttyMousePosition position)
+     * }
+     */
+    public static FunctionDescriptor ghostty_mouse_event_set_position$descriptor() {
+        return ghostty_mouse_event_set_position.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_position(GhosttyMouseEvent event, GhosttyMousePosition position)
+     * }
+     */
+    public static MethodHandle ghostty_mouse_event_set_position$handle() {
+        return ghostty_mouse_event_set_position.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_position(GhosttyMouseEvent event, GhosttyMousePosition position)
+     * }
+     */
+    public static MemorySegment ghostty_mouse_event_set_position$address() {
+        return ghostty_mouse_event_set_position.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void ghostty_mouse_event_set_position(GhosttyMouseEvent event, GhosttyMousePosition position)
+     * }
+     */
+    public static void ghostty_mouse_event_set_position(MemorySegment event, MemorySegment position) {
+        var mh$ = ghostty_mouse_event_set_position.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_mouse_event_set_position", event, position);
+            }
+            mh$.invokeExact(event, position);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+    private static final int GHOSTTY_MOUSE_ENCODER_OPT_EVENT = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_ENCODER_OPT_EVENT = 0
+     * }
+     */
+    public static int GHOSTTY_MOUSE_ENCODER_OPT_EVENT() {
+        return GHOSTTY_MOUSE_ENCODER_OPT_EVENT;
+    }
+    private static final int GHOSTTY_MOUSE_ENCODER_OPT_FORMAT = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_ENCODER_OPT_FORMAT = 1
+     * }
+     */
+    public static int GHOSTTY_MOUSE_ENCODER_OPT_FORMAT() {
+        return GHOSTTY_MOUSE_ENCODER_OPT_FORMAT;
+    }
+    private static final int GHOSTTY_MOUSE_ENCODER_OPT_SIZE = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_ENCODER_OPT_SIZE = 2
+     * }
+     */
+    public static int GHOSTTY_MOUSE_ENCODER_OPT_SIZE() {
+        return GHOSTTY_MOUSE_ENCODER_OPT_SIZE;
+    }
+    private static final int GHOSTTY_MOUSE_ENCODER_OPT_ANY_BUTTON_PRESSED = (int)3L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_ENCODER_OPT_ANY_BUTTON_PRESSED = 3
+     * }
+     */
+    public static int GHOSTTY_MOUSE_ENCODER_OPT_ANY_BUTTON_PRESSED() {
+        return GHOSTTY_MOUSE_ENCODER_OPT_ANY_BUTTON_PRESSED;
+    }
+    private static final int GHOSTTY_MOUSE_ENCODER_OPT_TRACK_LAST_CELL = (int)4L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_ENCODER_OPT_TRACK_LAST_CELL = 4
+     * }
+     */
+    public static int GHOSTTY_MOUSE_ENCODER_OPT_TRACK_LAST_CELL() {
+        return GHOSTTY_MOUSE_ENCODER_OPT_TRACK_LAST_CELL;
+    }
+    private static final int GHOSTTY_MOUSE_ENCODER_OPT_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_MOUSE_ENCODER_OPT_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_MOUSE_ENCODER_OPT_MAX_VALUE() {
+        return GHOSTTY_MOUSE_ENCODER_OPT_MAX_VALUE;
+    }
+
+    private static class ghostty_mouse_encoder_new {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_mouse_encoder_new");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_mouse_encoder_new(const GhosttyAllocator *allocator, GhosttyMouseEncoder *encoder)
+     * }
+     */
+    public static FunctionDescriptor ghostty_mouse_encoder_new$descriptor() {
+        return ghostty_mouse_encoder_new.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_mouse_encoder_new(const GhosttyAllocator *allocator, GhosttyMouseEncoder *encoder)
+     * }
+     */
+    public static MethodHandle ghostty_mouse_encoder_new$handle() {
+        return ghostty_mouse_encoder_new.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_mouse_encoder_new(const GhosttyAllocator *allocator, GhosttyMouseEncoder *encoder)
+     * }
+     */
+    public static MemorySegment ghostty_mouse_encoder_new$address() {
+        return ghostty_mouse_encoder_new.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_mouse_encoder_new(const GhosttyAllocator *allocator, GhosttyMouseEncoder *encoder)
+     * }
+     */
+    public static int ghostty_mouse_encoder_new(MemorySegment allocator, MemorySegment encoder) {
+        var mh$ = ghostty_mouse_encoder_new.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_mouse_encoder_new", allocator, encoder);
+            }
+            return (int)mh$.invokeExact(allocator, encoder);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_mouse_encoder_free {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_mouse_encoder_free");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_free(GhosttyMouseEncoder encoder)
+     * }
+     */
+    public static FunctionDescriptor ghostty_mouse_encoder_free$descriptor() {
+        return ghostty_mouse_encoder_free.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_free(GhosttyMouseEncoder encoder)
+     * }
+     */
+    public static MethodHandle ghostty_mouse_encoder_free$handle() {
+        return ghostty_mouse_encoder_free.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_free(GhosttyMouseEncoder encoder)
+     * }
+     */
+    public static MemorySegment ghostty_mouse_encoder_free$address() {
+        return ghostty_mouse_encoder_free.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_free(GhosttyMouseEncoder encoder)
+     * }
+     */
+    public static void ghostty_mouse_encoder_free(MemorySegment encoder) {
+        var mh$ = ghostty_mouse_encoder_free.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_mouse_encoder_free", encoder);
+            }
+            mh$.invokeExact(encoder);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_mouse_encoder_setopt {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_mouse_encoder_setopt");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_setopt(GhosttyMouseEncoder encoder, GhosttyMouseEncoderOption option, const void *value)
+     * }
+     */
+    public static FunctionDescriptor ghostty_mouse_encoder_setopt$descriptor() {
+        return ghostty_mouse_encoder_setopt.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_setopt(GhosttyMouseEncoder encoder, GhosttyMouseEncoderOption option, const void *value)
+     * }
+     */
+    public static MethodHandle ghostty_mouse_encoder_setopt$handle() {
+        return ghostty_mouse_encoder_setopt.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_setopt(GhosttyMouseEncoder encoder, GhosttyMouseEncoderOption option, const void *value)
+     * }
+     */
+    public static MemorySegment ghostty_mouse_encoder_setopt$address() {
+        return ghostty_mouse_encoder_setopt.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_setopt(GhosttyMouseEncoder encoder, GhosttyMouseEncoderOption option, const void *value)
+     * }
+     */
+    public static void ghostty_mouse_encoder_setopt(MemorySegment encoder, int option, MemorySegment value) {
+        var mh$ = ghostty_mouse_encoder_setopt.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_mouse_encoder_setopt", encoder, option, value);
+            }
+            mh$.invokeExact(encoder, option, value);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_mouse_encoder_setopt_from_terminal {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_mouse_encoder_setopt_from_terminal");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_setopt_from_terminal(GhosttyMouseEncoder encoder, GhosttyTerminal terminal)
+     * }
+     */
+    public static FunctionDescriptor ghostty_mouse_encoder_setopt_from_terminal$descriptor() {
+        return ghostty_mouse_encoder_setopt_from_terminal.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_setopt_from_terminal(GhosttyMouseEncoder encoder, GhosttyTerminal terminal)
+     * }
+     */
+    public static MethodHandle ghostty_mouse_encoder_setopt_from_terminal$handle() {
+        return ghostty_mouse_encoder_setopt_from_terminal.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_setopt_from_terminal(GhosttyMouseEncoder encoder, GhosttyTerminal terminal)
+     * }
+     */
+    public static MemorySegment ghostty_mouse_encoder_setopt_from_terminal$address() {
+        return ghostty_mouse_encoder_setopt_from_terminal.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_setopt_from_terminal(GhosttyMouseEncoder encoder, GhosttyTerminal terminal)
+     * }
+     */
+    public static void ghostty_mouse_encoder_setopt_from_terminal(MemorySegment encoder, MemorySegment terminal) {
+        var mh$ = ghostty_mouse_encoder_setopt_from_terminal.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_mouse_encoder_setopt_from_terminal", encoder, terminal);
+            }
+            mh$.invokeExact(encoder, terminal);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_mouse_encoder_reset {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_mouse_encoder_reset");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_reset(GhosttyMouseEncoder encoder)
+     * }
+     */
+    public static FunctionDescriptor ghostty_mouse_encoder_reset$descriptor() {
+        return ghostty_mouse_encoder_reset.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_reset(GhosttyMouseEncoder encoder)
+     * }
+     */
+    public static MethodHandle ghostty_mouse_encoder_reset$handle() {
+        return ghostty_mouse_encoder_reset.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_reset(GhosttyMouseEncoder encoder)
+     * }
+     */
+    public static MemorySegment ghostty_mouse_encoder_reset$address() {
+        return ghostty_mouse_encoder_reset.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void ghostty_mouse_encoder_reset(GhosttyMouseEncoder encoder)
+     * }
+     */
+    public static void ghostty_mouse_encoder_reset(MemorySegment encoder) {
+        var mh$ = ghostty_mouse_encoder_reset.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_mouse_encoder_reset", encoder);
+            }
+            mh$.invokeExact(encoder);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_mouse_encoder_encode {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_LONG,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_mouse_encoder_encode");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_mouse_encoder_encode(GhosttyMouseEncoder encoder, GhosttyMouseEvent event, char *out_buf, size_t out_buf_size, size_t *out_len)
+     * }
+     */
+    public static FunctionDescriptor ghostty_mouse_encoder_encode$descriptor() {
+        return ghostty_mouse_encoder_encode.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_mouse_encoder_encode(GhosttyMouseEncoder encoder, GhosttyMouseEvent event, char *out_buf, size_t out_buf_size, size_t *out_len)
+     * }
+     */
+    public static MethodHandle ghostty_mouse_encoder_encode$handle() {
+        return ghostty_mouse_encoder_encode.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_mouse_encoder_encode(GhosttyMouseEncoder encoder, GhosttyMouseEvent event, char *out_buf, size_t out_buf_size, size_t *out_len)
+     * }
+     */
+    public static MemorySegment ghostty_mouse_encoder_encode$address() {
+        return ghostty_mouse_encoder_encode.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_mouse_encoder_encode(GhosttyMouseEncoder encoder, GhosttyMouseEvent event, char *out_buf, size_t out_buf_size, size_t *out_len)
+     * }
+     */
+    public static int ghostty_mouse_encoder_encode(MemorySegment encoder, MemorySegment event, MemorySegment out_buf, long out_buf_size, MemorySegment out_len) {
+        var mh$ = ghostty_mouse_encoder_encode.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_mouse_encoder_encode", encoder, event, out_buf, out_buf_size, out_len);
+            }
+            return (int)mh$.invokeExact(encoder, event, out_buf, out_buf_size, out_len);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
 
     private static class ghostty_paste_encode {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
@@ -3679,6 +4669,33 @@ public class GhosttyVt extends GhosttyVt$shared {
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
+    }
+    private static final int GHOSTTY_MODS_SHIFT = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * #define GHOSTTY_MODS_SHIFT 1
+     * }
+     */
+    public static int GHOSTTY_MODS_SHIFT() {
+        return GHOSTTY_MODS_SHIFT;
+    }
+    private static final int GHOSTTY_MODS_CTRL = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * #define GHOSTTY_MODS_CTRL 2
+     * }
+     */
+    public static int GHOSTTY_MODS_CTRL() {
+        return GHOSTTY_MODS_CTRL;
+    }
+    private static final int GHOSTTY_MODS_ALT = (int)4L;
+    /**
+     * {@snippet lang=c :
+     * #define GHOSTTY_MODS_ALT 4
+     * }
+     */
+    public static int GHOSTTY_MODS_ALT() {
+        return GHOSTTY_MODS_ALT;
     }
 }
 

@@ -17,7 +17,11 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
+import org.example.kotlintest.ghostty.GhosttyMouse
 import org.example.kotlintest.ghostty.GhosttyRenderer
+import org.example.kotlintest.ghostty.MouseAction
+import org.example.kotlintest.ghostty.MouseButton
+import org.example.kotlintest.ghostty.MouseInput
 import org.example.kotlintest.ghostty.GhosttyTerminal
 import org.example.kotlintest.ghostty.TerminalColors
 import org.example.kotlintest.ghostty.TerminalFrame
@@ -40,6 +44,12 @@ class TerminalSession internal constructor(
     scope: CoroutineScope,
     colors: TerminalColors?,
     private val log: (String) -> Unit = {},
+    /**
+     * Called with input for the terminal's program that the terminal itself worked out, such
+     * as the report of a mouse click. [claims] is true when it is the kind of input that
+     * makes this client the terminal's owner, as typing does.
+     */
+    private val onInput: (data: String, claims: Boolean) -> Unit = { _, _ -> },
     private val open: suspend () -> RexTerminalStream,
 ) {
     sealed interface Status {
@@ -70,6 +80,7 @@ class TerminalSession internal constructor(
     private sealed interface Command {
         class SetColors(val colors: TerminalColors) : Command
         class Scroll(val rows: Int) : Command
+        class Mouse(val input: MouseInput, val scrollRows: Int) : Command
         data object ScrollToBottom : Command
     }
 
@@ -85,11 +96,19 @@ class TerminalSession internal constructor(
 
     fun scrollToBottom() { commands.trySend(Command.ScrollToBottom) }
 
+    /**
+     * Tells the terminal's program what the pointer did, if it asked to know. A turn of the
+     * wheel over a program that hasn't asked scrolls through the history instead, by
+     * [scrollRows]: negative is up, towards older output.
+     */
+    fun mouse(input: MouseInput, scrollRows: Int = 0) { commands.trySend(Command.Mouse(input, scrollRows)) }
+
     fun close() = job.cancel()
 
     private suspend fun run() {
         var terminal: GhosttyTerminal? = null
         var renderer: GhosttyRenderer? = null
+        var mouse: GhosttyMouse? = null
         var stream: RexTerminalStream? = null
         try {
             stream = open()
@@ -97,6 +116,7 @@ class TerminalSession internal constructor(
             val restored = GhosttyTerminal.restore(snapshot)
             terminal = restored.terminal
             renderer = GhosttyRenderer()
+            mouse = GhosttyMouse()
             colors?.let(terminal::setColors)
             mutableGrid.value = GridSize(terminal.columns, terminal.rows)
             log("restored from a ${restored.snapshotBytes}-byte snapshot at ${terminal.columns}×${terminal.rows}")
@@ -126,7 +146,7 @@ class TerminalSession internal constructor(
                         true
                     }
                     commands.onReceive { command ->
-                        handleCommand(live, renderer, command)
+                        handleCommand(live, renderer, mouse, command)
                         true
                     }
                 }
@@ -150,6 +170,7 @@ class TerminalSession internal constructor(
         } finally {
             withContext(NonCancellable) { stream?.close() }
             renderer?.close()
+            mouse?.close()
             terminal?.close()
         }
     }
@@ -192,7 +213,7 @@ class TerminalSession internal constructor(
         }
     }
 
-    private fun handleCommand(terminal: GhosttyTerminal, renderer: GhosttyRenderer, command: Command) {
+    private fun handleCommand(terminal: GhosttyTerminal, renderer: GhosttyRenderer, mouse: GhosttyMouse, command: Command) {
         when (command) {
             is Command.SetColors -> {
                 colors = command.colors
@@ -200,6 +221,15 @@ class TerminalSession internal constructor(
                 renderer.invalidate()
             }
             is Command.Scroll -> terminal.scrollViewport(command.rows)
+            is Command.Mouse -> {
+                val input = command.input
+                val report = mouse.encode(terminal, input)
+                when {
+                    // A click claims the terminal as a key press does; passing over it doesn't.
+                    report.isNotEmpty() -> onInput(String(report, Charsets.ISO_8859_1), input.action == MouseAction.Press && input.button != MouseButton.WheelUp && input.button != MouseButton.WheelDown)
+                    command.scrollRows != 0 -> terminal.scrollViewport(command.scrollRows)
+                }
+            }
             Command.ScrollToBottom -> terminal.scrollToBottom()
         }
     }

@@ -368,6 +368,12 @@ class RexHost(
         control.callBlock("$TERMINAL_CREATOR.write", sessionId, blockId, buildJsonObject { put("data", data) })
     }
 
+    /** Sends a terminal's program input that isn't a key press, such as the report of a mouse click. */
+    private fun write(sessionId: String, blockId: String, data: String, claims: Boolean) = act(null) { control ->
+        if (claims) claim(control, sessionId, blockId)
+        control.callBlock("$TERMINAL_CREATOR.write", sessionId, blockId, buildJsonObject { put("data", data) })
+    }
+
     /**
      * Says how large a block's terminal would be to fill the space this app gives it.
      * It takes effect only for blocks this client owns.
@@ -669,7 +675,11 @@ class RexHost(
     }
 
     private fun openTerminal(connection: RexControl, endpoint: RexEndpoint, sessionId: String, blockId: String) =
-        TerminalSession(sessionId, blockId, scope, terminalColors, log = { log.add(saved.label, "${short(blockId)} $it") }) {
+        TerminalSession(
+            sessionId, blockId, scope, terminalColors,
+            log = { log.add(saved.label, "${short(blockId)} $it") },
+            onInput = { data, claims -> write(sessionId, blockId, data, claims) },
+        ) {
             val ticket = connection.call("data.connect", buildJsonObject {
                 put("session_id", sessionId)
                 put("block_id", blockId)

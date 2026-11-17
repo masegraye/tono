@@ -39,3 +39,10 @@ GhosttyTerminalModeConfig
 ghostty_formatter_(terminal_new|format_alloc|free)
 GHOSTTY_FORMATTER_FORMAT_.*
 GhosttyFormatter(TerminalOptions|TerminalExtra|ScreenExtra)
+
+# Mouse: turning clicks, movement and the wheel into what the program asked to be sent
+ghostty_mouse_encoder_(new|free|setopt|setopt_from_terminal|reset|encode)
+ghostty_mouse_event_(new|free|set_action|set_button|clear_button|set_mods|set_position)
+GhosttyMouse(EncoderSize|Position)
+GHOSTTY_MOUSE_(ACTION|BUTTON|ENCODER_OPT)_.*
+GHOSTTY_MODS_(SHIFT|CTRL|ALT)
