@@ -77,6 +77,7 @@ import org.example.kotlintest.rex.PaneView
 import org.example.kotlintest.rex.RexHost
 import org.example.kotlintest.rex.SessionView
 import org.example.kotlintest.rex.TerminalSession
+import org.example.kotlintest.rex.TabName
 import org.example.kotlintest.rex.WindowView
 import java.awt.AWTEvent
 import java.awt.Toolkit
@@ -121,7 +122,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
         Box(
             Modifier.fillMaxSize().focusRequester(rootFocus).focusable().onPreviewKeyEvent { event ->
                 val awt = event.awtEventOrNull ?: return@onPreviewKeyEvent false
-                if (ui.palette != null) return@onPreviewKeyEvent false // the palette has the keyboard
+                if (ui.palette != null || ui.renaming != null) return@onPreviewKeyEvent false // an overlay has the keyboard
                 when (awt.id) {
                     KeyEvent.KEY_PRESSED -> {
                         val chord = keyChord(awt) ?: return@onPreviewKeyEvent false
@@ -156,6 +157,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
                 }
             }
             ui.palette?.let { CommandPalette(ui, commands, it) }
+            ui.renaming?.let { renaming -> RenameTabDialog(renaming, onDismiss = { ui.renaming = null; ui.returnFocusToTerminal() }) }
             ui.confirmation?.let { pending ->
                 val dismiss = { ui.confirmation = null; ui.returnFocusToTerminal() }
                 // The confirm button has the keyboard, so Enter confirms and Escape cancels.
@@ -199,6 +201,8 @@ private fun Sidebar(
         animationSpec = if (ui.controlHeld) tween(durationMillis = 140, delayMillis = 160) else tween(durationMillis = 200),
         label = "shortcut digits",
     )
+
+    var lastTabClick by remember { mutableStateOf<Pair<NavigationStop, Long>?>(null) }
 
     Column(
         Modifier.width(240.dp).fillMaxHeight().background(MaterialTheme.colorScheme.surfaceContainerLow),
@@ -250,12 +254,20 @@ private fun Sidebar(
                     for (tab in windows) {
                         val stop = NavigationStop(label, session.id, tab.id)
                         TabRow(
-                            label = tab.label,
+                            name = state.nameOf(tab),
                             digit = tabShortcutDigit(tabs.indexOf(stop), tabs.size),
                             digitAlpha = digitAlpha,
                             showing = host === selected && session.id == state.selectedSessionId && tab.id == layout?.activeWindow?.id,
                             activity = state.activityOf(tab),
-                            onClick = { ui.go(stop) },
+                            // A second click soon after the first renames the tab. The first still
+                            // goes to it at once: waiting to see whether a second follows would
+                            // make every switch feel slow.
+                            onClick = {
+                                val now = System.currentTimeMillis()
+                                val again = lastTabClick?.let { (clicked, at) -> clicked == stop && now - at < DOUBLE_CLICK_MILLIS } == true
+                                lastTabClick = if (again) null else stop to now
+                                if (again) ui.renameTab(host, session.id, tab) else ui.go(stop)
+                            },
                         )
                     }
                 }
@@ -374,7 +386,7 @@ private fun hoverFade(appearing: Boolean) = tween<Float>(durationMillis = if (ap
 
 /** A tab: what you go to. */
 @Composable
-private fun TabRow(label: String, digit: Int?, digitAlpha: Float, showing: Boolean, activity: ActivityState, onClick: () -> Unit) {
+private fun TabRow(name: TabName, digit: Int?, digitAlpha: Float, showing: Boolean, activity: ActivityState, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -385,14 +397,29 @@ private fun TabRow(label: String, digit: Int?, digitAlpha: Float, showing: Boole
             .clickable(onClick = onClick)
             .padding(start = 14.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
     ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (showing) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
+        // The name comes first and takes what it needs; the directory gets what is left, and
+        // loses its start when that isn't enough, since its last folder says the most.
+        Row(Modifier.weight(1f)) {
+            Text(
+                name.text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (showing) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.alignByBaseline(),
+            )
+            // Where the tab's program is, in the quiet style of a session heading.
+            name.directory?.let { directory ->
+                Text(
+                    directory,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (showing) MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    maxLines = 1,
+                    overflow = TextOverflow.StartEllipsis,
+                    modifier = Modifier.padding(start = 8.dp).weight(1f, fill = false).alignByBaseline(),
+                )
+            }
+        }
         ActivityDots(activity)
         ShortcutDigit(digit, digitAlpha)
     }
@@ -557,3 +584,6 @@ private fun Notice(text: String) {
         Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+/** How soon a second click on a tab must follow the first to count as a double click. */
+private const val DOUBLE_CLICK_MILLIS = 400L

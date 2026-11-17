@@ -1,6 +1,9 @@
 package org.example.kotlintest.rex
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeout
@@ -28,11 +31,15 @@ import org.example.kotlintest.ghostty.TerminalColors
  * workspace and restored on the next start.
  */
 class RexClient(
-    private val scope: CoroutineScope,
+    parentScope: CoroutineScope,
     /** What is remembered between runs. The app keeps its sidebar's folded state here too. */
     val workspace: Workspace = Workspace.load(),
     private val info: RexClientInfo = RexClientInfo(name = "kotlin-test", version = "0.1.0"),
 ) : AutoCloseable {
+    // The client's own work, under the caller's scope but ended by close(): a caller that
+    // waits for its scope to finish (a command-line tool in runBlocking) would otherwise
+    // wait forever on the loops started here.
+    private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]))
     private val http = rexHttpClient()
     private val mutableHosts = MutableStateFlow<List<RexHost>>(emptyList())
     private val mutableSelectedHost = MutableStateFlow<String?>(null)
@@ -160,6 +167,7 @@ class RexClient(
 
     override fun close() {
         mutableHosts.value.forEach { it.close() }
+        scope.cancel()
         http.close()
     }
 }

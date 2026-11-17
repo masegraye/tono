@@ -252,3 +252,75 @@ class ActivityStateTest {
         assertEquals(ActivityState.Idle, state.activityOf(window()))
     }
 }
+
+class TabNamesTest {
+    private fun window(id: String, label: String, focused: String? = "block:a") =
+        WindowView(id, label, focusedBlockId = focused, zoomedBlockId = null, panes = listOf(PaneView("block:a", PaneRect.Full, "shell", null, isTerminal = true, floating = false)))
+
+    private fun process(text: String) = programName(Json.parseToJsonElement(text).jsonObject)
+
+    @Test
+    fun `a program is called by its script, then how it was invoked, then its executable`() {
+        assertEquals("bash", process("""{"foreground":{"name":"bash","argv0":"-bash","path":"/usr/bin/bash"}}"""))
+        assertEquals("btop", process("""{"foreground":{"name":"btop","argv0":"/usr/bin/btop"}}"""))
+        assertEquals("deploy.py", process("""{"foreground":{"name":"python3.12","argv0":"python3","script":"/home/u/bin/deploy.py"}}"""))
+        assertEquals("zsh", process("""{"child":{"name":"zsh"}}"""), "a reply that can't name the foreground still names the terminal's own program")
+        assertNull(process("""{"foreground":{"name":""}}"""))
+        assertNull(programName(null))
+    }
+
+    @Test
+    fun `only the server's own placeholder counts as an unnamed tab`() {
+        assertTrue(window("window:01a1-89abcdef", "Window 89abcdef").hasDefaultLabel())
+        assertTrue(window("window:01a1-89abcdef", "window:01a1-89abcdef").hasDefaultLabel())
+        assertTrue(window("window:01a1-89abcdef", "").hasDefaultLabel())
+        assertTrue(!window("window:01a1-89abcdef", "DesktopApp").hasDefaultLabel())
+        assertTrue(!window("window:01a1-89abcdef", "Window 12345678").hasDefaultLabel(), "another window's placeholder is a name someone typed")
+        assertTrue(!window("window:01a1-89abcdef", "Window").hasDefaultLabel())
+    }
+
+    @Test
+    fun `an unnamed tab is called by the program in its focused pane, and a given name wins`() {
+        val unnamed = window("window:01a1-89abcdef", "Window 89abcdef")
+        val state = HostState(programs = mapOf("block:a" to ForegroundProgram("nvim", cwd = "/home/u/dev/rex", home = "/home/u")))
+        assertEquals(TabName("nvim", "~/dev/rex"), state.nameOf(unnamed))
+        assertEquals(TabName("logs"), state.nameOf(unnamed.copy(label = "logs")), "a given name stands alone")
+        assertEquals(TabName("Window 89abcdef"), HostState().nameOf(unnamed), "the placeholder shows until the server names a program")
+    }
+
+    private fun program(text: String, known: ForegroundProgram? = null) = foregroundProgram(Json.parseToJsonElement(text).jsonObject, known)
+
+    @Test
+    fun `a program is where it runs, or where the nearest process above it does`() {
+        assertEquals(
+            ForegroundProgram("bash", "/home/u", "/home/u"),
+            program("""{"home":"/home/u","child":{"name":"bash","cwd":"/home/u"},"foreground":{"name":"bash","argv0":"-bash","cwd":"/home/u"}}"""),
+        )
+        // Under sudo the program's own directory can't be read; the shell it was started from is close enough.
+        assertEquals(
+            "/srv/app",
+            program("""{"foreground":{"name":"vim"},"ancestors":[{"name":"sudo"},{"name":"zsh","cwd":"/srv/app"}]}""")?.cwd,
+        )
+        assertNull(program("""{"foreground":{"name":"btop"}}""")?.cwd)
+        assertNull(program("""{"foreground":{"name":"btop","cwd":"relative"}}""")?.cwd, "only an absolute path is a place")
+        assertNull(program("""{"home":"/home/u"}"""), "no program, nothing to show")
+    }
+
+    @Test
+    fun `an event that leaves the home directory out keeps the one already known`() {
+        val before = ForegroundProgram("zsh", "/home/u", "/home/u")
+        val after = program("""{"foreground":{"name":"make","cwd":"/home/u/dev/rex"}}""", before)
+        assertEquals("~/dev/rex", after?.directory)
+    }
+
+    @Test
+    fun `a directory is shown from home, and a long one by its last folders`() {
+        assertEquals("~", shortDirectory("/home/u", "/home/u"))
+        assertEquals("~", shortDirectory("/home/u", "/home/u/"))
+        assertEquals("~/dev/rex", shortDirectory("/home/u/dev/rex", "/home/u"))
+        assertEquals("/home/user2", shortDirectory("/home/user2", "/home/u"), "a name that only starts like home isn't under it")
+        assertEquals("/etc/nginx", shortDirectory("/etc/nginx", null))
+        assertEquals("…/data_tools/atlas", shortDirectory("/home/u/dev/data_tools/atlas", "/home/u", room = 18))
+        assertEquals("…/a-very-long-folder-name-indeed", shortDirectory("/srv/a-very-long-folder-name-indeed", null, room = 18), "the last folder always shows")
+    }
+}

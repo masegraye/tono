@@ -12,12 +12,21 @@ import org.example.kotlintest.rex.RexHost
 import org.example.kotlintest.rex.SessionView
 import org.example.kotlintest.rex.TerminalSession
 import org.example.kotlintest.rex.WindowView
+import org.example.kotlintest.rex.hasDefaultLabel
 
 /** What the command palette is listing. */
 enum class PaletteMode { Commands, Sessions, Hosts }
 
 /** Something destructive, waiting for the user to agree to it. */
 class Confirmation(val title: String, val text: String, val confirmLabel: String, val onConfirm: () -> Unit)
+
+/**
+ * A tab whose name is being edited.
+ *
+ * @param givenName the name someone gave it, or empty if it has none
+ * @param automaticName what it is called while it has none
+ */
+class TabRename(val host: RexHost, val sessionId: String, val windowId: String, val givenName: String, val automaticName: String)
 
 /**
  * The state of the app's own interface, as opposed to what the servers report: which
@@ -30,6 +39,7 @@ class RexUiState(val client: RexClient) {
     var debugLogVisible by mutableStateOf(false)
     var fontSize by mutableIntStateOf(DEFAULT_FONT_SIZE)
     var confirmation: Confirmation? by mutableStateOf(null)
+    var renaming: TabRename? by mutableStateOf(null)
     var showcase by mutableStateOf(false)
 
     /** True while Control is down. The sidebar shows each tab's shortcut digit for as long as it is. */
@@ -82,6 +92,14 @@ class RexUiState(val client: RexClient) {
     /** The pane that has the keyboard. Focus is the session's own state, so this is the server's answer. */
     val focusedBlockId: String? get() = window?.let(::focusedBlockOf)
     val focusedTerminal: TerminalSession? get() = focusedBlockId?.let { hostState?.terminals?.get(it) }
+
+    /** Asks for a new name for a tab, which need not be the one showing. */
+    fun renameTab(host: RexHost, sessionId: String, tab: WindowView) {
+        val state = host.state.value
+        // What it is called without a name, whether or not it has one now.
+        val automatic = state.nameOf(tab.copy(label = "")).let { name -> listOfNotNull(name.text, name.directory).joinToString("  ") }
+        renaming = TabRename(host, sessionId, tab.id, givenName = if (tab.hasDefaultLabel()) "" else tab.label, automaticName = automatic)
+    }
 
     /** Opens a tab in a session, which need not be the one showing, and goes to it. */
     fun newTab(host: RexHost, sessionId: String) {

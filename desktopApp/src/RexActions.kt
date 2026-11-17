@@ -139,12 +139,17 @@ internal fun clientActions(): List<ClientAction> = buildList {
         val tab = window ?: return@ClientAction
         val owner = host ?: return@ClientAction
         confirmation = Confirmation(
-            title = "Close tab “${tab.label}”?",
+            title = "Close tab “${owner.state.value.nameOf(tab).text}”?",
             text = if (tab.panes.size > 1) "Its ${tab.panes.size} panes will close, and the programs running in them will end."
             else "The program running in it will end.",
             confirmLabel = "Close Tab",
             onConfirm = { owner.closeWindow(tab.id) },
         )
+    })
+    add(ClientAction("client.tab.rename", "Rename Tab…", "Tab", "name label title window", available = { window != null }) {
+        val tab = window ?: return@ClientAction
+        val owner = host ?: return@ClientAction
+        renameTab(owner, owner.state.value.selectedSessionId ?: return@ClientAction, tab)
     })
     // Tabs are one list across every session and host, in sidebar order, so "next" carries
     // on from a session's last tab into the next session's first.

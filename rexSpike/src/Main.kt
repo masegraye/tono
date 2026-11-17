@@ -82,7 +82,8 @@ private suspend fun kotlinx.coroutines.CoroutineScope.probe(args: Array<String>)
             if (layout == null) println("    (layout not read)")
             for (window in layout?.windows.orEmpty()) {
                 val activity = state.activityOf(window).takeIf { it != org.example.kotlintest.rex.ActivityState.Idle }?.let { "  [${it.name.lowercase()}]" }.orEmpty()
-                println("    tab ${window.label}${if (window.id == layout?.activeWindowId) "  <- active" else ""}  (${window.panes.size} pane${if (window.panes.size == 1) "" else "s"})$activity")
+                val name = state.nameOf(window)
+                println("    tab ${listOfNotNull(name.text, name.directory).joinToString("  ")}${if (name.text != window.label) "  (label: ${window.label})" else ""}${if (window.id == layout?.activeWindowId) "  <- active" else ""}  (${window.panes.size} pane${if (window.panes.size == 1) "" else "s"})$activity")
             }
         }
         val view = state.view ?: continue

@@ -102,6 +102,12 @@ When it starts it connects to every configured server at once and restores where
   to. Clicking a server or a session folds it away. With the pointer over one, a plus fades in that creates what
   belongs under it: a session on that server, or a tab in that session. The layouts of all sessions are read and
   kept current, not just the one on screen.
+- A tab is called by the program in the foreground of its focused pane, with that program's directory beside it in
+  quieter text (`nvim  ~/dev/rex`), and follows it as commands start and finish. Rex itself stores only a label per
+  window, which is a placeholder such as `Window 89abcdef` until someone sets it; what to show instead of the
+  placeholder is each client's choice, made here from the process the server reports for the terminal. Naming a tab
+  (Rename Tab… in the palette, or a double click on it) sets that label, so the name shows in every client and stays
+  until it is cleared. Saving an empty name clears it, and the tab is called by its program again.
 - Three dots beside a tab show what its program says it is doing (programs report this with OSC 7501): rippling
   while it works, steady in the accent color while it waits for you, and in the error color after a failure. A
   folded server or session shows the dots for whatever is inside it.

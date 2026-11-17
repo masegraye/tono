@@ -56,9 +56,25 @@ data class HostState(
      * A terminal whose program has reported nothing, or is idle, has no entry.
      */
     val activity: Map<String, ActivityState> = emptyMap(),
+    /**
+     * The program in the foreground of each terminal, by block id, for every session: the
+     * shell at its prompt, or the command it is running. Missing until the server has said.
+     */
+    val programs: Map<String, ForegroundProgram> = emptyMap(),
 ) {
     /** The selected session's layout. */
     val view: SessionView? get() = views[selectedSessionId]
+
+    /**
+     * What to call a tab: the name someone gave it, or until someone does, the program
+     * running in its focused pane and the directory that program is in. The server's
+     * placeholder shows only while the program isn't known.
+     */
+    fun nameOf(window: WindowView): TabName {
+        if (!window.hasDefaultLabel()) return TabName(window.label)
+        val program = programs[window.focusedBlockId ?: window.panes.firstOrNull()?.blockId] ?: return TabName(window.label)
+        return TabName(program.name, program.directory)
+    }
 
     /** The most pressing thing any pane of a tab is doing. */
     fun activityOf(window: WindowView): ActivityState =
@@ -207,6 +223,19 @@ class RexHost(
     /** Closes a pane and ends the program in it. */
     fun closeBlock(blockId: String) = act("close pane") { control ->
         control.call("block.close", sessionPayload { put("block_id", blockId) })
+    }
+
+    /**
+     * Names a tab, in any session. The name is the window's label on the server, so every
+     * client shows it. An empty name clears it, and the tab goes back to being called by
+     * the program running in it.
+     */
+    fun renameTab(sessionId: String, windowId: String, name: String) = act("rename tab") { control ->
+        control.call("session.set_window_label", buildJsonObject {
+            put("session_id", sessionId)
+            put("window_id", windowId)
+            put("label", name.trim())
+        })
     }
 
     /** Closes a tab and every pane in it. */
@@ -406,7 +435,7 @@ class RexHost(
             statusRecords.clear()
             statusRead.clear()
             mutableState.value.terminals.values.forEach { it.close() }
-            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason), views = emptyMap(), terminals = emptyMap(), activity = emptyMap()) }
+            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason), views = emptyMap(), terminals = emptyMap(), activity = emptyMap(), programs = emptyMap()) }
             val delayMillis = RETRY_DELAYS_MILLIS[minOf(attempt++, RETRY_DELAYS_MILLIS.lastIndex)]
             log.add(saved.label, "disconnected: $reason. Trying again in ${delayMillis / 1000.0}s", isError = true)
             withTimeoutOrNull(delayMillis) { retryNow.receive() }
@@ -509,7 +538,18 @@ class RexHost(
             for (record in records.mapNotNull { it as? JsonObject }) {
                 setStatus(pane.blockId, record.string("id").orEmpty(), ActivityState.parse(record.string("state")))
             }
+            setProgram(pane.blockId, runCatching { connection.callBlock("$TERMINAL_CREATOR.process", view.sessionId, pane.blockId) }.getOrNull())
         }
+    }
+
+    /**
+     * Records the program in a terminal's foreground, from a `process` reply or a
+     * `process_changed` event. One that names no program keeps the last one known.
+     */
+    private fun setProgram(blockId: String, process: JsonObject?) {
+        val known = state.value.programs[blockId]
+        val program = foregroundProgram(process, known) ?: return
+        if (program != known) mutableState.update { it.copy(programs = it.programs + (blockId to program)) }
     }
 
     /** Records one status report, and updates what the block as a whole is doing. Null removes the record. */
@@ -579,12 +619,14 @@ class RexHost(
                 val fields = event.payload.obj("payload")
                 when (event.payload.string("name")) {
                     "program_status_changed" -> setStatus(blockId, fields?.string("id").orEmpty(), ActivityState.parse(fields?.obj("record")?.string("state")))
+                    "process_changed" -> setProgram(blockId, fields)
                     "program_status_removed" -> (fields?.get("ids") as? JsonArray).orEmpty().forEach { id -> setStatus(blockId, (id as? JsonPrimitive)?.content.orEmpty(), null) }
                 }
             }
             "block_closed" -> event.payload.string("block_id")?.let { blockId ->
                 statusRecords.remove(blockId)
                 publishActivity(blockId)
+                mutableState.update { it.copy(programs = it.programs - blockId) }
             }
             // Says only that a session's layout changed, so fetch it, unless this one is already known.
             "session_view_changed" -> event.sessionId?.let { sessionId ->
