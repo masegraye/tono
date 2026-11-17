@@ -18,6 +18,11 @@ data class SessionView(
     val label: String,
     /** Goes up by one with every change, so a newer view always has a higher revision. */
     val revision: Long,
+    /**
+     * The window the session itself counts as active: the last one any client went to. It is
+     * where a command that names no window acts. It is not what this app shows; see
+     * [HostState.shownWindow].
+     */
     val activeWindowId: String?,
     val windows: List<WindowView>,
 ) {

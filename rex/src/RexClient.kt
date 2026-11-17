@@ -249,6 +249,12 @@ class RexClient(
             workspace.sessions[saved.label] = sessionId
             workspace.save()
         },
+        rememberedTabs = workspace.tabs.toMap(),
+        onTabShown = { sessionId, windowId ->
+            val before = workspace.tabs[sessionId]
+            if (windowId == null) workspace.tabs.remove(sessionId) else workspace.tabs[sessionId] = windowId
+            if (before != windowId) workspace.save()
+        },
         // The keymap belongs to the home server; read it when that connects or its configuration changes.
         onServerEvent = { type ->
             if (type == "connected" || type == "keymap_changed") keymapRefresh.trySend(Unit)

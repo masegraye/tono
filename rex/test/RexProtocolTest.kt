@@ -373,3 +373,22 @@ class TailnetTest {
         assertEquals("rex", suggestedHostLabel("unix:///tmp/rex.sock"))
     }
 }
+
+class ShownTabTest {
+    private fun window(id: String) = WindowView(id, id, focusedBlockId = null, zoomedBlockId = null, panes = emptyList())
+    private fun session(active: String) = SessionView("s", "work", revision = 1, activeWindowId = active, windows = listOf(window("w1"), window("w2"), window("w3")))
+
+    @Test
+    fun `the tab shown is this app's own choice, not the session's active window`() {
+        val chosen = HostState(selectedSessionId = "s", views = mapOf("s" to session(active = "w1")), shownWindows = mapOf("s" to "w2"))
+        assertEquals("w2", chosen.window?.id)
+        // Another client goes to a third tab. The session's active window follows it; this app doesn't.
+        assertEquals("w2", chosen.copy(views = mapOf("s" to session(active = "w3"))).window?.id)
+    }
+
+    @Test
+    fun `a session with no choice yet, or whose chosen tab closed, shows its active window`() {
+        assertEquals("w3", HostState(selectedSessionId = "s", views = mapOf("s" to session(active = "w3"))).window?.id)
+        assertEquals("w1", HostState(selectedSessionId = "s", views = mapOf("s" to session(active = "w1")), shownWindows = mapOf("s" to "gone")).window?.id)
+    }
+}

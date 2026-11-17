@@ -101,7 +101,7 @@ class RexUiState(val client: RexClient) {
         get() = client.hosts.value.let { hosts -> hosts.firstOrNull { it.saved.label == client.selectedHost.value } ?: hosts.firstOrNull() }
     val hostState: HostState? get() = host?.state?.value
     val view: SessionView? get() = hostState?.view
-    val window: WindowView? get() = view?.activeWindow
+    val window: WindowView? get() = hostState?.window
 
     /** The pane that has the keyboard. Focus is the session's own state, so this is the server's answer. */
     val focusedBlockId: String? get() = window?.let(::focusedBlockOf)
@@ -135,7 +135,11 @@ class RexUiState(val client: RexClient) {
         returnFocusToTerminal()
     }
 
-    private fun hostStates(): List<Pair<String, HostState>> = client.hosts.value.map { it.saved.label to it.state.value }
+    /** The hosts in the order the sidebar lists them. */
+    fun orderedHosts(): List<RexHost> =
+        sidebarOrder(client.hosts.value.map { it to it.state.value }, client.homeLabel) { it.saved.label }.map { it.first }
+
+    private fun hostStates(): List<Pair<String, HostState>> = orderedHosts().map { it.saved.label to it.state.value }
 
     /**
      * The tabs the sidebar is listing, in its order: every tab of every session on every host,
@@ -202,6 +206,21 @@ data class NavigationStop(val host: String, val sessionId: String, val windowId:
  *
  * @param hosts each host's label and state, in sidebar order
  */
+/**
+ * The order hosts are listed in: this machine's server first, then the hosts that are
+ * connected, then the ones that aren't, each group by name. A host that can't be reached
+ * sinks to the bottom, where it takes no room from the ones in use.
+ */
+internal fun <T> sidebarOrder(hosts: List<Pair<T, HostState>>, home: String?, label: (T) -> String): List<Pair<T, HostState>> =
+    hosts.sortedWith(
+        compareBy<Pair<T, HostState>>(
+            { label(it.first) != home },
+            { it.second.connection != HostConnection.Connected },
+            { label(it.first).lowercase() },
+            { label(it.first) },
+        ),
+    )
+
 internal fun linearTabs(
     hosts: List<Pair<String, HostState>>,
     collapsedHosts: Set<String> = emptySet(),

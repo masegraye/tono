@@ -193,8 +193,8 @@ private fun Sidebar(
     paletteShortcut: String?,
 ) {
     // Every host's state, read here so that tabs can be numbered across all of them.
-    val states = hosts.map { host -> key(host) { host.state.collectAsState().value } }
-    val tabs = linearTabs(hosts.map { it.saved.label }.zip(states), ui.collapsedHosts, ui.collapsedSessions)
+    val ordered = sidebarOrder(hosts.map { host -> host to key(host) { host.state.collectAsState().value } }, ui.client.homeLabel) { it.saved.label }
+    val tabs = linearTabs(ordered.map { (host, state) -> host.saved.label to state }, ui.collapsedHosts, ui.collapsedSessions)
     // The digits appear while Control is held, and stay until it is let go, however many
     // tabs are visited in between. The short delay keeps them from flashing on a quick Control+C.
     val digitAlpha by animateFloatAsState(
@@ -202,8 +202,6 @@ private fun Sidebar(
         animationSpec = if (ui.controlHeld) tween(durationMillis = 140, delayMillis = 160) else tween(durationMillis = 200),
         label = "shortcut digits",
     )
-
-    var lastTabClick by remember { mutableStateOf<Pair<NavigationStop, Long>?>(null) }
 
     Column(
         Modifier.width(240.dp).fillMaxHeight().background(MaterialTheme.colorScheme.surfaceContainerLow),
@@ -225,8 +223,7 @@ private fun Sidebar(
             }
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 12.dp)) {
-            hosts.forEachIndexed { hostIndex, host ->
-                val state = states[hostIndex]
+            for ((host, state) in ordered) key(host) {
                 val label = host.saved.label
                 val hostCollapsed = label in ui.collapsedHosts
                 HostHeader(
@@ -239,44 +236,87 @@ private fun Sidebar(
                     onNewSession = { ui.newSession(host) },
                     onRetry = host::retry,
                 )
-                if (hostCollapsed) return@forEachIndexed
-                for (session in state.sessions) {
-                    val layout = state.views[session.id]
-                    val windows = layout?.windows.orEmpty()
-                    val collapsed = session.id in ui.collapsedSessions
-                    SessionHeader(
-                        label = session.label,
-                        collapsed = collapsed,
-                        tabCount = windows.size,
-                        activity = if (collapsed) windows.maxOfOrNull(state::activityOf) ?: ActivityState.Idle else ActivityState.Idle,
-                        onClick = { ui.toggleSession(session.id) },
-                        onNewTab = { ui.newTab(host, session.id) },
-                    )
-                    if (collapsed) continue
-                    for (tab in windows) {
-                        val stop = NavigationStop(label, session.id, tab.id)
-                        TabRow(
-                            name = state.nameOf(tab),
-                            digit = tabShortcutDigit(tabs.indexOf(stop), tabs.size),
-                            digitAlpha = digitAlpha,
-                            showing = host === selected && session.id == state.selectedSessionId && tab.id == layout?.activeWindow?.id,
-                            activity = state.activityOf(tab),
-                            // A second click soon after the first renames the tab. The first still
-                            // goes to it at once: waiting to see whether a second follows would
-                            // make every switch feel slow.
-                            onClick = {
-                                val now = System.currentTimeMillis()
-                                val again = lastTabClick?.let { (clicked, at) -> clicked == stop && now - at < DOUBLE_CLICK_MILLIS } == true
-                                lastTabClick = if (again) null else stop to now
-                                if (again) ui.renameTab(host, session.id, tab) else ui.go(stop)
-                            },
-                        )
-                    }
-                }
+                // A host's sessions can be dragged into another order, and so can a session's
+                // tabs. Both orders are the server's, so they change for every client.
+                if (!hostCollapsed) HostSessions(host, state, selected, ui, tabs, digitAlpha)
             }
         }
     }
 }
+
+/** The sessions of one host, each a heading over its tabs. */
+@Composable
+private fun HostSessions(host: RexHost, state: HostState, selected: RexHost?, ui: RexUiState, tabs: List<NavigationStop>, digitAlpha: Float) {
+    val sessionOrder = rememberReorder(state.sessions.map { it.id }) { session, before -> host.moveSession(session, before) }
+    Column {
+        for (session in state.sessions) key(session.id) {
+            val windows = state.views[session.id]?.windows.orEmpty()
+            val collapsed = session.id in ui.collapsedSessions
+            // A session is dragged by its heading and moves whole, tabs and all.
+            Column(Modifier.reorderItem(sessionOrder, session.id).dragOutline(sessionOrder.isDragging(session.id))) {
+                SessionHeader(
+                    label = session.label,
+                    collapsed = collapsed,
+                    tabCount = windows.size,
+                    activity = if (collapsed) windows.maxOfOrNull(state::activityOf) ?: ActivityState.Idle else ActivityState.Idle,
+                    onClick = { ui.toggleSession(session.id) },
+                    onNewTab = { ui.newTab(host, session.id) },
+                    modifier = Modifier.reorderHandle(sessionOrder, session.id),
+                )
+                if (!collapsed) SessionTabs(host, state, session.id, windows, showing = host === selected && session.id == state.selectedSessionId, ui, tabs, digitAlpha)
+            }
+        }
+    }
+}
+
+/** The tabs of one session. */
+@Composable
+private fun SessionTabs(
+    host: RexHost,
+    state: HostState,
+    sessionId: String,
+    windows: List<WindowView>,
+    showing: Boolean,
+    ui: RexUiState,
+    tabs: List<NavigationStop>,
+    digitAlpha: Float,
+) {
+    val tabOrder = rememberReorder(windows.map { it.id }) { tab, before -> host.moveTab(sessionId, tab, before) }
+    var lastClick by remember { mutableStateOf<Pair<String, Long>?>(null) }
+    Column {
+        for (tab in windows) key(tab.id) {
+            val stop = NavigationStop(host.saved.label, sessionId, tab.id)
+            TabRow(
+                name = state.nameOf(tab),
+                digit = tabShortcutDigit(tabs.indexOf(stop), tabs.size),
+                digitAlpha = digitAlpha,
+                showing = showing && tab.id == state.shownWindow(sessionId)?.id,
+                activity = state.activityOf(tab),
+                dragging = tabOrder.isDragging(tab.id),
+                // A second click soon after the first renames the tab. The first still goes
+                // to it at once: waiting to see whether a second follows would make every
+                // switch feel slow.
+                onClick = {
+                    val now = System.currentTimeMillis()
+                    val again = lastClick?.let { (clicked, at) -> clicked == tab.id && now - at < DOUBLE_CLICK_MILLIS } == true
+                    lastClick = if (again) null else tab.id to now
+                    if (again) ui.renameTab(host, sessionId, tab) else ui.go(stop)
+                },
+                modifier = Modifier.reorderItem(tabOrder, tab.id).reorderHandle(tabOrder, tab.id),
+            )
+        }
+    }
+}
+
+/**
+ * Marks what is being dragged: a soft panel and outline around all of it, so a session shows
+ * as one piece with its tabs. Drawn within its own bounds, so nothing shifts when it appears.
+ */
+@Composable
+private fun Modifier.dragOutline(dragging: Boolean): Modifier =
+    if (!dragging) this
+    else background(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.shapes.small)
+        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), MaterialTheme.shapes.small)
 
 /**
  * A host: a heading over its sessions. Clicking it folds them away. With the pointer over
@@ -350,13 +390,21 @@ private fun HostHeader(
  * pointer over it, a plus appears that opens a tab in this session.
  */
 @Composable
-private fun SessionHeader(label: String, collapsed: Boolean, tabCount: Int, activity: ActivityState, onClick: () -> Unit, onNewTab: () -> Unit) {
+private fun SessionHeader(
+    label: String,
+    collapsed: Boolean,
+    tabCount: Int,
+    activity: ActivityState,
+    onClick: () -> Unit,
+    onNewTab: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val quiet = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().hoverable(interaction).clickable(onClick = onClick).padding(start = 14.dp, end = 6.dp, top = 7.dp, bottom = 0.dp),
+        modifier = modifier.fillMaxWidth().hoverable(interaction).clickable(onClick = onClick).padding(start = 14.dp, end = 6.dp, top = 7.dp, bottom = 0.dp),
     ) {
         Text(
             label,
@@ -401,14 +449,31 @@ private fun hoverFade(appearing: Boolean) = tween<Float>(durationMillis = if (ap
 
 /** A tab: what you go to. */
 @Composable
-private fun TabRow(name: TabName, digit: Int?, digitAlpha: Float, showing: Boolean, activity: ActivityState, onClick: () -> Unit) {
+private fun TabRow(
+    name: TabName,
+    digit: Int?,
+    digitAlpha: Float,
+    showing: Boolean,
+    activity: ActivityState,
+    dragging: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 6.dp, vertical = 1.dp)
             .clip(MaterialTheme.shapes.small)
-            .background(if (showing) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .background(
+                when {
+                    showing -> MaterialTheme.colorScheme.secondaryContainer
+                    dragging -> MaterialTheme.colorScheme.surfaceContainerHighest
+                    else -> Color.Transparent
+                },
+            )
+            // While it is dragged, an outline sets it apart from the tabs it passes over.
+            .border(1.dp, if (dragging) MaterialTheme.colorScheme.outline.copy(alpha = 0.6f) else Color.Transparent, MaterialTheme.shapes.small)
             .clickable(onClick = onClick)
             .padding(start = 14.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
     ) {
@@ -508,7 +573,7 @@ private fun FoldMark(collapsed: Boolean, visible: Boolean) {
 private fun HostContent(host: RexHost, ui: RexUiState, modifier: Modifier) {
     val state by host.state.collectAsState()
     val view = state.view
-    val window = view?.activeWindow
+    val window = state.window
     val panes = window?.panes.orEmpty().filter { window?.zoomedBlockId == null || it.blockId == window.zoomedBlockId }
     // Which pane has the keyboard is the session's own state, so every client agrees on it.
     val focusedId = window?.let(::focusedBlockOf)

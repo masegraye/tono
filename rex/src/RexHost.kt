@@ -61,9 +61,25 @@ data class HostState(
      * shell at its prompt, or the command it is running. Missing until the server has said.
      */
     val programs: Map<String, ForegroundProgram> = emptyMap(),
+    /**
+     * The tab this app shows in each session, by session id. Which tab a client is looking
+     * at is the client's own business: two clients on one session see the same terminals
+     * and each other's typing, but each chooses its own tab. The session's active window on
+     * the server is only where this starts, and where it falls back when the tab closes.
+     */
+    val shownWindows: Map<String, String> = emptyMap(),
 ) {
     /** The selected session's layout. */
     val view: SessionView? get() = views[selectedSessionId]
+
+    /** The tab this app shows in a session: the one it last went to there, else the session's active one. */
+    fun shownWindow(sessionId: String?): WindowView? {
+        val view = views[sessionId] ?: return null
+        return view.windows.firstOrNull { it.id == shownWindows[sessionId] } ?: view.activeWindow
+    }
+
+    /** The tab on screen: the selected session's shown one. */
+    val window: WindowView? get() = shownWindow(selectedSessionId)
 
     /**
      * What to call a tab: the name someone gave it, or until someone does, the program
@@ -129,11 +145,15 @@ class RexHost(
     val discovered: Boolean = false,
     private val log: RexLog = RexLog(),
     private val onSessionSelected: (sessionId: String) -> Unit = {},
+    /** The tab that was showing in each session last time, by session id. */
+    rememberedTabs: Map<String, String> = emptyMap(),
+    /** Called when the tab shown in a session changes, with null when there is no longer one to remember. */
+    private val onTabShown: (sessionId: String, windowId: String?) -> Unit = { _, _ -> },
     /** Called for the server's own events, such as `keymap_changed`, and with `connected` after each connect. */
     private val onServerEvent: (type: String) -> Unit = {},
 ) {
     private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]))
-    private val mutableState = MutableStateFlow(HostState())
+    private val mutableState = MutableStateFlow(HostState(shownWindows = rememberedTabs))
     val state: StateFlow<HostState> get() = mutableState
 
     /** Work for the control connection, done one at a time in the order it was asked for. */
@@ -160,23 +180,40 @@ class RexHost(
     fun selectSession(sessionId: String) = act("select session") { attach(it, sessionId) }
 
     /**
-     * Shows a tab of any session: selects the session if it isn't the one showing, and makes
-     * the tab its active one. A session's active tab is its own state, shared by every client
-     * on it, so nothing is sent when the tab is already the active one.
+     * Shows a tab of any session, selecting the session if it isn't the one showing.
+     *
+     * The tab shown is this app's own choice and changes here at once. The session is also
+     * told that this is now its active window, as Rex.app tells it, so that a command which
+     * names no window acts where someone last looked. Other clients keep the tab they chose.
      */
-    fun showTab(sessionId: String, windowId: String) = act("show tab") { control ->
-        if (state.value.selectedSessionId != sessionId) attach(control, sessionId)
-        if (state.value.views[sessionId]?.activeWindowId != windowId) {
-            control.call("session.focus_window", buildJsonObject {
-                put("session_id", sessionId)
-                put("window_id", windowId)
-            })
+    fun showTab(sessionId: String, windowId: String) {
+        setShown(sessionId, windowId)
+        act("show tab") { control ->
+            if (state.value.selectedSessionId != sessionId) attach(control, sessionId)
+            else state.value.views[sessionId]?.let { showView(control, it) } // open the tab's terminals
+            makeActive(control, sessionId)
         }
     }
 
-    /** Moves to the tab after or before the active one. */
-    fun stepWindow(forward: Boolean) = act("step tab") { control ->
-        control.call(if (forward) "session.focus_next_window" else "session.focus_previous_window", sessionPayload {})
+    private fun setShown(sessionId: String, windowId: String?) {
+        if (state.value.shownWindows[sessionId] == windowId) return
+        mutableState.update { it.copy(shownWindows = if (windowId == null) it.shownWindows - sessionId else it.shownWindows + (sessionId to windowId)) }
+        onTabShown(sessionId, windowId)
+    }
+
+    /**
+     * Makes the tab this app shows the session's active window, if it isn't. Actions the
+     * server carries out relative to the active window, such as moving focus to the pane on
+     * the left, need this first: another client may have gone to a different tab since.
+     */
+    private suspend fun makeActive(control: RexControl, sessionId: String? = state.value.selectedSessionId) {
+        val current = state.value
+        val shown = current.shownWindow(sessionId)?.id ?: return
+        if (current.views[sessionId]?.activeWindowId == shown) return
+        control.call("session.focus_window", buildJsonObject {
+            put("session_id", sessionId)
+            put("window_id", shown)
+        })
     }
 
     /**
@@ -193,6 +230,7 @@ class RexHost(
             put("layout", SHELL_LAYOUT)
         })
         log.add(saved.label, "created tab ${created.string("window_id")}")
+        created.string("window_id")?.let { setShown(target, it) } // a tab made here is shown here
         claimCreated(control, created["block_ids"] as? JsonArray)
     }
 
@@ -238,6 +276,26 @@ class RexHost(
         })
     }
 
+    /**
+     * Moves a tab to just before another in its session, or to the end. The order of a
+     * session's tabs is the session's own, so it changes for every client.
+     */
+    fun moveTab(sessionId: String, windowId: String, beforeWindowId: String?) = act("move tab") { control ->
+        control.call("session.move_window", buildJsonObject {
+            put("session_id", sessionId)
+            put("window_id", windowId)
+            beforeWindowId?.let { put("before_window_id", it) }
+        })
+    }
+
+    /** Moves a session to just before another in the server's list, or to the end. That order too is shared. */
+    fun moveSession(sessionId: String, beforeSessionId: String?) = act("move session") { control ->
+        control.call("session.move", buildJsonObject {
+            put("session_id", sessionId)
+            beforeSessionId?.let { put("before_session_id", it) }
+        })
+    }
+
     /** Closes a tab and every pane in it. */
     fun closeWindow(windowId: String) = act("close tab") { control ->
         control.call("session.close_window", sessionPayload { put("window_id", windowId) })
@@ -255,16 +313,19 @@ class RexHost(
 
     /** Moves focus to the nearest pane in a direction: `left`, `right`, `up` or `down`. */
     fun focusDirection(direction: String) = act("focus $direction") { control ->
+        makeActive(control)
         control.call("session.focus_direction", sessionPayload { put("direction", direction) })
     }
 
     /** Moves focus to the next or previous pane of the tab. */
     fun stepPane(forward: Boolean) = act("step pane") { control ->
+        makeActive(control)
         control.call(if (forward) "session.focus_next_pane" else "session.focus_previous_pane", sessionPayload {})
     }
 
     /** Runs one of the server's own actions, such as clearing a terminal, on a pane. */
     fun performServerAction(name: String, args: JsonObject?, blockId: String?) = act(name) { control ->
+        makeActive(control)
         control.call("client.action", buildJsonObject {
             put("action", name)
             args?.let { put("args", it) }
@@ -579,7 +640,10 @@ class RexHost(
             val views = current.views + (view.sessionId to view)
             if (view.sessionId != current.selectedSessionId) return@update current.copy(views = views)
 
-            val window = view.activeWindow
+            // The tab this app chose in the session. If it is gone (closed, or never chosen),
+            // the session's active one takes its place, once: from then on that is the choice,
+            // and another client going elsewhere doesn't move this one.
+            val window = view.windows.firstOrNull { it.id == current.shownWindows[view.sessionId] } ?: view.activeWindow
             val visible = window?.panes.orEmpty()
                 .filter { it.isTerminal && (window?.zoomedBlockId == null || it.blockId == window.zoomedBlockId) }
             // The server's word on who owns a block replaces this connection's own bookkeeping.
@@ -598,8 +662,10 @@ class RexHost(
                 }
             }
             current.terminals.filterKeys { it !in terminals }.values.forEach { it.close() }
-            current.copy(views = views, terminals = terminals)
+            val shown = if (window != null) current.shownWindows + (view.sessionId to window.id) else current.shownWindows - view.sessionId
+            current.copy(views = views, terminals = terminals, shownWindows = shown)
         }
+        if (view.sessionId == state.value.selectedSessionId) onTabShown(view.sessionId, state.value.shownWindows[view.sessionId])
     }
 
     private fun openTerminal(connection: RexControl, endpoint: RexEndpoint, sessionId: String, blockId: String) =
@@ -642,10 +708,14 @@ class RexHost(
                     readStatuses(connection, view) // for terminals that are new
                 }
             }
-            "session_created", "session_destroyed", "session_label_changed" -> {
+            "session_created", "session_destroyed", "session_label_changed", "session_moved" -> {
                 val sessions = parseSessions(connection.call("session.list")["sessions"] as? JsonArray)
                 // Forget the layouts of sessions that are gone, and read those of new ones.
-                mutableState.update { state -> state.copy(sessions = sessions, views = state.views.filterKeys { id -> sessions.any { it.id == id } }) }
+                val gone = state.value.shownWindows.keys.filter { id -> sessions.none { it.id == id } }
+                mutableState.update { state ->
+                    state.copy(sessions = sessions, views = state.views.filterKeys { id -> sessions.any { it.id == id } }, shownWindows = state.shownWindows - gone.toSet())
+                }
+                gone.forEach { onTabShown(it, null) }
                 if (sessions.none { it.id == state.value.selectedSessionId }) {
                     // The session being shown is gone. Show another rather than nothing.
                     state.value.terminals.values.forEach { it.close() }

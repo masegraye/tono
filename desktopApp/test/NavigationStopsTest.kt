@@ -80,4 +80,71 @@ class NavigationStopsTest {
         // With eleven tabs, the ninth and tenth have no digit, and the eleventh is Control+9.
         assertEquals(listOf(1, 2, 3, 4, 5, 6, 7, 8, null, null, 9), (0 until 11).map { tabShortcutDigit(it, 11) })
     }
+
+    @Test
+    fun `hosts are listed home first, then connected ones by name, then the rest by name`() {
+        val up = HostState(connection = HostConnection.Connected)
+        val down = HostState(connection = HostConnection.Disconnected("no answer"))
+        val trying = HostState(connection = HostConnection.Connecting)
+        val hosts = listOf("zeta" to up, "omamac" to down, "Local" to up, "alpha" to trying, "Beta" to up, "apple" to up)
+        assertEquals(listOf("Local", "apple", "Beta", "zeta", "alpha", "omamac"), sidebarOrder(hosts, home = "Local") { it }.map { it.first })
+        // This machine stays on top even while its own server is down.
+        assertEquals(listOf("Local", "zeta"), sidebarOrder(listOf("zeta" to up, "Local" to down), home = "Local") { it }.map { it.first })
+    }
+}
+
+class ReorderTest {
+    private val moves = ArrayList<Pair<String, String?>>()
+
+    /** Three rows of 20 stacked from 0, and a taller fourth. */
+    private fun column(): ReorderState = ReorderState { key, before -> moves += key to before }.apply {
+        keys = listOf("a", "b", "c", "d")
+        place("a", 0f, 20f); place("b", 20f, 20f); place("c", 40f, 20f); place("d", 60f, 50f)
+    }
+
+    @Test
+    fun `dragging a row past its neighbours moves it before the one it lands above`() {
+        val state = column()
+        state.start("c")
+        state.dragBy(-25f) // its middle is now above b's, below a's
+        assertEquals(20f, state.translationOf("b"), "b steps down into the room c left")
+        assertEquals(0f, state.translationOf("a"))
+        assertEquals(0f, state.translationOf("d"))
+        state.drop()
+        assertEquals(listOf<Pair<String, String?>>("c" to "b"), moves)
+        assertEquals(-20f, state.translationOf("c"), "it rests in the gap until the new order arrives")
+    }
+
+    @Test
+    fun `dragging to the end moves it after everything`() {
+        val state = column()
+        state.start("a")
+        state.dragBy(500f) // far past the end: held at the bottom of the column
+        assertEquals(90f, state.translationOf("a"))
+        assertEquals(-20f, state.translationOf("d"))
+        state.drop()
+        assertEquals(listOf<Pair<String, String?>>("a" to null), moves)
+    }
+
+    @Test
+    fun `a row let go where it started moves nothing`() {
+        val state = column()
+        state.start("b")
+        state.dragBy(6f)
+        state.drop()
+        assertEquals(emptyList<Pair<String, String?>>(), moves)
+        assertEquals(0f, state.translationOf("b"))
+    }
+
+    @Test
+    fun `a new order ends the drag`() {
+        val state = column()
+        state.start("b")
+        state.dragBy(30f)
+        state.keys = listOf("a", "c", "b", "d") // someone else moved a tab meanwhile
+        assertEquals(0f, state.translationOf("b"))
+        assertEquals(0f, state.translationOf("c"))
+        state.drop()
+        assertEquals(emptyList<Pair<String, String?>>(), moves)
+    }
 }

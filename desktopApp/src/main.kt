@@ -16,6 +16,7 @@ import androidx.compose.ui.window.rememberWindowState
 import dev.mg.omarchy.theme.OmarchyPalette
 import dev.mg.omarchy.theme.compose.OmarchyTheme
 import dev.mg.omarchy.theme.compose.OmarchyWindowScale
+import dev.mg.omarchy.theme.compose.detectOmarchyUiScale
 import dev.mg.omarchy.theme.compose.rememberOmarchyThemeState
 import dev.mg.omarchy.theme.terminalColors
 import kotlinx.coroutines.CoroutineScope
@@ -33,6 +34,12 @@ import java.nio.file.Path
  *   `~/.config/kotlin-test/workspace.json`.
  */
 fun main(args: Array<String>) {
+    // Some Java runtimes scale the window themselves from desktop settings, in whole steps,
+    // and others don't scale at all. The theme library scales to the monitor's real factor
+    // (1.6, say), so have the runtime stand aside, or the two disagree on the size of
+    // everything. This has to be said before the first window class loads.
+    if (System.getProperty("sun.java2d.uiScale") == null && detectOmarchyUiScale() != null) System.setProperty("sun.java2d.uiScale", "1")
+
     val workspaceFile = args.indexOf("--workspace").takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
     val workspace = workspaceFile?.let { Workspace.load(Path.of(it)) } ?: Workspace.load()
 

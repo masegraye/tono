@@ -31,7 +31,10 @@ class Workspace(
     var collapsedHosts: Set<String> = emptySet(),
     /** The ids of the sessions folded away in the sidebar. */
     var collapsedSessions: Set<String> = emptySet(),
+    /** For each session id, the tab this app was showing in it. */
+    tabs: Map<String, String> = emptyMap(),
 ) {
+    val tabs: MutableMap<String, String> = tabs.toMutableMap()
     var hosts: List<SavedHost> = hosts
     val sessions: MutableMap<String, String> = sessions.toMutableMap()
 
@@ -48,6 +51,7 @@ class Workspace(
             })
             lastHost?.let { put("last_host", it) }
             putJsonObject("sessions") { for ((host, session) in sessions) put(host, session) }
+            if (tabs.isNotEmpty()) putJsonObject("tabs") { for ((session, tab) in tabs.toSortedMap()) put(session, tab) }
             if (collapsedHosts.isNotEmpty()) put("collapsed_hosts", buildJsonArray { collapsedHosts.sorted().forEach { add(JsonPrimitive(it)) } })
             if (collapsedSessions.isNotEmpty()) put("collapsed_sessions", buildJsonArray { collapsedSessions.sorted().forEach { add(JsonPrimitive(it)) } })
         }
@@ -77,11 +81,12 @@ class Workspace(
                 val host = element as? JsonObject ?: return@mapNotNull null
                 SavedHost(host.string("label") ?: return@mapNotNull null, host.string("endpoint") ?: return@mapNotNull null)
             }
-            val sessions = root.obj("sessions")?.mapNotNull { (host, session) ->
-                (session as? JsonPrimitive)?.takeIf { it.isString }?.let { host to it.content }
+            fun map(key: String) = root.obj(key)?.mapNotNull { (name, value) ->
+                (value as? JsonPrimitive)?.takeIf { it.isString }?.let { name to it.content }
             }?.toMap().orEmpty()
+            val sessions = map("sessions")
             fun strings(key: String) = (root[key] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.takeIf { value -> value.isString }?.content }.toSet()
-            return Workspace(file, hosts, root.string("last_host"), sessions, strings("collapsed_hosts"), strings("collapsed_sessions"))
+            return Workspace(file, hosts, root.string("last_host"), sessions, strings("collapsed_hosts"), strings("collapsed_sessions"), map("tabs"))
         }
     }
 }

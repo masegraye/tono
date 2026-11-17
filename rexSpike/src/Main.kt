@@ -17,7 +17,7 @@ import java.nio.file.Path
  */
 private suspend fun typeInto(client: RexClient, text: String) {
     val host = client.hosts.value.firstOrNull { it.saved.label == client.selectedHost.value } ?: return
-    val window = host.state.value.view?.activeWindow ?: return
+    val window = host.state.value.window ?: return
     val blockId = window.focusedBlockId ?: window.panes.firstOrNull()?.blockId ?: return
     fun press(name: String, typed: String, unshifted: Int) {
         host.sendKey(blockId, RexKey(name, "", "", typed, unshifted, RexKey.Action.Press))
@@ -89,7 +89,7 @@ private suspend fun kotlinx.coroutines.CoroutineScope.probe(args: Array<String>)
         val view = state.view ?: continue
         for ((blockId, terminal) in state.terminals) {
             val frame = terminal.frame.value
-            val pane = view.activeWindow?.panes?.firstOrNull { it.blockId == blockId }
+            val pane = state.window?.panes?.firstOrNull { it.blockId == blockId }
             println("    terminal $blockId  ${terminal.status.value}  grid ${terminal.grid.value}  rect ${pane?.rect}")
             if (frame == null) continue
             val runs = frame.rows.sumOf { it.runs.size }

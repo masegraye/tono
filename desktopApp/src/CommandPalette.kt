@@ -66,7 +66,7 @@ class PaletteItem(
  * places to go (sessions on every host, the current session's tabs, the hosts).
  */
 internal fun paletteItems(ui: RexUiState, commands: RexCommands, keymap: Keymap, mode: PaletteMode): List<PaletteItem> = buildList {
-    val hosts = ui.client.hosts.value
+    val hosts = ui.orderedHosts()
     if (mode == PaletteMode.Commands) {
         for (action in commands.actions) {
             if (!action.inPalette || !commands.isAvailable(action)) continue
