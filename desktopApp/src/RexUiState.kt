@@ -10,12 +10,19 @@ import org.example.kotlintest.rex.HostState
 import org.example.kotlintest.rex.RexClient
 import org.example.kotlintest.rex.RexHost
 import org.example.kotlintest.rex.SessionView
+import org.example.kotlintest.rex.TailnetServer
 import org.example.kotlintest.rex.TerminalSession
 import org.example.kotlintest.rex.WindowView
 import org.example.kotlintest.rex.hasDefaultLabel
 
 /** What the command palette is listing. */
-enum class PaletteMode { Commands, Sessions, Hosts }
+enum class PaletteMode {
+    Commands, Sessions, Hosts,
+    /** Choosing a server to add: the Rex servers found on the tailnet, or an address typed in. */
+    AddHost,
+    /** Choosing a host to stop connecting to. */
+    RemoveHost,
+}
 
 /** Something destructive, waiting for the user to agree to it. */
 class Confirmation(val title: String, val text: String, val confirmLabel: String, val onConfirm: () -> Unit)
@@ -40,6 +47,9 @@ class RexUiState(val client: RexClient) {
     var fontSize by mutableIntStateOf(DEFAULT_FONT_SIZE)
     var confirmation: Confirmation? by mutableStateOf(null)
     var renaming: TabRename? by mutableStateOf(null)
+
+    /** The Rex servers found on the tailnet, for the host picker. Null until they have been looked for. */
+    var tailnetServers: List<TailnetServer>? by mutableStateOf(null)
     var showcase by mutableStateOf(false)
 
     /** True while Control is down. The sidebar shows each tab's shortcut digit for as long as it is. */
@@ -74,7 +84,11 @@ class RexUiState(val client: RexClient) {
     var focusRequests by mutableIntStateOf(0)
         private set
 
-    fun returnFocusToTerminal() { focusRequests++ }
+    /** Whether something is open over the terminals and has the keyboard: the palette, or a dialog. */
+    val overlayOpen: Boolean get() = palette != null || renaming != null || confirmation != null
+
+    /** Hands the keyboard back to the focused terminal, unless something is open over it. */
+    fun returnFocusToTerminal() { if (!overlayOpen) focusRequests++ }
 
     fun closePalette() {
         palette = null

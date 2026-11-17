@@ -404,9 +404,12 @@ class RexHost(
         }
         var reconnectToken: String? = null
         var attempt = 0
+        // Why the last attempt failed, if it did. A host that is down is tried again for as
+        // long as the app runs, and saying so each time would bury everything else in the log.
+        var lastFailure: String? = null
         while (true) {
             mutableState.update { it.copy(connection = HostConnection.Connecting) }
-            log.add(saved.label, "connecting to ${saved.endpoint}")
+            if (lastFailure == null) log.add(saved.label, "connecting to ${saved.endpoint}")
             val reason = try {
                 coroutineScope {
                     val connection = RexControl.connect(http, endpoint, this, info, reconnectToken)
@@ -414,6 +417,7 @@ class RexHost(
                     try {
                         serve(connection, endpoint)
                         attempt = 0
+                        lastFailure = null
                     } catch (failure: Exception) {
                         // Setup may be half done on the server. Closing properly ends this
                         // client there, so the next attempt must start as a new one.
@@ -437,7 +441,8 @@ class RexHost(
             mutableState.value.terminals.values.forEach { it.close() }
             mutableState.update { it.copy(connection = HostConnection.Disconnected(reason), views = emptyMap(), terminals = emptyMap(), activity = emptyMap(), programs = emptyMap()) }
             val delayMillis = RETRY_DELAYS_MILLIS[minOf(attempt++, RETRY_DELAYS_MILLIS.lastIndex)]
-            log.add(saved.label, "disconnected: $reason. Trying again in ${delayMillis / 1000.0}s", isError = true)
+            if (reason != lastFailure) log.add(saved.label, "not connected: $reason. Trying again every few seconds until it answers", isError = true)
+            lastFailure = reason
             withTimeoutOrNull(delayMillis) { retryNow.receive() }
         }
     }

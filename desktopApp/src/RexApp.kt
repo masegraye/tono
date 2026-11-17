@@ -36,6 +36,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -218,6 +219,7 @@ private fun Sidebar(
                         trailingIcon = paletteShortcut?.let { { HintText(it) } },
                         onClick = { menuOpen = false; commands.run("client.palette.toggle", origin = "menu") },
                     )
+                    DropdownMenuItem(text = { Text("Add Host…") }, onClick = { menuOpen = false; commands.run("client.host.add", origin = "menu") })
                     DropdownMenuItem(text = { Text("UI Showcase") }, onClick = { menuOpen = false; commands.run("client.showcase.toggle", origin = "menu") })
                 }
             }
@@ -293,14 +295,29 @@ private fun HostHeader(
     val connection = state.connection
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
-    Column(Modifier.fillMaxWidth().hoverable(interaction).clickable(onClick = onClick).padding(start = 12.dp, end = 6.dp, top = 12.dp, bottom = 2.dp)) {
+    // A host that is down is tried again every few seconds. It stays marked as down between
+    // tries, so its dot doesn't blink for as long as it is.
+    var failed by remember(host) { mutableStateOf(false) }
+    when (connection) {
+        HostConnection.Connected -> failed = false
+        is HostConnection.Disconnected -> failed = true
+        HostConnection.Connecting -> {}
+    }
+    val connected = connection == HostConnection.Connected
+    // The dot is all a host says about its connection; why one can't be reached is in the
+    // debug log. A host that isn't connected has nothing under it to fold away.
+    Column(
+        Modifier.fillMaxWidth().hoverable(interaction)
+            .clickable(enabled = connected, onClick = onClick)
+            .padding(start = 12.dp, end = 6.dp, top = 12.dp, bottom = 2.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.size(7.dp).background(
-                    when (connection) {
-                        HostConnection.Connected -> MaterialTheme.colorScheme.tertiaryContainer
-                        HostConnection.Connecting -> MaterialTheme.colorScheme.outline
-                        is HostConnection.Disconnected -> MaterialTheme.colorScheme.error
+                    when {
+                        connection == HostConnection.Connected -> MaterialTheme.colorScheme.tertiaryContainer
+                        failed -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.outline
                     },
                     CircleShape,
                 ),
@@ -313,20 +330,18 @@ private fun HostHeader(
                 modifier = Modifier.padding(start = 8.dp).weight(1f),
             )
             ActivityDots(activity)
-            // A host that isn't connected has nowhere to create a session, so it has no button.
-            if (connection == HostConnection.Connected) HeaderButton(Icons.Filled.Add, "New session on ${host.saved.label}", visible = hovered, onClick = onNewSession)
-            FoldMark(collapsed, visible = collapsed || hovered)
-        }
-        if (!collapsed) {
-            when (connection) {
-                HostConnection.Connected -> if (state.sessions.isEmpty()) HintText("No sessions", Modifier.padding(top = 4.dp))
-                HostConnection.Connecting -> HintText("Connecting…", Modifier.padding(top = 4.dp))
-                is HostConnection.Disconnected -> {
-                    HintText(connection.reason, Modifier.padding(top = 4.dp))
-                    if (!connection.permanent) TextButton(onClick = onRetry) { Text("Retry now") }
+            when {
+                connected -> {
+                    HeaderButton(Icons.Filled.Add, "New session on ${host.saved.label}", visible = hovered, onClick = onNewSession)
+                    FoldMark(collapsed, visible = collapsed || hovered)
                 }
+                // One that is down is tried again every few seconds anyway; this tries it now.
+                // An address that can't be read will never connect, so there is nothing to try.
+                (connection as? HostConnection.Disconnected)?.permanent != true ->
+                    HeaderButton(Icons.Filled.Refresh, "Try ${host.saved.label} again now", visible = hovered, onClick = onRetry)
             }
         }
+        if (!collapsed && connected && state.sessions.isEmpty()) HintText("No sessions", Modifier.padding(top = 4.dp))
     }
 }
 
@@ -553,7 +568,10 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, o
                     terminal = terminal,
                     focused = focused,
                     onFocusRequested = onFocus,
-                    onKey = { host.sendKey(pane.blockId, it) },
+                    // Never while something is open over the terminals: whatever the keyboard
+                    // focus says, what is typed then is meant for the thing on top, and a
+                    // key sent here would be typed into a shell and claim its terminal.
+                    onKey = { if (!ui.overlayOpen) host.sendKey(pane.blockId, it) },
                     onDesiredGrid = { host.setDesiredGrid(pane.blockId, it) },
                     fontSize = ui.fontSize.sp,
                     focusRequests = ui.focusRequests,

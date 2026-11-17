@@ -91,10 +91,18 @@ mise run probe     # the same connections with no window: prints what was restor
 
 When it starts it connects to every configured server at once and restores where you were:
 
-- The servers are the hosts saved in `~/.config/kotlin-test/workspace.json` (the local server, the first time), plus
-  any in the local server's own host list. An endpoint is `unix:///path`, or `https://host` for a server reached over
-  the network. A server with built-in Tailscale is a device on the tailnet, so its `https://` address just works on a
-  machine that is on the tailnet too.
+- The servers are the local one, plus every host in its host list. That list is where Rex itself keeps hosts
+  (`rex hosts`), so a host added in the app is also known to the `rex` command, and one added with `rex hosts add`
+  appears in the app at once. An endpoint is `unix:///path`, or `https://host` for a server reached over the network.
+  A server with built-in Tailscale is a device on the tailnet, so its `https://` address just works on a machine
+  that is on the tailnet too.
+- **Add Host…** (the palette, the sidebar's menu, or the end of the Switch Host list) lists the Rex servers on your
+  tailnet that aren't hosts yet: the devices `tailscale status` reports whose names end in `-rex`, which is how a
+  server names its own tailnet device. Pick one, or type any address. A server that is down can be added too. **Remove
+  Host…** takes one off the list. Hosts saved in `~/.config/kotlin-test/workspace.json` are connected to as well; a
+  host goes there only when no local server can keep it.
+- A host that can't be reached shows a red dot and nothing else, and is tried again every few seconds until it
+  answers. Hovering it offers a button to try now; the reason is in the debug log.
 - For each server it selects the session you last had (else the first listed) and lays out its active tab's terminals
   where the server says they sit. It creates and closes things only when asked to.
 - The sidebar is a set of nested headings: servers, each with the same weight and this machine's first; their

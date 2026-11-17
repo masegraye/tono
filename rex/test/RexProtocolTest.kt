@@ -324,3 +324,52 @@ class TabNamesTest {
         assertEquals("…/a-very-long-folder-name-indeed", shortDirectory("/srv/a-very-long-folder-name-indeed", null, room = 18), "the last folder always shows")
     }
 }
+
+class TailnetTest {
+    private val status = Json.parseToJsonElement(
+        """
+        {"Self":{"HostName":"omwork","DNSName":"omwork.tail1234.ts.net.","Online":true},
+         "Peer":{
+           "k1":{"HostName":"studio-rex","DNSName":"studio-rex.tail1234.ts.net.","Online":false},
+           "k2":{"HostName":"Laptop-Rex","DNSName":"laptop-rex.tail1234.ts.net.","Online":true},
+           "k3":{"HostName":"phone","DNSName":"phone.tail1234.ts.net.","Online":true},
+           "k4":{"HostName":"rexford","DNSName":"rexford.tail1234.ts.net.","Online":true},
+           "k5":{"HostName":"ghost-rex","DNSName":"","Online":false}}}
+        """,
+    ).jsonObject
+
+    @Test
+    fun `the rex servers on a tailnet are the devices named for one, those that are up first`() {
+        assertEquals(
+            listOf(
+                TailnetServer("laptop-rex", "laptop-rex.tail1234.ts.net", online = true),
+                TailnetServer("studio-rex", "studio-rex.tail1234.ts.net", online = false),
+            ),
+            Tailnet.parseStatus(status),
+        )
+        val studio = Tailnet.parseStatus(status).last()
+        assertEquals("studio", studio.label)
+        assertEquals("https://studio-rex.tail1234.ts.net", studio.endpoint)
+        assertEquals(emptyList(), Tailnet.parseStatus(JsonObject(emptyMap())), "Tailscale stopped, or not signed in")
+    }
+
+    @Test
+    fun `two spellings of one address are the same place`() {
+        val key = endpointKey("studio-rex.tail1234.ts.net")
+        assertEquals(key, endpointKey("https://Studio-Rex.tail1234.ts.net/"))
+        assertEquals(key, endpointKey("wss://studio-rex.tail1234.ts.net"))
+        assertEquals(key, endpointKey(" studio-rex.tail1234.ts.net. "))
+        assertTrue(key != endpointKey("http://studio-rex.tail1234.ts.net"), "plain HTTP is another listener")
+        assertTrue(key != endpointKey("studio-rex.tail1234.ts.net:7297"))
+        assertEquals(endpointKey("unix:///run/rex/server.sock"), endpointKey("/run/rex/server.sock"))
+    }
+
+    @Test
+    fun `a host known only by its address is labelled by its machine`() {
+        assertEquals("studio", suggestedHostLabel("https://studio-rex.tail1234.ts.net"))
+        assertEquals("studio", suggestedHostLabel("studio-rex.tail1234.ts.net"))
+        assertEquals("build", suggestedHostLabel("http://build:7297"))
+        assertEquals("10.0.0.5", suggestedHostLabel("10.0.0.5:7297"))
+        assertEquals("rex", suggestedHostLabel("unix:///tmp/rex.sock"))
+    }
+}

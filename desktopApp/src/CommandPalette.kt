@@ -43,6 +43,12 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.Keymap
+import org.example.kotlintest.rex.RexEndpoint
+import org.example.kotlintest.rex.Tailnet
+import org.example.kotlintest.rex.endpointKey
+import org.example.kotlintest.rex.suggestedHostLabel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.awt.event.KeyEvent
 
 /** One thing the palette offers. */
@@ -81,10 +87,37 @@ internal fun paletteItems(ui: RexUiState, commands: RexCommands, keymap: Keymap,
             val tab = session.windows.firstOrNull { it.id == stop.windowId } ?: return@forEach
             val digit = numbered.indexOf(stop).takeIf { it >= 0 }?.let { tabShortcutDigit(it, numbered.size) }
             val goto = digit?.let { buildJsonObject { put("index", if (it == 9) -1 else it) } }
-            add(PaletteItem("Go to Tab: ${tab.label}", "${session.label} · ${stop.host}", goto?.let { keymap.shortcutFor("client.tab.goto", it)?.display() }, "tab") {
+            add(PaletteItem("Go to Tab: ${state.nameOf(tab).text}", "${session.label} · ${stop.host}", goto?.let { keymap.shortcutFor("client.tab.goto", it)?.display() }, "tab") {
                 ui.go(stop)
             })
         }
+    }
+    if (mode == PaletteMode.AddHost) {
+        // The Rex servers on the tailnet that aren't hosts yet. One that is down can still be
+        // added: it connects when it comes up.
+        for (server in ui.tailnetServers.orEmpty()) {
+            if (ui.client.isConfigured(server.endpoint) || hosts.any { it.saved.label.equals(server.label, ignoreCase = true) }) continue
+            add(PaletteItem(server.label, "${server.address} · ${if (server.online) "online" else "offline"}", keywords = "tailscale tailnet") {
+                ui.client.addHost(server.label, server.endpoint)
+                ui.returnFocusToTerminal()
+            })
+        }
+        return@buildList
+    }
+    if (mode == PaletteMode.RemoveHost) {
+        for (host in hosts) {
+            if (host.saved.label == ui.client.homeLabel) continue // the app follows its home; it stays
+            add(PaletteItem(host.saved.label, host.saved.endpoint, keywords = "host server") {
+                ui.confirmation = Confirmation(
+                    title = "Remove host “${host.saved.label}”?",
+                    text = if (host.discovered) "It leaves your Rex host list, so the rex command and other clients that follow this machine stop listing it too. Its sessions keep running."
+                    else "This app stops connecting to it. Its sessions keep running.",
+                    confirmLabel = "Remove Host",
+                    onConfirm = { ui.client.removeHost(host.saved.label) },
+                )
+            })
+        }
+        return@buildList
     }
     if (mode != PaletteMode.Hosts) {
         val prefix = if (mode == PaletteMode.Commands) "Go to Session: " else ""
@@ -111,6 +144,27 @@ internal fun paletteItems(ui: RexUiState, commands: RexCommands, keymap: Keymap,
                 ui.returnFocusToTerminal()
             })
         }
+        // The way to a host that isn't listed yet.
+        if (mode == PaletteMode.Hosts) add(PaletteItem("Add Host…", "from your tailnet, or by address", keywords = "new server connect") { ui.palette = PaletteMode.AddHost })
+    }
+}
+
+/**
+ * The item that adds a typed address as a host, when what is typed is an address and not
+ * the name of something listed: it has a dot, a slash or a colon in it, as `studio.ts.net`,
+ * `10.0.0.5:7297` and `https://studio` do.
+ */
+internal fun typedHostItem(ui: RexUiState, query: String): PaletteItem? {
+    val address = query.trim()
+    if (address.none { it in "./:" } || ' ' in address || runCatching { RexEndpoint.parse(address) }.isFailure) return null
+    if (ui.client.isConfigured(address)) return null
+    // While what is typed is the start of a listed server's address, that server is the answer.
+    val typed = endpointKey(address)
+    if (ui.tailnetServers.orEmpty().any { endpointKey(it.endpoint).startsWith(typed) }) return null
+    val label = suggestedHostLabel(address)
+    return PaletteItem("Add $label", "at $address") {
+        ui.client.addHost(label, address)
+        ui.returnFocusToTerminal()
     }
 }
 
@@ -153,17 +207,27 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
     var query by remember(mode) { mutableStateOf("") }
     var selected by remember(mode) { mutableIntStateOf(0) }
     // Listed once per opening: the palette shows the moment it was opened.
-    val all = remember(mode, keymap) { paletteItems(ui, commands, keymap, mode) }
-    val shown = remember(all, query) { filterPalette(all, query) }
+    val tailnet = ui.tailnetServers
+    val all = remember(mode, keymap, tailnet) { paletteItems(ui, commands, keymap, mode) }
+    val shown = remember(all, query) {
+        filterPalette(all, query) + listOfNotNull(if (mode == PaletteMode.AddHost) typedHostItem(ui, query) else null)
+    }
+    // Look for servers each time the picker opens: machines come and go. What was found
+    // last time shows meanwhile.
+    LaunchedEffect(mode) {
+        if (mode == PaletteMode.AddHost) ui.tailnetServers = withContext(Dispatchers.IO) { Tailnet.rexServers() }
+    }
     val listState = rememberLazyListState()
     val focus = remember { FocusRequester() }
     LaunchedEffect(mode) { focus.requestFocus() }
     LaunchedEffect(selected, shown.size) { if (selected in shown.indices) listState.scrollToItem(selected) }
 
     fun choose(item: PaletteItem) {
-        // Close first: the item may open the palette again in another mode.
-        ui.closePalette()
+        // Close first: the item may open the palette again in another mode, or a dialog. Only
+        // if it opened nothing does the keyboard go back to the terminal.
+        ui.palette = null
         item.run()
+        ui.returnFocusToTerminal()
     }
 
     Box(
@@ -193,6 +257,8 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
                                 PaletteMode.Commands -> "Run a command, or go to a session, tab or host"
                                 PaletteMode.Sessions -> "Go to a session"
                                 PaletteMode.Hosts -> "Switch to a host"
+                                PaletteMode.AddHost -> "Add a server from your tailnet, or type an address"
+                                PaletteMode.RemoveHost -> "Remove a host"
                             },
                         )
                     },
@@ -221,7 +287,12 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 if (shown.isEmpty()) {
                     Text(
-                        "Nothing matches",
+                        when {
+                            mode != PaletteMode.AddHost -> "Nothing matches"
+                            tailnet == null -> "Looking for Rex servers on your tailnet…"
+                            query.isBlank() -> "Every Rex server on your tailnet is already a host. Type an address to add another."
+                            else -> "No server on your tailnet matches. Type a full address to add it."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(16.dp),

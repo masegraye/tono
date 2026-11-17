@@ -5,7 +5,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +19,12 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
+import java.util.concurrent.ConcurrentHashMap
 import org.example.kotlintest.ghostty.TerminalColors
 
 /**
@@ -45,10 +55,16 @@ class RexClient(
     private val mutableSelectedHost = MutableStateFlow<String?>(null)
     private val mutableKeymap = MutableStateFlow(Keymap(emptyList()))
     private val keymapRefresh = Channel<Unit>(Channel.CONFLATED)
+    private val hostListRefresh = Channel<Unit>(Channel.CONFLATED)
+    /** For each host that came from the home server's host list, by label, its id in that list. */
+    private val listedIds = ConcurrentHashMap<String, String>()
+    /** Addresses in that list that turned out to be the home server itself, as [endpointKey]s. */
+    private val ownAddresses = ConcurrentHashMap.newKeySet<String>()
     @Volatile private var terminalColors: TerminalColors? = null
     @Volatile private var declaredActions: List<RexAction> = emptyList()
     @Volatile private var defaultBindings: List<KeyBinding> = emptyList()
     private val home: RexHost?
+    private val hostListLock = Mutex()
 
     /** What the client has been doing, for the debug panel. */
     val log = RexLog()
@@ -72,8 +88,114 @@ class RexClient(
         mutableSelectedHost.value = workspace.lastHost?.takeIf { label -> saved.any { it.label == label } } ?: saved.first().label
 
         home = mutableHosts.value.firstOrNull { it.saved.endpoint.startsWith("unix://") || it.saved.endpoint.startsWith("/") }
-        if (home != null) scope.launch { addHostsFrom(home) }
+        scope.launch { for (request in hostListRefresh) home?.let { syncHostList(it) } }
         scope.launch { for (request in keymapRefresh) resolveKeymap() }
+    }
+
+    /** The label of the home server: the one whose host list and keymap this app follows. It can't be removed. */
+    val homeLabel: String? get() = home?.saved?.label
+
+    /**
+     * Whether an address is already among the hosts, under any spelling, or is the home
+     * server's own.
+     */
+    fun isConfigured(endpoint: String): Boolean =
+        endpointKey(endpoint).let { key -> key in ownAddresses || mutableHosts.value.any { endpointKey(it.saved.endpoint) == key } }
+
+    /**
+     * Adds a host and goes to it. It is added to the home server's host list, which is where
+     * Rex keeps hosts, so the `rex` command and every other client that follows this home see
+     * it too. Without a home to keep it, it is saved in this app's own workspace instead.
+     */
+    fun addHost(label: String, endpoint: String) {
+        scope.launch {
+            val name = label.trim()
+            if (runCatching { RexEndpoint.parse(endpoint) }.isFailure || name.isEmpty()) {
+                log.add("hosts", "can't add $endpoint: not an address Rex can reach", isError = true)
+                return@launch
+            }
+            if (mutableHosts.value.any { it.saved.label.equals(name, ignoreCase = true) } || isConfigured(endpoint)) {
+                log.add("hosts", "$name ($endpoint) is already a host")
+                return@launch
+            }
+            val home = home?.takeIf { it.state.value.connection == HostConnection.Connected }
+            if (home == null) {
+                addSavedHost(name, endpoint)
+                return@launch
+            }
+            // Ask the server who it is: the home server under its tailnet name is not another host.
+            val serverId = serverHostIdAt(endpoint)
+            if (serverId != null && serverId == home.state.value.serverHostId) {
+                ownAddresses += endpointKey(endpoint)
+                log.add("hosts", "$endpoint is ${home.saved.label}, which is already here")
+                return@launch
+            }
+            runCatching {
+                home.call("hosts.put", buildJsonObject {
+                    putJsonObject("host") {
+                        put("label", name)
+                        putJsonArray("endpoints") { add(endpoint) }
+                        serverId?.let { put("host_id", it) }
+                        put("added_from", info.name)
+                    }
+                })
+            }.onSuccess {
+                log.add("hosts", "added $name ($endpoint) to ${home.saved.label}'s host list")
+                syncHostList(home)
+                if (mutableHosts.value.any { it.saved.label == name }) selectHost(name)
+            }.onFailure {
+                // A server without a state directory can't keep hosts. This app can.
+                log.add("hosts", "${home.saved.label} couldn't keep $name (${it.message}); saving it in this app instead", isError = true)
+                addSavedHost(name, endpoint)
+            }
+        }
+    }
+
+    private fun addSavedHost(label: String, endpoint: String) {
+        val saved = SavedHost(label, endpoint)
+        workspace.hosts = workspace.hosts + saved
+        workspace.save()
+        mutableHosts.update { it + host(saved, discovered = false) }
+        log.add("hosts", "added $label ($endpoint) to this app's workspace")
+        selectHost(label)
+    }
+
+    /**
+     * Removes a host: from the home server's host list if it came from there, else from this
+     * app's workspace. Nothing on the host itself changes; its sessions carry on.
+     */
+    fun removeHost(label: String) {
+        scope.launch {
+            val host = mutableHosts.value.firstOrNull { it.saved.label == label } ?: return@launch
+            if (host === home) {
+                log.add("hosts", "$label is the home server and stays", isError = true)
+                return@launch
+            }
+            val listedId = listedIds[label]
+            if (listedId != null) {
+                val home = home ?: return@launch
+                runCatching { home.call("hosts.remove", buildJsonObject { put("id", listedId) }) }
+                    .onSuccess {
+                        log.add("hosts", "removed $label from ${home.saved.label}'s host list")
+                        syncHostList(home)
+                    }
+                    .onFailure { log.add("hosts", "couldn't remove $label: ${it.message}", isError = true) }
+            } else {
+                workspace.hosts = workspace.hosts.filterNot { it.label == label }
+                workspace.save()
+                drop(host)
+                log.add("hosts", "removed $label from this app's workspace")
+            }
+        }
+    }
+
+    /** Stops showing a host and forgets where the user was on it. */
+    private fun drop(host: RexHost) {
+        host.close()
+        mutableHosts.update { current -> current.filterNot { it === host } }
+        listedIds.remove(host.saved.label)
+        workspace.sessions.remove(host.saved.label)
+        if (mutableSelectedHost.value == host.saved.label) mutableHosts.value.firstOrNull()?.let { selectHost(it.saved.label) } else workspace.save()
     }
 
     /**
@@ -128,39 +250,77 @@ class RexClient(
             workspace.save()
         },
         // The keymap belongs to the home server; read it when that connects or its configuration changes.
-        onServerEvent = { type -> if (type == "connected" || type == "keymap_changed") keymapRefresh.trySend(Unit) },
+        onServerEvent = { type ->
+            if (type == "connected" || type == "keymap_changed") keymapRefresh.trySend(Unit)
+            // Every server has a host list; the one this app follows is its home's.
+            if (saved == home?.saved && (type == "connected" || type == "hosts_changed")) hostListRefresh.trySend(Unit)
+        },
     ).also { host -> terminalColors?.let(host::setTerminalColors) }
 
-    /** Connects to the hosts the home server lists, once it is reachable. */
-    private suspend fun addHostsFrom(home: RexHost) {
-        val homeId = home.state.first { it.connection == HostConnection.Connected }.serverHostId
-        val listed = runCatching { home.call("hosts.list")["hosts"] as? JsonArray }.getOrNull().orEmpty()
-        for (element in listed) {
-            val entry = element as? JsonObject ?: continue
-            val label = entry.string("label") ?: continue
-            val endpoint = (entry["endpoints"] as? JsonArray)?.firstNotNullOfOrNull { (it as? JsonPrimitive)?.content } ?: continue
-            if (mutableHosts.value.any { it.saved.label.equals(label, ignoreCase = true) || it.saved.endpoint == endpoint }) continue
-            // A server commonly lists itself under its tailnet name. Ask the listed server who
-            // it is before showing it, so the home server doesn't appear twice. One that can't
-            // be reached is still shown: it is a configured host that happens to be down.
-            scope.launch {
-                if (homeId != null && serverHostIdAt(endpoint) == homeId) return@launch
-                mutableHosts.update { current ->
-                    if (current.any { it.saved.label.equals(label, ignoreCase = true) || it.saved.endpoint == endpoint }) current
-                    else current + host(SavedHost(label, endpoint), discovered = true)
-                }
+    /**
+     * Makes the hosts shown match the home server's host list: connects to the ones that are
+     * new, and lets go of the ones that came from the list and have left it. Runs when the
+     * home server connects and whenever it says the list changed, such as after
+     * `rex hosts add` in a terminal.
+     */
+    private suspend fun syncHostList(home: RexHost) = hostListLock.withLock {
+        if (home.state.value.connection != HostConnection.Connected) return@withLock
+        val homeId = home.state.value.serverHostId
+        val listed = runCatching { home.call("hosts.list")["hosts"] as? JsonArray }
+            .onFailure { log.add("hosts", "couldn't read ${home.saved.label}'s host list: ${it.message}", isError = true) }
+            .getOrNull() ?: return@withLock
+        val entries = listed.mapNotNull { element ->
+            val entry = element as? JsonObject ?: return@mapNotNull null
+            val label = entry.string("label") ?: return@mapNotNull null
+            val endpoint = (entry["endpoints"] as? JsonArray)?.firstNotNullOfOrNull { (it as? JsonPrimitive)?.content } ?: return@mapNotNull null
+            ListedHost(entry.string("id"), label, endpoint, entry.string("host_id"))
+        }
+
+        // Hosts that came from the list and are no longer in it as they were.
+        for (host in mutableHosts.value.filter { it.discovered }) {
+            if (entries.none { it.label == host.saved.label && it.endpoint == host.saved.endpoint }) {
+                log.add("hosts", "${host.saved.label} left ${home.saved.label}'s host list")
+                drop(host)
             }
+        }
+
+        // A server commonly lists itself under its tailnet name. Ask each new server who it
+        // is before showing it, so the home server doesn't appear twice. All at once: one
+        // that is down takes seconds to give up on. A server that can't be reached is still
+        // shown, as a configured host that happens to be down.
+        val fresh = entries.filter { entry ->
+            endpointKey(entry.endpoint) !in ownAddresses &&
+                mutableHosts.value.none { it.saved.label.equals(entry.label, ignoreCase = true) || endpointKey(it.saved.endpoint) == endpointKey(entry.endpoint) }
+        }
+        val isHome = coroutineScope {
+            fresh.map { entry -> async { homeId != null && (entry.hostId ?: serverHostIdAt(entry.endpoint)) == homeId } }.awaitAll()
+        }
+        fresh.forEachIndexed { index, entry ->
+            if (isHome[index]) {
+                ownAddresses += endpointKey(entry.endpoint)
+                return@forEachIndexed
+            }
+            entry.id?.let { listedIds[entry.label] = it }
+            mutableHosts.update { it + host(SavedHost(entry.label, entry.endpoint), discovered = true) }
+            log.add("hosts", "${entry.label} (${entry.endpoint}) from ${home.saved.label}'s host list")
         }
     }
 
-    /** Which machine and account the server at [endpoint] runs as, read without attaching to anything. */
+    private class ListedHost(val id: String?, val label: String, val endpoint: String, val hostId: String?)
+
+    /**
+     * Which machine and account the server at [endpoint] runs as, read without attaching to
+     * anything. Null if it doesn't answer within a few seconds.
+     */
     private suspend fun serverHostIdAt(endpoint: String): String? = runCatching {
-        coroutineScope {
-            val control = RexControl.connect(http, RexEndpoint.parse(endpoint), this, info)
-            try {
-                withTimeout(5_000) { control.call("server.status") }.string("host_id")
-            } finally {
-                control.close()
+        withTimeout(5_000) {
+            coroutineScope {
+                val control = RexControl.connect(http, RexEndpoint.parse(endpoint), this, info)
+                try {
+                    control.call("server.status").string("host_id")
+                } finally {
+                    control.close()
+                }
             }
         }
     }.getOrNull()

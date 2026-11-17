@@ -131,6 +131,13 @@ internal fun clientActions(): List<ClientAction> = buildList {
         palette = PaletteMode.Hosts
     })
 
+    add(ClientAction("client.host.add", "Add Host…", "Host", "server machine connect tailscale tailnet new") {
+        palette = PaletteMode.AddHost
+    })
+    add(ClientAction("client.host.remove", "Remove Host…", "Host", "server machine disconnect forget delete", available = { client.hosts.value.any { it.saved.label != client.homeLabel } }) {
+        palette = PaletteMode.RemoveHost
+    })
+
     // Tab
     add(ClientAction("client.tab.new", "New Tab", "Tab", "create window", keys = listOf("ctrl+shift+t"), available = hasSession) {
         host?.newTab()
