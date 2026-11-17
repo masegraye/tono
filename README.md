@@ -99,8 +99,9 @@ When it starts it connects to every configured server at once and restores where
   where the server says they sit. It creates and closes things only when asked to.
 - The sidebar is a set of nested headings: servers, each with the same weight and this machine's first; their
   sessions, as small quiet headings; and under each session its tabs (a tab is a Rex window), which are what you go
-  to. Clicking a server or a session folds it away. The layouts of all sessions are read and kept current, not just
-  the one on screen.
+  to. Clicking a server or a session folds it away. With the pointer over one, a plus fades in that creates what
+  belongs under it: a session on that server, or a tab in that session. The layouts of all sessions are read and
+  kept current, not just the one on screen.
 - Three dots beside a tab show what its program says it is doing (programs report this with OSC 7501): rippling
   while it works, steady in the accent color while it waits for you, and in the error color after a failure. A
   folded server or session shows the dots for whatever is inside it.

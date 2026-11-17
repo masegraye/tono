@@ -10,6 +10,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -30,6 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
@@ -60,6 +64,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -225,6 +230,7 @@ private fun Sidebar(
                     // Folded away, a heading still shows that something under it is busy.
                     activity = if (hostCollapsed) state.activity.values.maxOrNull() ?: ActivityState.Idle else ActivityState.Idle,
                     onClick = { ui.toggleHost(label) },
+                    onNewSession = { ui.newSession(host) },
                     onRetry = host::retry,
                 )
                 if (hostCollapsed) return@forEachIndexed
@@ -238,6 +244,7 @@ private fun Sidebar(
                         tabCount = windows.size,
                         activity = if (collapsed) windows.maxOfOrNull(state::activityOf) ?: ActivityState.Idle else ActivityState.Idle,
                         onClick = { ui.toggleSession(session.id) },
+                        onNewTab = { ui.newTab(host, session.id) },
                     )
                     if (collapsed) continue
                     for (tab in windows) {
@@ -257,11 +264,24 @@ private fun Sidebar(
     }
 }
 
-/** A host: a heading over its sessions. Clicking it folds them away. */
+/**
+ * A host: a heading over its sessions. Clicking it folds them away. With the pointer over
+ * it, a plus appears that creates a session on this host.
+ */
 @Composable
-private fun HostHeader(host: RexHost, state: HostState, collapsed: Boolean, activity: ActivityState, onClick: () -> Unit, onRetry: () -> Unit) {
+private fun HostHeader(
+    host: RexHost,
+    state: HostState,
+    collapsed: Boolean,
+    activity: ActivityState,
+    onClick: () -> Unit,
+    onNewSession: () -> Unit,
+    onRetry: () -> Unit,
+) {
     val connection = state.connection
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 2.dp)) {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    Column(Modifier.fillMaxWidth().hoverable(interaction).clickable(onClick = onClick).padding(start = 12.dp, end = 6.dp, top = 12.dp, bottom = 2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.size(7.dp).background(
@@ -281,7 +301,9 @@ private fun HostHeader(host: RexHost, state: HostState, collapsed: Boolean, acti
                 modifier = Modifier.padding(start = 8.dp).weight(1f),
             )
             ActivityDots(activity)
-            FoldMark(collapsed)
+            // A host that isn't connected has nowhere to create a session, so it has no button.
+            if (connection == HostConnection.Connected) HeaderButton(Icons.Filled.Add, "New session on ${host.saved.label}", visible = hovered, onClick = onNewSession)
+            FoldMark(collapsed, visible = collapsed || hovered)
         }
         if (!collapsed) {
             when (connection) {
@@ -296,13 +318,18 @@ private fun HostHeader(host: RexHost, state: HostState, collapsed: Boolean, acti
     }
 }
 
-/** A session: a small, quiet heading over its tabs. Clicking it folds them away. */
+/**
+ * A session: a small, quiet heading over its tabs. Clicking it folds them away. With the
+ * pointer over it, a plus appears that opens a tab in this session.
+ */
 @Composable
-private fun SessionHeader(label: String, collapsed: Boolean, tabCount: Int, activity: ActivityState, onClick: () -> Unit) {
+private fun SessionHeader(label: String, collapsed: Boolean, tabCount: Int, activity: ActivityState, onClick: () -> Unit, onNewTab: () -> Unit) {
     val quiet = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 14.dp, end = 8.dp, top = 9.dp, bottom = 2.dp),
+        modifier = Modifier.fillMaxWidth().hoverable(interaction).clickable(onClick = onClick).padding(start = 14.dp, end = 6.dp, top = 7.dp, bottom = 0.dp),
     ) {
         Text(
             label,
@@ -315,11 +342,35 @@ private fun SessionHeader(label: String, collapsed: Boolean, tabCount: Int, acti
         if (collapsed) {
             ActivityDots(activity)
             // How many tabs are folded away.
-            Text(tabCount.toString(), style = MaterialTheme.typography.labelSmall, color = quiet, modifier = Modifier.padding(start = 6.dp))
-            FoldMark(collapsed = true)
+            Text(tabCount.toString(), style = MaterialTheme.typography.labelSmall, color = quiet, modifier = Modifier.padding(start = 6.dp, end = 5.dp))
         }
+        HeaderButton(Icons.Filled.Add, "New tab in $label", visible = hovered, onClick = onNewTab)
+        FoldMark(collapsed, visible = collapsed || hovered)
     }
 }
+
+/**
+ * A small button at the end of a heading, which fades in while the pointer is over the
+ * heading and out when it leaves. Its space is kept either way, so the heading doesn't shift
+ * as the pointer passes.
+ *
+ * It can be pressed whether or not it has faded in. A pointer has to be over it to press it,
+ * so it is on its way in by then, and tying the press to the fade would make a quick click
+ * depend on which of the two the window heard about first.
+ */
+@Composable
+private fun HeaderButton(icon: ImageVector, description: String, visible: Boolean, onClick: () -> Unit) {
+    val alpha by animateFloatAsState(if (visible) 1f else 0f, hoverFade(visible), label = "heading button")
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.size(20.dp).alpha(alpha).clip(MaterialTheme.shapes.extraSmall).clickable(onClick = onClick),
+    ) {
+        Icon(icon, contentDescription = description, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+    }
+}
+
+/** How things that belong to a heading come and go with the pointer: in promptly, out a little slower. */
+private fun hoverFade(appearing: Boolean) = tween<Float>(durationMillis = if (appearing) 120 else 200)
 
 /** A tab: what you go to. */
 @Composable
@@ -396,14 +447,18 @@ internal fun ActivityDots(state: ActivityState, modifier: Modifier = Modifier) {
     }
 }
 
-/** A small arrow at the end of a heading: pointing right when its contents are folded away. */
+/**
+ * A small arrow at the end of a heading: pointing right when its contents are folded away.
+ * An unfolded heading shows it only under the pointer, fading in as a hint that it folds.
+ */
 @Composable
-private fun FoldMark(collapsed: Boolean) {
+private fun FoldMark(collapsed: Boolean, visible: Boolean) {
+    val alpha by animateFloatAsState(if (visible) 0.7f else 0f, hoverFade(visible), label = "fold mark")
     Icon(
         if (collapsed) Icons.AutoMirrored.Filled.KeyboardArrowRight else Icons.Filled.KeyboardArrowDown,
         contentDescription = if (collapsed) "Folded" else null,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (collapsed) 0.7f else 0.25f),
-        modifier = Modifier.padding(start = 2.dp).size(16.dp),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 1.dp).size(16.dp).alpha(alpha),
     )
 }
 

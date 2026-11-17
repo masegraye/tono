@@ -83,6 +83,26 @@ class RexUiState(val client: RexClient) {
     val focusedBlockId: String? get() = window?.let(::focusedBlockOf)
     val focusedTerminal: TerminalSession? get() = focusedBlockId?.let { hostState?.terminals?.get(it) }
 
+    /** Opens a tab in a session, which need not be the one showing, and goes to it. */
+    fun newTab(host: RexHost, sessionId: String) {
+        client.log.add("app", "new tab in ${host.state.value.sessions.firstOrNull { it.id == sessionId }?.label ?: sessionId} (sidebar)")
+        if (host.saved.label in collapsedHosts || sessionId in collapsedSessions) {
+            setCollapsed(collapsedHosts - host.saved.label, collapsedSessions - sessionId)
+        }
+        client.selectHost(host.saved.label)
+        host.newTab(sessionId)
+        returnFocusToTerminal()
+    }
+
+    /** Creates a session on a host, which need not be the one showing, and goes to it. */
+    fun newSession(host: RexHost) {
+        client.log.add("app", "new session on ${host.saved.label} (sidebar)")
+        if (host.saved.label in collapsedHosts) setCollapsed(hosts = collapsedHosts - host.saved.label)
+        client.selectHost(host.saved.label)
+        host.newSession()
+        returnFocusToTerminal()
+    }
+
     private fun hostStates(): List<Pair<String, HostState>> = client.hosts.value.map { it.saved.label to it.state.value }
 
     /**

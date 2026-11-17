@@ -163,9 +163,19 @@ class RexHost(
         control.call(if (forward) "session.focus_next_window" else "session.focus_previous_window", sessionPayload {})
     }
 
-    /** Opens a tab with a shell in it, and shows it. */
-    fun newTab() = act("new tab") { control ->
-        val created = control.call("session.new_window", sessionPayload { put("layout", SHELL_LAYOUT) })
+    /**
+     * Opens a tab with a shell in it, and shows it.
+     *
+     * @param sessionId the session to open it in; the one showing if left out
+     */
+    fun newTab(sessionId: String? = null) = act("new tab") { control ->
+        val target = sessionId ?: state.value.selectedSessionId ?: return@act
+        // The new tab is shown, so its session has to be the one showing.
+        if (state.value.selectedSessionId != target) attach(control, target)
+        val created = control.call("session.new_window", buildJsonObject {
+            put("session_id", target)
+            put("layout", SHELL_LAYOUT)
+        })
         log.add(saved.label, "created tab ${created.string("window_id")}")
         claimCreated(control, created["block_ids"] as? JsonArray)
     }
@@ -560,10 +570,10 @@ class RexHost(
 
     private suspend fun handleEvent(connection: RexControl, event: RexEvent) {
         val current = state.value
-        // Some block events arrive many times a second and say little; their effects are logged instead.
-        if (event.type != "block_event" || event.payload.string("name") !in QUIET_BLOCK_EVENTS) {
-            log.add(saved.label, "event ${describe(event, current)}")
-        }
+        // Some events arrive in bursts and say little: a block's title changing, or every
+        // command-line call joining and leaving. Their effects are logged instead.
+        val quiet = event.type in QUIET_EVENTS || (event.type == "block_event" && event.payload.string("name") in QUIET_BLOCK_EVENTS)
+        if (!quiet) log.add(saved.label, "event ${describe(event, current)}")
         when (event.type) {
             "block_event" -> event.payload.string("block_id")?.let { blockId ->
                 val fields = event.payload.obj("payload")
@@ -632,6 +642,7 @@ class RexHost(
     private companion object {
         const val BOOTSTRAP_TIMEOUT_MILLIS = 8_000L
         val RETRY_DELAYS_MILLIS = longArrayOf(500, 1_000, 2_000, 5_000, 10_000)
+        val QUIET_EVENTS = setOf("client_joined", "client_left", "client_connected", "client_disconnected", "client_changed")
         val QUIET_BLOCK_EVENTS = setOf("program_status_changed", "progress_report", "title_changed", "process_changed", "pwd_changed")
         val SHELL_LAYOUT = buildJsonObject { putJsonObject("block") { put("flavor", "$TERMINAL_CREATOR.shell") } }
 
