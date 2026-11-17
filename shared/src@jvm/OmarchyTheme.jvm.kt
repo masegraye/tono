@@ -1,5 +1,10 @@
 package org.example.kotlintest
 
+import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.platform.SystemFont
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
@@ -44,17 +49,44 @@ actual fun listOmarchyThemeSlugs(): List<String> =
         .sorted()
 
 /**
- * Suspends until Omarchy applies a theme.
+ * Resolves the Omarchy font the way `omarchy font current` does: ask fontconfig what
+ * `monospace` maps to, then load that installed family by name.
+ */
+@OptIn(ExperimentalTextApi::class) // SystemFont: loads an installed font by family name
+actual fun readOmarchyFont(): OmarchyFont? {
+    if (omarchyCurrentDir() == null) return null
+    val name = runCatching {
+        val process = ProcessBuilder("fc-match", "monospace", "-f", "%{family}").start()
+        val output = process.inputStream.bufferedReader().readText()
+        if (!process.waitFor(2, TimeUnit.SECONDS)) process.destroy()
+        output.substringBefore(',').trim() // "JetBrainsMono Nerd Font,JetBrainsMono NF"
+    }.getOrNull().orEmpty()
+    if (name.isEmpty()) return null
+    val family = FontFamily(
+        SystemFont(name, FontWeight.Normal, FontStyle.Normal),
+        SystemFont(name, FontWeight.Normal, FontStyle.Italic),
+        SystemFont(name, FontWeight.Bold, FontStyle.Normal),
+        SystemFont(name, FontWeight.Bold, FontStyle.Italic),
+    )
+    return OmarchyFont(name, family)
+}
+
+/**
+ * Suspends until Omarchy applies a theme or a font.
  *
  * `omarchy theme set` stages `current/next-theme`, swaps it in as `current/theme` and
- * rewrites `current/theme.name`, so watching the `current` directory catches every switch
- * the moment it happens — no polling, and no hook installation required.
+ * rewrites `current/theme.name`; `omarchy font set` rewrites `~/.config/fontconfig/fonts.conf`.
+ * Watching those two directories catches every switch the moment it happens — no polling,
+ * and no hook installation required.
  */
-actual suspend fun awaitOmarchyThemeChange() {
+actual suspend fun awaitOmarchyAppearanceChange() {
     val current = omarchyCurrentDir() ?: awaitCancellation()
     withContext(Dispatchers.IO) {
         FileSystems.getDefault().newWatchService().use { watcher ->
-            current.toPath().register(watcher, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE)
+            val fontconfig = System.getenv("HOME")?.let { File(it, ".config/fontconfig") }
+            for (dir in listOfNotNull(current, fontconfig?.takeIf { it.isDirectory })) {
+                dir.toPath().register(watcher, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE)
+            }
             while (true) {
                 ensureActive()
                 val key = watcher.poll(500, TimeUnit.MILLISECONDS) ?: continue
@@ -64,5 +96,5 @@ actual suspend fun awaitOmarchyThemeChange() {
             }
         }
     }
-    delay(150) // let Omarchy finish the directory swap before the palette is re-read
+    delay(150) // let Omarchy finish writing before the palette and font are re-read
 }

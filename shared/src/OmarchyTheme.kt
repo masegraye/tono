@@ -3,10 +3,14 @@ package org.example.kotlintest
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * Omarchy theme integration.
@@ -68,10 +72,19 @@ internal fun omarchyPaletteFromToml(slug: String, text: String): OmarchyPalette?
 expect fun readOmarchyPalette(): OmarchyPalette?
 
 /**
- * Suspends until the desktop's Omarchy theme changes, then returns. Never returns on
- * platforms without Omarchy.
+ * The desktop's Omarchy font. Omarchy uses one monospace font for its whole shell (bar,
+ * menus, terminals), and fontconfig's `monospace` alias is its source of truth.
  */
-expect suspend fun awaitOmarchyThemeChange()
+class OmarchyFont(val name: String, val family: FontFamily)
+
+/** Reads the active Omarchy font, or null when not running on an Omarchy desktop. */
+expect fun readOmarchyFont(): OmarchyFont?
+
+/**
+ * Suspends until the desktop's Omarchy theme or font changes, then returns. Never returns
+ * on platforms without Omarchy.
+ */
+expect suspend fun awaitOmarchyAppearanceChange()
 
 /** Theme slugs installed on this machine (empty except on desktop). */
 expect fun listOmarchyThemeSlugs(): List<String>
@@ -192,6 +205,35 @@ fun omarchyShapes(): Shapes = Shapes(
     large = RoundedCornerShape(20.dp),
     extraLarge = RoundedCornerShape(28.dp),
 )
+
+/**
+ * Material's type scale set in the Omarchy font, so the app's text matches the desktop's
+ * bar and menus. With a null [family] this is the stock Material typography.
+ */
+fun omarchyTypography(family: FontFamily?): Typography {
+    val base = Typography()
+    if (family == null) return base
+    // Material's letter spacing is tuned for a proportional font; a monospace font
+    // already has even spacing, and the extra tracking makes it look loose.
+    fun TextStyle.inOmarchyFont() = copy(fontFamily = family, letterSpacing = 0.sp)
+    return base.copy(
+        displayLarge = base.displayLarge.inOmarchyFont(),
+        displayMedium = base.displayMedium.inOmarchyFont(),
+        displaySmall = base.displaySmall.inOmarchyFont(),
+        headlineLarge = base.headlineLarge.inOmarchyFont(),
+        headlineMedium = base.headlineMedium.inOmarchyFont(),
+        headlineSmall = base.headlineSmall.inOmarchyFont(),
+        titleLarge = base.titleLarge.inOmarchyFont(),
+        titleMedium = base.titleMedium.inOmarchyFont(),
+        titleSmall = base.titleSmall.inOmarchyFont(),
+        bodyLarge = base.bodyLarge.inOmarchyFont(),
+        bodyMedium = base.bodyMedium.inOmarchyFont(),
+        bodySmall = base.bodySmall.inOmarchyFont(),
+        labelLarge = base.labelLarge.inOmarchyFont(),
+        labelMedium = base.labelMedium.inOmarchyFont(),
+        labelSmall = base.labelSmall.inOmarchyFont(),
+    )
+}
 
 // ---------------------------------------------------------------------------------------------
 // Stock Omarchy palettes (verbatim from /usr/share/omarchy/themes/<slug>/colors.toml)

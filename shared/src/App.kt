@@ -43,15 +43,18 @@ private val SECTION_TITLES = listOf(
 fun App() {
     // Live Omarchy palette. On desktop this is the colors.toml of the theme Omarchy has
     // applied; on Android/iOS/web it is null and a bundled stock palette is used instead.
-    // awaitOmarchyThemeChange() is a filesystem watch, so `omarchy theme set ...` (or the
-    // theme menu) re-themes the running app immediately.
+    // awaitOmarchyAppearanceChange() is a filesystem watch, so `omarchy theme set ...` or
+    // `omarchy font set ...` (or the Omarchy menu) restyles the running app immediately.
     var systemPalette by remember { mutableStateOf(readOmarchyPalette()) }
+    var systemFont by remember { mutableStateOf(readOmarchyFont()) }
     var selectedSlug by remember { mutableStateOf<String?>(null) } // null = follow the system
     var darkOverride by remember { mutableStateOf<Boolean?>(null) } // null = follow the palette
     LaunchedEffect(Unit) {
         while (true) {
-            awaitOmarchyThemeChange()
+            awaitOmarchyAppearanceChange()
             systemPalette = readOmarchyPalette()
+            val font = readOmarchyFont()
+            if (font?.name != systemFont?.name) systemFont = font
             // A desktop theme change wins over a manual light/dark flip made in the app.
             darkOverride = null
         }
@@ -65,7 +68,13 @@ fun App() {
     val dark = darkOverride ?: palette.isDark
     val live = selectedSlug == null && systemPalette != null
 
-    MaterialTheme(colorScheme = omarchyColorScheme(palette, dark), shapes = omarchyShapes()) {
+    val typography = remember(systemFont) { omarchyTypography(systemFont?.family) }
+
+    MaterialTheme(
+        colorScheme = omarchyColorScheme(palette, dark),
+        shapes = omarchyShapes(),
+        typography = typography,
+    ) {
         val snackbarHostState = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
         var section by remember { mutableStateOf(0) }
@@ -135,6 +144,7 @@ fun App() {
                         4 -> SectionCanvas()
                         5 -> SectionTheming(
                             palette = palette,
+                            fontName = systemFont?.name,
                             live = live,
                             selectedSlug = selectedSlug,
                             dark = dark,

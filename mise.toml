@@ -1,2 +1,34 @@
 [tools]
 java = "temurin-25.0.5+8.0.LTS"
+watchexec = "latest"   # used by `mise watch`
+
+[tasks.desktop]
+description = "Run the desktop app with Compose Hot Reload"
+run = "./kotlin run -m desktopApp"
+
+[tasks.web]
+description = "Serve the web app at http://127.0.0.1:8080"
+run = "./kotlin run -m webApp"
+
+[tasks."web:build"]
+description = "Build the web app, then tell open browser tabs to reload"
+sources = [
+  "shared/src*/**/*",
+  "shared/composeResources/**/*",
+  "webApp/src/**/*",
+  "webApp/resources/**/*",
+  "**/module.yaml",
+  "project.yaml",
+  "libs.versions.toml",
+]
+# The build id is written only after a successful build, into the directory the dev
+# server serves from; webApp/resources/dev-reload.js polls it.
+run = '''
+./kotlin build -m webApp &&
+served=$(dirname "$(find build/tasks -name webApp.wasm -path '*_webApp_build*' | head -n 1)") &&
+date +%s%N > "$served/dev-build-id.txt"
+'''
+
+[tasks."web:watch"]
+description = "Rebuild the web app on every source change (run next to `mise run web`)"
+run = "mise watch web:build"

@@ -55,6 +55,7 @@ class ShowcaseRenderTest {
             render("6-theming-${palette.slug}", palette) {
                 SectionTheming(
                     palette = palette,
+                    fontName = null,
                     live = false,
                     selectedSlug = palette.slug,
                     dark = palette.isDark,

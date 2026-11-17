@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SectionTheming(
     palette: OmarchyPalette,
+    fontName: String?,
     live: Boolean,
     selectedSlug: String?,
     dark: Boolean,
@@ -61,6 +62,13 @@ fun SectionTheming(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+
+            Text(
+                if (fontName != null) "Font: $fontName — the desktop's Omarchy font, via fontconfig"
+                else "Font: platform default — the Omarchy font is only readable on the desktop",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Dark scheme", Modifier.weight(1f))

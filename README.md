@@ -39,10 +39,23 @@ The app takes its colors from the [Omarchy](https://omarchy.org/) desktop theme
   immediately.
 - On Android, iOS and web, and on desktops without Omarchy, it falls back to four stock Omarchy palettes that are
   embedded in the app. The Theming tab switches between them.
+- The desktop app also uses the Omarchy font (whatever fontconfig resolves `monospace` to) for all text, and picks up
+  `omarchy font set <name>` the same way. Other platforms keep their default font.
 - Under Hyprland the desktop app renders at the focused monitor's scale. Set `KMP_UI_SCALE` (for example `1.5`) to
   override it.
 
 `./kotlin test -p jvm` also renders every tab offscreen to `build/showcase-renders/*.png`.
+
+### Development loop
+
+[mise](https://mise.jdx.dev/) pins the JDK and provides a few tasks (`mise tasks` lists them):
+
+- `mise run desktop` runs the desktop app with Compose Hot Reload: saved UI changes appear in the running window within
+  a second or two and keep its state. Changing dependencies or `desktopApp/src/main.kt` needs a restart.
+- `mise run web` serves the web app, and `mise run web:watch` in a second terminal rebuilds it whenever a source file
+  changes and reloads open browser tabs. Hot Reload is JVM-only, so on web this is a full rebuild and page reload
+  (about 15 seconds) and the page state is lost. The reload is driven by
+  [dev-reload.js](./webApp/resources/dev-reload.js), which only runs on localhost.
 
 ### Testing
 
