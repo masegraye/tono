@@ -7,3 +7,13 @@
 **/xcshareddata/WorkspaceSettings.xcsettings
 xcuserdata
 /.pi/mcp.json
+
+# Profiler snapshots from `./kotlin --profile`
+*.jfr
+
+# OS files
+.DS_Store
+
+# Android SDK location and signing/publishing credentials
+local.properties
+creds.properties

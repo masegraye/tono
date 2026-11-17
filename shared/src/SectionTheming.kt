@@ -24,6 +24,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.mg.omarchy.theme.OmarchyAppearance
+import dev.mg.omarchy.theme.OmarchyPalette
+import dev.mg.omarchy.theme.bundledOmarchyPalettes
+import dev.mg.omarchy.theme.compose.color
+import dev.mg.omarchy.theme.readInstalledOmarchyPalettes
 
 /**
  * @param palette the palette the app is showing

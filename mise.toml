@@ -18,7 +18,6 @@ WEB_DIR="$PWD/$(dirname "$(find build/tasks -name webApp.wasm -path '*_webApp_bu
 [tasks."web:build"]
 description = "Build the web app, then tell open browser tabs to reload"
 sources = [
-  "core/src*/**/*",
   "shared/src*/**/*",
   "shared/composeResources/**/*",
   "webApp/src/**/*",

@@ -5,6 +5,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.unit.Density
+import dev.mg.omarchy.theme.OmarchyPalette
+import dev.mg.omarchy.theme.bundledOmarchyPalettes
+import dev.mg.omarchy.theme.compose.omarchyColorScheme
+import dev.mg.omarchy.theme.compose.omarchyShapes
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue

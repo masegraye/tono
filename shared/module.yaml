@@ -2,8 +2,11 @@ product:
   type: kmp/lib
   platforms: [android, iosArm64, iosSimulatorArm64, jvm, wasmJs]
 
+repositories:
+  - mavenLocal # for the omarchy-theme libraries
+
 dependencies:
-  - //core: exported
+  - $libs.omarchy.theme.compose: exported
   - $compose.runtime
   - $libs.compose.material.icons.core
   - $compose.foundation

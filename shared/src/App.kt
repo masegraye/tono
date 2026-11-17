@@ -19,7 +19,6 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import dev.mg.omarchy.theme.compose.OmarchyTheme
+import dev.mg.omarchy.theme.compose.rememberOmarchyThemeState
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.reload.DevelopmentEntryPoint
 
@@ -41,41 +42,17 @@ private val SECTION_TITLES = listOf(
 @Preview
 @DevelopmentEntryPoint
 fun App() {
-    // How the desktop looks. On the desktop app this is read from the files Omarchy writes;
-    // on web it is pushed by the server; on Android/iOS it stays null. Whatever theme the
-    // user applies, the flow emits its palette and the whole app restyles at runtime.
-    var desktop by remember { mutableStateOf(readOmarchyAppearance()) }
-    // A palette picked in the Theming tab, shown instead of the desktop's until either the
-    // user dismisses it or the desktop's theme changes.
-    var preview by remember { mutableStateOf<OmarchyPalette?>(null) }
-    var darkOverride by remember { mutableStateOf<Boolean?>(null) } // null = the palette's own mode
-    LaunchedEffect(Unit) {
-        omarchyAppearanceFlow().collect { latest ->
-            if (latest != desktop) {
-                desktop = latest
-                // The desktop changed: follow it, dropping any choices made in the app.
-                preview = null
-                darkOverride = null
-            }
-        }
-    }
-
-    val palette = preview ?: desktop?.palette ?: bundledOmarchyPalettes.first()
-    val dark = darkOverride ?: palette.isDark
-    val fontName = desktop?.fontName
-    val fontFamily = remember(fontName) { fontName?.let(::systemFontFamily) }
-    val typography = remember(fontFamily) { omarchyTypography(fontFamily) }
+    // OmarchyTheme (from the omarchy-theme-compose library) styles everything inside it like
+    // the Omarchy desktop and follows the desktop's theme and font as they change. Holding
+    // the state here lets the top bar and the Theming tab show and override it.
+    val theme = rememberOmarchyThemeState()
     val source = when {
-        preview != null -> "Preview: "
-        desktop != null -> "Omarchy: "
+        theme.isPreviewing -> "Preview: "
+        theme.desktop != null -> "Omarchy: "
         else -> ""
     }
 
-    MaterialTheme(
-        colorScheme = omarchyColorScheme(palette, dark),
-        shapes = omarchyShapes(),
-        typography = typography,
-    ) {
+    OmarchyTheme(theme) {
         val snackbarHostState = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
         var section by remember { mutableStateOf(0) }
@@ -94,7 +71,7 @@ fun App() {
                                 fontWeight = FontWeight.SemiBold,
                             )
                             Text(
-                                "$platformName · $source${palette.displayName}",
+                                "$platformName · $source${theme.palette.displayName}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -103,8 +80,8 @@ fun App() {
                     actions = {
                         Text("Dark", style = MaterialTheme.typography.labelMedium)
                         Switch(
-                            checked = dark,
-                            onCheckedChange = { darkOverride = it },
+                            checked = theme.isDark,
+                            onCheckedChange = { theme.darkOverride = it },
                             modifier = Modifier.padding(start = 8.dp, end = 16.dp),
                         )
                     },
@@ -144,13 +121,13 @@ fun App() {
                         3 -> SectionMotion()
                         4 -> SectionCanvas()
                         5 -> SectionTheming(
-                            palette = palette,
-                            desktop = desktop,
-                            desktopFontApplied = fontFamily != null,
-                            previewing = preview != null,
-                            dark = dark,
-                            onPreview = { preview = it; darkOverride = null },
-                            onDarkToggle = { darkOverride = it },
+                            palette = theme.palette,
+                            desktop = theme.desktop,
+                            desktopFontApplied = theme.fontFamily != null,
+                            previewing = theme.isPreviewing,
+                            dark = theme.isDark,
+                            onPreview = { theme.preview = it; theme.darkOverride = null },
+                            onDarkToggle = { theme.darkOverride = it },
                         )
                         else -> SectionPlatform()
                     }

@@ -4,8 +4,6 @@ This project is targeting Android, iOS, Desktop (fast UI development with Compos
 the [Kotlin Toolchain](https://kotlin-toolchain.org/latest/).
 
 - [/androidApp](./androidApp) contains the Android application.
-- [/core](./core) holds code with no UI in it, shared by the applications and the server: the Omarchy palette model and
-  the code that reads and watches the desktop's theme.
 - [/desktopApp](./desktopApp) contains the desktop (JVM) application.
 - [/iosApp](./iosApp) contains the iOS application.
 - [/shared](./shared) holds the code shared across your applications — Compose UI,
@@ -39,20 +37,26 @@ The app takes its colors, and on desktop its font, from the [Omarchy](https://om
 whichever theme is applied, including themes installed later, and restyles itself at runtime when the theme changes:
 nothing is rebuilt or reloaded.
 
-- Omarchy keeps the applied theme in `~/.local/state/omarchy/current`. [core](./core/src@jvm) reads the palette from
-  `theme/colors.toml` there and watches the directory, so `omarchy theme set <name>` takes effect immediately.
-  [OmarchyTheme.kt](./shared/src/OmarchyTheme.kt) maps the palette onto a Material 3 color scheme.
-- The desktop app reads those files itself. It also sets all text in the Omarchy font (whatever fontconfig resolves
-  `monospace` to) and follows `omarchy font set <name>`.
-- A web page cannot read the desktop's files, so the [server](./server) does it with the same `core` code and pushes
-  each change to the page over Server-Sent Events (`/api/theme/events`; `/api/theme` returns the current theme as JSON).
-  The web app keeps its default font.
+That behaviour comes from the `omarchy-theme` libraries, which live in their own repository (`../omarchy-theme-kmp`)
+so other apps can use them. They are resolved from the local Maven repository, so **install them before building this
+project**, and again after changing them:
+
+```sh
+cd ../omarchy-theme-kmp && ./kotlin publish mavenLocal
+```
+
+What this project does with them:
+
+- [App.kt](./shared/src/App.kt) wraps the UI in `OmarchyTheme`. On desktop that reads the files Omarchy writes and
+  watches them; it also sets all text in the Omarchy font.
+- A web page cannot read the desktop's files, so the [server](./server) calls `omarchyThemeApi()`, which pushes each
+  change to the page over Server-Sent Events. The web app keeps its default font.
 - Android, iOS, and a web build hosted without the server have no way to see the desktop, so they use one of four stock
-  palettes embedded in the app.
+  palettes embedded in the library.
 - The Theming tab can preview another palette: every installed theme on desktop, the embedded ones elsewhere. A preview
   only affects the app, and ends when the desktop's theme changes.
-- Under Hyprland the desktop app renders at the focused monitor's scale. Set `KMP_UI_SCALE` (for example `1.5`) to
-  override it.
+- [main.kt](./desktopApp/src/main.kt) wraps the window in `OmarchyWindowScale`, so under Hyprland the desktop app
+  renders at the focused monitor's scale. Set `OMARCHY_UI_SCALE` (for example `1.5`) to override it.
 
 `./kotlin test -p jvm` also renders every tab offscreen to `build/showcase-renders/*.png`.
 
