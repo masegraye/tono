@@ -52,6 +52,20 @@ class NavigationStopsTest {
     }
 
     @Test
+    fun `folding a session or a host away takes its tabs out of the numbering`() {
+        // With "work" folded, its two tabs are gone and "notes" starts at 1.
+        assertEquals(
+            listOf(NavigationStop("Local", "notes", "n1"), NavigationStop("studio", "build", "b1"), NavigationStop("studio", "build", "b2")),
+            linearTabs(listOf(local, studio), collapsedSessions = setOf("work")),
+        )
+        assertEquals(
+            listOf(NavigationStop("studio", "build", "b1"), NavigationStop("studio", "build", "b2")),
+            linearTabs(listOf(local, studio), collapsedHosts = setOf("Local")),
+        )
+        assertEquals(emptyList(), linearTabs(listOf(local, studio), setOf("Local"), setOf("build")))
+    }
+
+    @Test
     fun `sessions are listed in the same order`() {
         assertEquals(
             listOf(NavigationStop("Local", "work"), NavigationStop("Local", "notes"), NavigationStop("studio", "build")),

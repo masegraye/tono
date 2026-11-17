@@ -2,7 +2,7 @@ package org.example.kotlintest
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,6 +36,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.serialization.json.buildJsonObject
@@ -72,13 +73,13 @@ internal fun paletteItems(ui: RexUiState, commands: RexCommands, keymap: Keymap,
                 commands.run(action.name, origin = "palette")
             })
         }
-        // Every tab of every session, with the digit that goes to it.
-        val tabs = ui.tabs()
-        tabs.forEachIndexed { index, stop ->
-            val state = hosts.firstOrNull { it.saved.label == stop.host }?.state?.value ?: return@forEachIndexed
-            val session = state.views[stop.sessionId] ?: return@forEachIndexed
-            val tab = session.windows.firstOrNull { it.id == stop.windowId } ?: return@forEachIndexed
-            val digit = tabShortcutDigit(index, tabs.size)
+        // Every tab of every session, folded away or not, with the digit that goes to it if it has one.
+        val numbered = ui.tabs()
+        ui.allTabs().forEach { stop ->
+            val state = hosts.firstOrNull { it.saved.label == stop.host }?.state?.value ?: return@forEach
+            val session = state.views[stop.sessionId] ?: return@forEach
+            val tab = session.windows.firstOrNull { it.id == stop.windowId } ?: return@forEach
+            val digit = numbered.indexOf(stop).takeIf { it >= 0 }?.let { tabShortcutDigit(it, numbered.size) }
             val goto = digit?.let { buildJsonObject { put("index", if (it == 9) -1 else it) } }
             add(PaletteItem("Go to Tab: ${tab.label}", "${session.label} · ${stop.host}", goto?.let { keymap.shortcutFor("client.tab.goto", it)?.display() }, "tab") {
                 ui.go(stop)
@@ -168,10 +169,14 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
     Box(
         Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { ui.closePalette() },
+            // A pointer handler, not clickable: clickable also answers Space and Enter, and
+            // those belong to the search field.
+            .pointerInput(Unit) { detectTapGestures { ui.closePalette() } },
     ) {
         Surface(
-            modifier = Modifier.align(Alignment.TopCenter).padding(top = 72.dp).widthIn(max = 640.dp).fillMaxWidth(0.8f),
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 72.dp).widthIn(max = 640.dp).fillMaxWidth(0.8f)
+                // Clicks inside the palette stop here instead of dismissing it.
+                .pointerInput(Unit) { detectTapGestures { } },
             shape = MaterialTheme.shapes.medium,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             tonalElevation = 6.dp,

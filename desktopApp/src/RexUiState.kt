@@ -32,6 +32,34 @@ class RexUiState(val client: RexClient) {
     var confirmation: Confirmation? by mutableStateOf(null)
     var showcase by mutableStateOf(false)
 
+    /** True while Control is down. The sidebar shows each tab's shortcut digit for as long as it is. */
+    var controlHeld by mutableStateOf(false)
+
+    /** The hosts (by label) and sessions (by id) folded away in the sidebar. Remembered between runs. */
+    var collapsedHosts: Set<String> by mutableStateOf(client.workspace.collapsedHosts)
+        private set
+    var collapsedSessions: Set<String> by mutableStateOf(client.workspace.collapsedSessions)
+        private set
+
+    fun toggleHost(label: String) = setCollapsed(hosts = if (label in collapsedHosts) collapsedHosts - label else collapsedHosts + label)
+
+    fun toggleSession(sessionId: String) = setSessionCollapsed(sessionId, sessionId !in collapsedSessions)
+
+    fun setSessionCollapsed(sessionId: String, collapsed: Boolean) =
+        setCollapsed(sessions = if (collapsed) collapsedSessions + sessionId else collapsedSessions - sessionId)
+
+    /** Folds away every session but one. */
+    fun collapseSessionsExcept(sessionId: String) =
+        setCollapsed(sessions = client.hosts.value.flatMap { host -> host.state.value.sessions.map { it.id } }.toSet() - sessionId)
+
+    private fun setCollapsed(hosts: Set<String> = collapsedHosts, sessions: Set<String> = collapsedSessions) {
+        collapsedHosts = hosts
+        collapsedSessions = sessions
+        client.workspace.collapsedHosts = hosts
+        client.workspace.collapsedSessions = sessions
+        client.workspace.save()
+    }
+
     /** Changes whenever the keyboard should go back to the focused terminal, such as when an overlay closes. */
     var focusRequests by mutableIntStateOf(0)
         private set
@@ -57,8 +85,14 @@ class RexUiState(val client: RexClient) {
 
     private fun hostStates(): List<Pair<String, HostState>> = client.hosts.value.map { it.saved.label to it.state.value }
 
-    /** Every tab of every session on every host, in the order the sidebar lists them. */
-    fun tabs(): List<NavigationStop> = linearTabs(hostStates())
+    /**
+     * The tabs the sidebar is listing, in its order: every tab of every session on every host,
+     * less the ones folded away. A tab's place here is its number.
+     */
+    fun tabs(): List<NavigationStop> = linearTabs(hostStates(), collapsedHosts, collapsedSessions)
+
+    /** Every tab there is, folded away or not. */
+    fun allTabs(): List<NavigationStop> = linearTabs(hostStates())
 
     /** Goes to a tab by its place in [tabs], counting from 1. As in Rex.app, -1 is the last tab. */
     fun goToTab(index: Int) {
@@ -86,6 +120,10 @@ class RexUiState(val client: RexClient) {
     /** Shows a session, or one of its tabs. Showing a tab makes it its session's active tab, for every client on that session. */
     fun go(stop: NavigationStop) {
         val target = client.hosts.value.firstOrNull { it.saved.label == stop.host } ?: return
+        // Going somewhere that is folded away unfolds it, so the sidebar shows where you are.
+        if (stop.host in collapsedHosts || stop.sessionId in collapsedSessions) {
+            setCollapsed(collapsedHosts - stop.host, collapsedSessions - stop.sessionId)
+        }
         client.selectHost(stop.host)
         if (stop.windowId != null) target.showTab(stop.sessionId, stop.windowId) else target.selectSession(stop.sessionId)
         returnFocusToTerminal()
@@ -105,15 +143,20 @@ internal fun focusedBlockOf(window: WindowView): String? =
 data class NavigationStop(val host: String, val sessionId: String, val windowId: String? = null)
 
 /**
- * Every tab of every session on every connected host, in the order the sidebar lists them:
+ * The tabs of every session on every connected host, in the order the sidebar lists them:
  * host by host, session by session, tab by tab. A tab's place in this list is its number,
- * which is what Control and a digit go to.
+ * which is what Control and a digit go to. Tabs folded away with their host or session are
+ * not listed, so folding what you aren't using brings the rest within reach of the digits.
  *
  * @param hosts each host's label and state, in sidebar order
  */
-internal fun linearTabs(hosts: List<Pair<String, HostState>>): List<NavigationStop> =
-    hosts.filter { (_, state) -> state.connection == HostConnection.Connected }.flatMap { (label, state) ->
-        state.sessions.flatMap { session ->
+internal fun linearTabs(
+    hosts: List<Pair<String, HostState>>,
+    collapsedHosts: Set<String> = emptySet(),
+    collapsedSessions: Set<String> = emptySet(),
+): List<NavigationStop> =
+    hosts.filter { (label, state) -> state.connection == HostConnection.Connected && label !in collapsedHosts }.flatMap { (label, state) ->
+        state.sessions.filter { it.id !in collapsedSessions }.flatMap { session ->
             state.views[session.id]?.windows.orEmpty().map { NavigationStop(label, session.id, it.id) }
         }
     }

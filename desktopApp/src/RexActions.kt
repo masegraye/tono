@@ -113,6 +113,16 @@ internal fun clientActions(): List<ClientAction> = buildList {
         client.hosts.value.firstOrNull { host -> host.state.value.sessions.any { it.id == sessionId } }
             ?.let { go(NavigationStop(it.saved.label, sessionId)) }
     })
+    // Sessions fold away in the sidebar, which also takes their tabs out of the numbering.
+    add(ClientAction("session.collapse", "Collapse Session", "Session", "fold hide tabs", available = hasSession) { args ->
+        (args?.get("session_id")?.jsonPrimitive?.content ?: hostState?.selectedSessionId)?.let { setSessionCollapsed(it, true) }
+    })
+    add(ClientAction("session.expand", "Expand Session", "Session", "unfold show tabs", available = hasSession) { args ->
+        (args?.get("session_id")?.jsonPrimitive?.content ?: hostState?.selectedSessionId)?.let { setSessionCollapsed(it, false) }
+    })
+    add(ClientAction("session.collapse_others", "Collapse Other Sessions", "Session", "fold hide focus", available = hasSession) { args ->
+        (args?.get("session_id")?.jsonPrimitive?.content ?: hostState?.selectedSessionId)?.let(::collapseSessionsExcept)
+    })
     add(ClientAction("session.next", "Next Session", "Session", "cycle") { stepSession(forward = true) })
     add(ClientAction("session.previous", "Previous Session", "Session", "cycle") { stepSession(forward = false) })
 
@@ -178,8 +188,10 @@ internal fun clientActions(): List<ClientAction> = buildList {
     add(ClientAction("pane.focus", "Focus Pane", "Pane", inPalette = false) { args ->
         args?.get("direction")?.jsonPrimitive?.content?.let { host?.focusDirection(it) }
     })
-    add(ClientAction("pane.focus_next", "Focus Next Pane", "Pane", "cycle", available = { (window?.panes?.size ?: 0) > 1 }) { host?.stepPane(forward = true) })
-    add(ClientAction("pane.focus_previous", "Focus Previous Pane", "Pane", "cycle", available = { (window?.panes?.size ?: 0) > 1 }) { host?.stepPane(forward = false) })
+    // Rex.app has these on Command+] and Command+[. Control+[ is Escape to a terminal, so
+    // here they are on Alt, where the keys otherwise only start an escape sequence.
+    add(ClientAction("pane.focus_next", "Focus Next Pane", "Pane", "cycle", keys = listOf("alt+]"), available = { (window?.panes?.size ?: 0) > 1 }) { host?.stepPane(forward = true) })
+    add(ClientAction("pane.focus_previous", "Focus Previous Pane", "Pane", "cycle", keys = listOf("alt+["), available = { (window?.panes?.size ?: 0) > 1 }) { host?.stepPane(forward = false) })
     add(ClientAction("pane.zoom", "Zoom Pane", "Pane", "maximize fullscreen restore", keys = listOf("ctrl+shift+enter"), available = hasPane) {
         focusedBlockId?.let { host?.toggleZoom(it) }
     })

@@ -97,8 +97,13 @@ When it starts it connects to every configured server at once and restores where
   machine that is on the tailnet too.
 - For each server it selects the session you last had (else the first listed) and lays out its active tab's terminals
   where the server says they sit. It creates and closes things only when asked to.
-- The sidebar lists every server, its sessions, and each session's tabs beneath it (a tab is a Rex window). The
-  layouts of all sessions are read and kept current, not just the one on screen.
+- The sidebar is a set of nested headings: servers, each with the same weight and this machine's first; their
+  sessions, as small quiet headings; and under each session its tabs (a tab is a Rex window), which are what you go
+  to. Clicking a server or a session folds it away. The layouts of all sessions are read and kept current, not just
+  the one on screen.
+- Three dots beside a tab show what its program says it is doing (programs report this with OSC 7501): rippling
+  while it works, steady in the accent color while it waits for you, and in the error color after a failure. A
+  folded server or session shows the dots for whatever is inside it.
 - A dropped connection is retried, and everything is read again when it comes back.
 
 Looking at a terminal is passive: it is drawn at the size its current owner gave it. Pressing a key in one claims it,
@@ -121,6 +126,7 @@ of Command, and Shift added where Control alone belongs to the terminal.
 | Ctrl+Shift+T / Ctrl+Shift+N | New tab / new session |
 | Ctrl+Shift+D / Ctrl+Alt+D | Split the pane right / down |
 | Ctrl+Alt+arrows | Focus the pane in that direction |
+| Alt+] / Alt+[ | Focus the next / previous pane |
 | Ctrl+Shift+Enter | Zoom the pane, or restore the layout |
 | Ctrl+Shift+W / Ctrl+Alt+W | Close the pane / the tab, after asking |
 | Ctrl+Shift+V | Paste, bracketed when the program asks for that |
@@ -129,9 +135,11 @@ of Command, and Shift added where Control alone belongs to the terminal.
 | Ctrl+Shift+B | Show or hide the sidebar |
 | Ctrl+` | Show or hide the debug log |
 
-Tabs are one list, in sidebar order, across every session and server: the digit beside a tab is the one that goes to
-it, whichever session it is in, and next and previous carry on from one session into the next. Going to a tab makes it
-its session's active tab.
+Tabs are one list, in sidebar order, across every session and server: Control and a digit go to that tab, whichever
+session it is in, and next and previous carry on from one session into the next. Holding Control shows each tab's
+digit at the right of its row, until Control is let go. Tabs folded away with their session or server are left out of
+the numbering, so folding what you aren't using brings the rest within reach. Going to a tab makes it its session's
+active tab.
 
 A bound key does not reach the terminal; every other key does. The keymap is not fixed in the app: it declares its
 actions and these defaults to the home server (`client.keymap`), which layers the account's configuration file on top

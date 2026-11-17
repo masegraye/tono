@@ -182,6 +182,8 @@ class WorkspaceTest {
         val workspace = Workspace(file, hosts = listOf(SavedHost("Local", "unix:///run/rex.sock"), SavedHost("studio", "https://studio.ts.net")))
         workspace.lastHost = "studio"
         workspace.sessions["Local"] = "session:1"
+        workspace.collapsedHosts = setOf("studio")
+        workspace.collapsedSessions = setOf("session:2", "session:3")
         workspace.save()
 
         val loaded = Workspace.load(file)
@@ -189,6 +191,8 @@ class WorkspaceTest {
         assertEquals(workspace.hosts, loaded.hosts)
         assertEquals("studio", loaded.lastHost)
         assertEquals(mapOf("Local" to "session:1"), loaded.sessions)
+        assertEquals(setOf("studio"), loaded.collapsedHosts)
+        assertEquals(setOf("session:2", "session:3"), loaded.collapsedSessions)
         file.parent.parent.toFile().deleteRecursively()
     }
 
@@ -216,5 +220,35 @@ class RexKeyTest {
             """{"key":"key_a","mods":"shift","consumed_mods":"shift","text":"A","unshifted_codepoint":97,"composing":false,"action":"press"}""",
             json.toString(),
         )
+    }
+}
+
+class ActivityStateTest {
+    private fun pane(blockId: String) = PaneView(blockId, PaneRect.Full, label = null, ownerClientId = null, isTerminal = true, floating = false)
+    private fun window(vararg blocks: String) = WindowView("w", "w", focusedBlockId = null, zoomedBlockId = null, panes = blocks.map(::pane))
+
+    @Test
+    fun `states are read as the server spells them`() {
+        assertEquals(ActivityState.Working, ActivityState.parse("working"))
+        assertEquals(ActivityState.Blocked, ActivityState.parse("blocked"))
+        assertEquals(ActivityState.Done, ActivityState.parse("done"))
+        assertEquals(ActivityState.Idle, ActivityState.parse("something new"))
+        assertEquals(ActivityState.Idle, ActivityState.parse(null))
+    }
+
+    @Test
+    fun `the state that most wants attention wins`() {
+        assertEquals(ActivityState.Blocked, listOf(ActivityState.Working, ActivityState.Blocked, ActivityState.Error).max())
+        assertEquals(ActivityState.Error, listOf(ActivityState.Working, ActivityState.Done, ActivityState.Error).max())
+        assertEquals(ActivityState.Working, listOf(ActivityState.Idle, ActivityState.Done, ActivityState.Working).max())
+    }
+
+    @Test
+    fun `a tab shows the most pressing thing any of its panes is doing`() {
+        val state = HostState(activity = mapOf("block:a" to ActivityState.Working, "block:b" to ActivityState.Blocked))
+        assertEquals(ActivityState.Blocked, state.activityOf(window("block:a", "block:b", "block:c")))
+        assertEquals(ActivityState.Working, state.activityOf(window("block:a", "block:c")))
+        assertEquals(ActivityState.Idle, state.activityOf(window("block:c")))
+        assertEquals(ActivityState.Idle, state.activityOf(window()))
     }
 }

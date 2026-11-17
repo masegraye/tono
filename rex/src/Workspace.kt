@@ -3,6 +3,7 @@ package org.example.kotlintest.rex
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
@@ -26,6 +27,10 @@ class Workspace(
     var lastHost: String? = null,
     /** For each host label, the session that was selected on it. */
     sessions: Map<String, String> = emptyMap(),
+    /** The labels of the hosts folded away in the sidebar. */
+    var collapsedHosts: Set<String> = emptySet(),
+    /** The ids of the sessions folded away in the sidebar. */
+    var collapsedSessions: Set<String> = emptySet(),
 ) {
     var hosts: List<SavedHost> = hosts
     val sessions: MutableMap<String, String> = sessions.toMutableMap()
@@ -43,6 +48,8 @@ class Workspace(
             })
             lastHost?.let { put("last_host", it) }
             putJsonObject("sessions") { for ((host, session) in sessions) put(host, session) }
+            if (collapsedHosts.isNotEmpty()) put("collapsed_hosts", buildJsonArray { collapsedHosts.sorted().forEach { add(JsonPrimitive(it)) } })
+            if (collapsedSessions.isNotEmpty()) put("collapsed_sessions", buildJsonArray { collapsedSessions.sorted().forEach { add(JsonPrimitive(it)) } })
         }
         runCatching {
             Files.createDirectories(target.parent)
@@ -71,9 +78,10 @@ class Workspace(
                 SavedHost(host.string("label") ?: return@mapNotNull null, host.string("endpoint") ?: return@mapNotNull null)
             }
             val sessions = root.obj("sessions")?.mapNotNull { (host, session) ->
-                (session as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.let { host to it.content }
+                (session as? JsonPrimitive)?.takeIf { it.isString }?.let { host to it.content }
             }?.toMap().orEmpty()
-            return Workspace(file, hosts, root.string("last_host"), sessions)
+            fun strings(key: String) = (root[key] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.takeIf { value -> value.isString }?.content }.toSet()
+            return Workspace(file, hosts, root.string("last_host"), sessions, strings("collapsed_hosts"), strings("collapsed_sessions"))
         }
     }
 }

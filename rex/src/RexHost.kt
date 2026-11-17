@@ -51,9 +51,38 @@ data class HostState(
     val views: Map<String, SessionView> = emptyMap(),
     /** The live terminals of the selected session's active window, by block id. */
     val terminals: Map<String, TerminalSession> = emptyMap(),
+    /**
+     * What the program in each terminal says it is doing, by block id, for every session.
+     * A terminal whose program has reported nothing, or is idle, has no entry.
+     */
+    val activity: Map<String, ActivityState> = emptyMap(),
 ) {
     /** The selected session's layout. */
     val view: SessionView? get() = views[selectedSessionId]
+
+    /** The most pressing thing any pane of a tab is doing. */
+    fun activityOf(window: WindowView): ActivityState =
+        window.panes.maxOfOrNull { activity[it.blockId] ?: ActivityState.Idle } ?: ActivityState.Idle
+}
+
+/**
+ * What a program says it is doing. Programs report this themselves (with OSC 7501), so a
+ * terminal running something that doesn't report is simply idle. In order of how much it
+ * wants attention, least first.
+ */
+enum class ActivityState {
+    Idle,
+    /** Finished. */
+    Done,
+    Working,
+    Error,
+    /** Waiting for the user: a question, a permission, a password. */
+    Blocked;
+
+    companion object {
+        /** Reads a state as the server spells it. One this client doesn't know counts as idle. */
+        fun parse(text: String?): ActivityState = entries.firstOrNull { it.name.equals(text, ignoreCase = true) } ?: Idle
+    }
 }
 
 /** Which side of a pane a new one goes on. */
@@ -97,6 +126,10 @@ class RexHost(
     private val desiredGrids = ConcurrentHashMap<String, GridSize>()
     /** Blocks claimed on this connection, until the server's view says otherwise. */
     private val claimed = ConcurrentHashMap.newKeySet<String>()
+    /** Each terminal's status records, by block id then record id: a program can report several things at once. */
+    private val statusRecords = ConcurrentHashMap<String, MutableMap<String, ActivityState>>()
+    /** Blocks whose status has been asked for on this connection. Later changes arrive as events. */
+    private val statusRead = ConcurrentHashMap.newKeySet<String>()
     @Volatile private var terminalColors: TerminalColors? = null
     @Volatile private var control: RexControl? = null
     private val endpoint: RexEndpoint? = runCatching { RexEndpoint.parse(saved.endpoint) }.getOrNull()
@@ -360,8 +393,10 @@ class RexHost(
             }
             // Everything read on that connection is stale now; it is all read again on the next.
             claimed.clear()
+            statusRecords.clear()
+            statusRead.clear()
             mutableState.value.terminals.values.forEach { it.close() }
-            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason), views = emptyMap(), terminals = emptyMap()) }
+            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason), views = emptyMap(), terminals = emptyMap(), activity = emptyMap()) }
             val delayMillis = RETRY_DELAYS_MILLIS[minOf(attempt++, RETRY_DELAYS_MILLIS.lastIndex)]
             log.add(saved.label, "disconnected: $reason. Trying again in ${delayMillis / 1000.0}s", isError = true)
             withTimeoutOrNull(delayMillis) { retryNow.receive() }
@@ -371,10 +406,11 @@ class RexHost(
     /** Sets a new connection up, then handles its events and this host's actions until it ends. */
     private suspend fun serve(connection: RexControl, endpoint: RexEndpoint) {
         // One request tells this client everything it needs to draw the host, and turns on
-        // events for every session. Attaching to none here: the session to show is chosen next.
+        // events for every session, including what the programs in their terminals report.
+        // Attaching to none here: the session to show is chosen next.
         val boot = withTimeout(BOOTSTRAP_TIMEOUT_MILLIS) {
             connection.call("session.bootstrap", buildJsonObject {
-                put("event_scope", "session")
+                put("event_scope", "all")
                 put("attach_session_ids", JsonArray(emptyList()))
             })
         }
@@ -435,14 +471,50 @@ class RexHost(
         log.add(saved.label, "attached to ${view.label}: ${view.windows.size} tab${if (view.windows.size == 1) "" else "s"}, revision ${view.revision}")
         showView(connection, view)
         onSessionSelected(sessionId)
+        readStatuses(connection, view)
     }
 
     /** Reads a session's layout, unless it is already known. Any session can be read, attached or not. */
     private suspend fun readView(connection: RexControl, sessionId: String) {
         if (sessionId in state.value.views) return
         runCatching { connection.call("session.view", buildJsonObject { put("session_id", sessionId) }) }
-            .onSuccess { showView(connection, parseSessionView(it)) }
+            .onSuccess {
+                val view = parseSessionView(it)
+                showView(connection, view)
+                readStatuses(connection, view)
+            }
             .onFailure { log.add(saved.label, "couldn't read the layout of ${short(sessionId)}: ${it.message}", isError = true) }
+    }
+
+    /**
+     * Asks what the programs in a session's terminals have reported, for terminals not asked
+     * about yet. After that, changes arrive as events.
+     */
+    private suspend fun readStatuses(connection: RexControl, view: SessionView) {
+        for (pane in view.windows.flatMap { it.panes }) {
+            if (!pane.isTerminal || !statusRead.add(pane.blockId)) continue
+            val records = runCatching {
+                connection.callBlock("$TERMINAL_CREATOR.program_status", view.sessionId, pane.blockId)["records"] as? JsonArray
+            }.getOrNull().orEmpty()
+            for (record in records.mapNotNull { it as? JsonObject }) {
+                setStatus(pane.blockId, record.string("id").orEmpty(), ActivityState.parse(record.string("state")))
+            }
+        }
+    }
+
+    /** Records one status report, and updates what the block as a whole is doing. Null removes the record. */
+    private fun setStatus(blockId: String, recordId: String, state: ActivityState?) {
+        val records = statusRecords.getOrPut(blockId) { ConcurrentHashMap() }
+        if (state == null || state == ActivityState.Idle) records.remove(recordId) else records[recordId] = state
+        publishActivity(blockId)
+    }
+
+    private fun publishActivity(blockId: String) {
+        val now = statusRecords[blockId]?.values?.maxOrNull() ?: ActivityState.Idle
+        val before = state.value.activity[blockId] ?: ActivityState.Idle
+        if (now == before) return
+        mutableState.update { it.copy(activity = if (now == ActivityState.Idle) it.activity - blockId else it.activity + (blockId to now)) }
+        log.add(saved.label, "${short(blockId)} is ${now.name.lowercase()}")
     }
 
     /** Takes a session's new layout. For the selected session, also makes the open terminals match the blocks it shows. */
@@ -488,14 +560,29 @@ class RexHost(
 
     private suspend fun handleEvent(connection: RexControl, event: RexEvent) {
         val current = state.value
-        log.add(saved.label, "event ${describe(event, current)}")
+        // Some block events arrive many times a second and say little; their effects are logged instead.
+        if (event.type != "block_event" || event.payload.string("name") !in QUIET_BLOCK_EVENTS) {
+            log.add(saved.label, "event ${describe(event, current)}")
+        }
         when (event.type) {
+            "block_event" -> event.payload.string("block_id")?.let { blockId ->
+                val fields = event.payload.obj("payload")
+                when (event.payload.string("name")) {
+                    "program_status_changed" -> setStatus(blockId, fields?.string("id").orEmpty(), ActivityState.parse(fields?.obj("record")?.string("state")))
+                    "program_status_removed" -> (fields?.get("ids") as? JsonArray).orEmpty().forEach { id -> setStatus(blockId, (id as? JsonPrimitive)?.content.orEmpty(), null) }
+                }
+            }
+            "block_closed" -> event.payload.string("block_id")?.let { blockId ->
+                statusRecords.remove(blockId)
+                publishActivity(blockId)
+            }
             // Says only that a session's layout changed, so fetch it, unless this one is already known.
             "session_view_changed" -> event.sessionId?.let { sessionId ->
                 val revision = event.payload.long("revision") ?: Long.MAX_VALUE
                 if (revision > (current.views[sessionId]?.revision ?: -1)) {
-                    val view = connection.call("session.view", buildJsonObject { put("session_id", sessionId) })
-                    showView(connection, parseSessionView(view))
+                    val view = parseSessionView(connection.call("session.view", buildJsonObject { put("session_id", sessionId) }))
+                    showView(connection, view)
+                    readStatuses(connection, view) // for terminals that are new
                 }
             }
             "session_created", "session_destroyed", "session_label_changed" -> {
@@ -545,6 +632,7 @@ class RexHost(
     private companion object {
         const val BOOTSTRAP_TIMEOUT_MILLIS = 8_000L
         val RETRY_DELAYS_MILLIS = longArrayOf(500, 1_000, 2_000, 5_000, 10_000)
+        val QUIET_BLOCK_EVENTS = setOf("program_status_changed", "progress_report", "title_changed", "process_changed", "pwd_changed")
         val SHELL_LAYOUT = buildJsonObject { putJsonObject("block") { put("flavor", "$TERMINAL_CREATOR.shell") } }
 
         /** `block:01a1eb49-4eac-…` is too long to read in a log; its kind and last few characters identify it. */

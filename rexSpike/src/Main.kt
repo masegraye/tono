@@ -63,6 +63,7 @@ private suspend fun kotlinx.coroutines.CoroutineScope.probe(args: Array<String>)
     for (host in client.hosts.value) {
         withTimeoutOrNull(6_000) { host.state.first { state -> state.sessions.all { it.id in state.views } } }
     }
+    delay(600) // and each terminal is asked what its program has reported
     // Terminals open after the session's layout arrives; wait for their first frames.
     for (host in client.hosts.value) {
         withTimeoutOrNull(6_000) { host.state.first { state -> state.terminals.isNotEmpty() && state.terminals.values.all { it.frame.value != null } } }
@@ -80,7 +81,8 @@ private suspend fun kotlinx.coroutines.CoroutineScope.probe(args: Array<String>)
             val layout = state.views[session.id]
             if (layout == null) println("    (layout not read)")
             for (window in layout?.windows.orEmpty()) {
-                println("    tab ${window.label}${if (window.id == layout?.activeWindowId) "  <- active" else ""}  (${window.panes.size} pane${if (window.panes.size == 1) "" else "s"})")
+                val activity = state.activityOf(window).takeIf { it != org.example.kotlintest.rex.ActivityState.Idle }?.let { "  [${it.name.lowercase()}]" }.orEmpty()
+                println("    tab ${window.label}${if (window.id == layout?.activeWindowId) "  <- active" else ""}  (${window.panes.size} pane${if (window.panes.size == 1) "" else "s"})$activity")
             }
         }
         val view = state.view ?: continue

@@ -29,7 +29,8 @@ import org.example.kotlintest.ghostty.TerminalColors
  */
 class RexClient(
     private val scope: CoroutineScope,
-    private val workspace: Workspace = Workspace.load(),
+    /** What is remembered between runs. The app keeps its sidebar's folded state here too. */
+    val workspace: Workspace = Workspace.load(),
     private val info: RexClientInfo = RexClientInfo(name = "kotlin-test", version = "0.1.0"),
 ) : AutoCloseable {
     private val http = rexHttpClient()
