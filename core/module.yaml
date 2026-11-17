@@ -1,0 +1,9 @@
+# Compose-free code shared by the UI (all platforms) and the server:
+# the Omarchy palette model, colors.toml parsing, and the platform readers.
+product:
+  type: kmp/lib
+  platforms: [android, iosArm64, iosSimulatorArm64, jvm, wasmJs]
+
+dependencies:
+  - $libs.kotlinx.coroutines.core: exported
+  - $libs.kotlinx.serialization.json

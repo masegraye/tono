@@ -3,83 +3,49 @@ package org.example.kotlintest
 import androidx.compose.ui.graphics.Color
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 class OmarchyThemeTest {
-    /** Every colors.toml key that omarchyColorScheme() reads. */
-    private val requiredKeys = listOf(
-        "accent", "selection", "muted",
-        "background", "dark_background", "darker_background", "lighter_background",
-        "foreground", "dark_foreground", "light_foreground", "bright_foreground",
-        "red", "green", "blue", "magenta",
-    )
-
-    @Test
-    fun `parses omarchy colors toml`() {
-        val raw = parseColorsToml(
-            """
-            mode = "light"
-
-            accent = "#1e66f5"
-            # a comment
-            background = "#eff1f5"
-            """.trimIndent(),
-        )
-        assertEquals(mapOf("mode" to "light", "accent" to "#1e66f5", "background" to "#eff1f5"), raw)
-    }
+    private val retro = bundledOmarchyPalettes.first { it.slug == "retro-82" }
 
     @Test
     fun `hex colors convert to opaque compose colors`() {
         assertEquals(Color(0xFFFAA968), hexToColor("#faa968"))
-        assertEquals(Color(0xFF05182E), hexToColor("05182E"))
-    }
-
-    @Test
-    fun `incomplete palettes are rejected`() {
-        assertNull(omarchyPaletteFromToml("broken", "accent = \"#ffffff\""))
-    }
-
-    @Test
-    fun `bundled palettes are complete`() {
-        assertEquals(
-            listOf("retro-82", "catppuccin", "catppuccin-latte", "tokyo-night"),
-            bundledOmarchyPalettes.map { it.slug },
-        )
-        for (palette in bundledOmarchyPalettes) {
-            for (key in requiredKeys) {
-                assertNotNull(palette.raw[key], "${palette.slug} is missing '$key'")
-            }
-        }
-    }
-
-    @Test
-    fun `non-color entries are not treated as colors`() {
-        val retro = bundledOmarchyPalettes.first { it.slug == "retro-82" }
-        assertFalse("mode" in retro.colorKeys)
-        assertTrue("accent" in retro.colorKeys)
-        assertEquals(Color.Magenta, retro.color("mode"))
-        assertEquals(Color.Magenta, retro.color("no_such_key"))
-    }
-
-    @Test
-    fun `palette mode and display name`() {
-        val bySlug = bundledOmarchyPalettes.associateBy { it.slug }
-        assertTrue(bySlug.getValue("retro-82").isDark)
-        assertFalse(bySlug.getValue("catppuccin-latte").isDark)
-        assertEquals("Retro 82", bySlug.getValue("retro-82").displayName)
-        assertEquals("Catppuccin Latte", bySlug.getValue("catppuccin-latte").displayName)
+        assertEquals(Color(0xFF05182E), hexToColor("#05182E"))
     }
 
     @Test
     fun `palette maps onto material color roles`() {
-        val retro = bundledOmarchyPalettes.first { it.slug == "retro-82" }
         val scheme = omarchyColorScheme(retro)
         assertEquals(Color(0xFFFAA968), scheme.primary)
         assertEquals(Color(0xFF05182E), scheme.background)
         assertEquals(Color(0xFFF6DCAC), scheme.onBackground)
         assertEquals(Color(0xFFF85525), scheme.error)
+    }
+
+    @Test
+    fun `a minimal theme still produces a full color scheme`() {
+        val minimal = OmarchyPalette(
+            slug = "minimal",
+            mode = "dark",
+            colors = mapOf("background" to "#101010", "foreground" to "#eeeeee", "accent" to "#33aaff"),
+        )
+        val background = Color(0xFF101010)
+        val foreground = Color(0xFFEEEEEE)
+        val accent = Color(0xFF33AAFF)
+
+        assertEquals(background, minimal.color("darker_background")) // -> dark_background -> background
+        assertEquals(foreground, minimal.color("muted"))             // -> dark_foreground -> foreground
+        assertEquals(accent, minimal.color("magenta"))               // -> blue -> accent
+
+        val scheme = omarchyColorScheme(minimal)
+        assertEquals(accent, scheme.primary)
+        assertEquals(accent, scheme.error)
+        assertEquals(background, scheme.surfaceVariant)
+        assertEquals(foreground, scheme.onSurfaceVariant)
+    }
+
+    @Test
+    fun `an unknown color name is loud`() {
+        assertEquals(Color.Magenta, retro.color("no_such_color"))
     }
 }

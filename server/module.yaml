@@ -1,0 +1,17 @@
+# Serves the web app and tells it, live, how the desktop is themed.
+product: jvm/app
+
+dependencies:
+  - //core
+  - $ktor.server.core
+  - $ktor.server.netty
+  - $ktor.server.sse
+  - $libs.logback.classic
+
+settings:
+  ktor: enabled
+  jvm:
+    mainClass: org.example.kotlintest.server.ApplicationKt
+
+test-dependencies:
+  - $ktor.server.testHost

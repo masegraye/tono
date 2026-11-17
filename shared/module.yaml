@@ -3,6 +3,7 @@ product:
   platforms: [android, iosArm64, iosSimulatorArm64, jvm, wasmJs]
 
 dependencies:
+  - //core: exported
   - $compose.runtime
   - $libs.compose.material.icons.core
   - $compose.foundation

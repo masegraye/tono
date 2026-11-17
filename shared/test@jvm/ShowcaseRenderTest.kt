@@ -55,11 +55,11 @@ class ShowcaseRenderTest {
             render("6-theming-${palette.slug}", palette) {
                 SectionTheming(
                     palette = palette,
-                    fontName = null,
-                    live = false,
-                    selectedSlug = palette.slug,
+                    desktop = null,
+                    desktopFontApplied = false,
+                    previewing = true,
                     dark = palette.isDark,
-                    onSelect = {},
+                    onPreview = {},
                     onDarkToggle = {},
                 )
             }

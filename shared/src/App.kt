@@ -41,34 +41,35 @@ private val SECTION_TITLES = listOf(
 @Preview
 @DevelopmentEntryPoint
 fun App() {
-    // Live Omarchy palette. On desktop this is the colors.toml of the theme Omarchy has
-    // applied; on Android/iOS/web it is null and a bundled stock palette is used instead.
-    // awaitOmarchyAppearanceChange() is a filesystem watch, so `omarchy theme set ...` or
-    // `omarchy font set ...` (or the Omarchy menu) restyles the running app immediately.
-    var systemPalette by remember { mutableStateOf(readOmarchyPalette()) }
-    var systemFont by remember { mutableStateOf(readOmarchyFont()) }
-    var selectedSlug by remember { mutableStateOf<String?>(null) } // null = follow the system
-    var darkOverride by remember { mutableStateOf<Boolean?>(null) } // null = follow the palette
+    // How the desktop looks. On the desktop app this is read from the files Omarchy writes;
+    // on web it is pushed by the server; on Android/iOS it stays null. Whatever theme the
+    // user applies, the flow emits its palette and the whole app restyles at runtime.
+    var desktop by remember { mutableStateOf(readOmarchyAppearance()) }
+    // A palette picked in the Theming tab, shown instead of the desktop's until either the
+    // user dismisses it or the desktop's theme changes.
+    var preview by remember { mutableStateOf<OmarchyPalette?>(null) }
+    var darkOverride by remember { mutableStateOf<Boolean?>(null) } // null = the palette's own mode
     LaunchedEffect(Unit) {
-        while (true) {
-            awaitOmarchyAppearanceChange()
-            systemPalette = readOmarchyPalette()
-            val font = readOmarchyFont()
-            if (font?.name != systemFont?.name) systemFont = font
-            // A desktop theme change wins over a manual light/dark flip made in the app.
-            darkOverride = null
+        omarchyAppearanceFlow().collect { latest ->
+            if (latest != desktop) {
+                desktop = latest
+                // The desktop changed: follow it, dropping any choices made in the app.
+                preview = null
+                darkOverride = null
+            }
         }
     }
 
-    val palette = remember(systemPalette, selectedSlug) {
-        selectedSlug?.let { slug -> bundledOmarchyPalettes.firstOrNull { it.slug == slug } }
-            ?: systemPalette
-            ?: bundledOmarchyPalettes.first()
-    }
+    val palette = preview ?: desktop?.palette ?: bundledOmarchyPalettes.first()
     val dark = darkOverride ?: palette.isDark
-    val live = selectedSlug == null && systemPalette != null
-
-    val typography = remember(systemFont) { omarchyTypography(systemFont?.family) }
+    val fontName = desktop?.fontName
+    val fontFamily = remember(fontName) { fontName?.let(::systemFontFamily) }
+    val typography = remember(fontFamily) { omarchyTypography(fontFamily) }
+    val source = when {
+        preview != null -> "Preview: "
+        desktop != null -> "Omarchy: "
+        else -> ""
+    }
 
     MaterialTheme(
         colorScheme = omarchyColorScheme(palette, dark),
@@ -93,7 +94,7 @@ fun App() {
                                 fontWeight = FontWeight.SemiBold,
                             )
                             Text(
-                                "$platformName · ${if (live) "Omarchy: " else ""}${palette.displayName}",
+                                "$platformName · $source${palette.displayName}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -144,11 +145,11 @@ fun App() {
                         4 -> SectionCanvas()
                         5 -> SectionTheming(
                             palette = palette,
-                            fontName = systemFont?.name,
-                            live = live,
-                            selectedSlug = selectedSlug,
+                            desktop = desktop,
+                            desktopFontApplied = fontFamily != null,
+                            previewing = preview != null,
                             dark = dark,
-                            onSelect = { selectedSlug = it },
+                            onPreview = { preview = it; darkOverride = null },
                             onDarkToggle = { darkOverride = it },
                         )
                         else -> SectionPlatform()

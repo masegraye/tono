@@ -1,6 +1,8 @@
 modules:
   - androidApp
+  - core
   - desktopApp
   - iosApp
+  - server
   - shared
   - webApp
