@@ -4,7 +4,10 @@ This project is targeting Android, iOS, Desktop (fast UI development with Compos
 the [Kotlin Toolchain](https://kotlin-toolchain.org/latest/).
 
 - [/androidApp](./androidApp) contains the Android application.
-- [/desktopApp](./desktopApp) contains the desktop (JVM) application.
+- [/desktopApp](./desktopApp) contains the desktop (JVM) application: a client for [Rex](https://www.superlogical.com/rex).
+- [/ghostty](./ghostty) wraps libghostty-vt, Ghostty's terminal emulation core, for the JVM.
+- [/rex](./rex) is the Rex client itself, without any UI: connections, sessions and live terminals.
+- [/rexSpike](./rexSpike) is a command-line check of that client.
 - [/iosApp](./iosApp) contains the iOS application.
 - [/shared](./shared) holds the code shared across your applications — Compose UI,
   business logic, and platform-specific implementations. [src](./shared/src) is for common code; the
@@ -22,7 +25,7 @@ Build the whole project with `./kotlin build`.
 Run each module from the command line:
 
 - Android app: `./kotlin run -m androidApp`
-- Desktop app: `./kotlin run -m desktopApp`
+- Desktop app: `mise run desktop` (it needs the native library; see [Rex client](#rex-client))
 - iOS app: `./kotlin run -m iosApp`
 - Web app: `./kotlin run -m webApp` (static files only), or `mise run web` to serve it from the server module with
   live theming
@@ -74,19 +77,49 @@ What this project does with them:
   involved at runtime. The server reads `WEB_DIR`, `HOST` (default `127.0.0.1`) and `PORT` (default `8080`) from the
   environment.
 
-### Rex client spike
+### Rex client
 
-[rexSpike](./rexSpike) is a throwaway experiment towards a Linux client for [Rex](https://www.superlogical.com/rex),
-whose server documents its own API at `/llms.txt`. It connects to the local Rex server, opens one terminal's data
-stream, and decodes it with libghostty-vt, Ghostty's terminal core, called through Java's foreign function API. It only
-reads: it never types, resizes or claims a terminal.
+The desktop app is a Linux client for [Rex](https://www.superlogical.com/rex), which keeps terminals running on a server
+and lets clients attach to them. It is desktop-only; the other targets still show the UI showcase, which the desktop
+app keeps under its menu.
 
 ```sh
-mise run native   # once: download and build libghostty-vt into native/out (about two minutes, needs Zig 0.17)
-mise run spike    # inside a Rex terminal: print that terminal's screen, or pass <block-id> <session-id>
+mise run native    # once: download and build libghostty-vt into native/out (about two minutes)
+mise run desktop   # the client
+mise run probe     # the same connections with no window: prints what was restored
 ```
 
-The Ghostty source is pinned by commit and SHA-256 in [native/GHOSTTY.lock](./native/GHOSTTY.lock).
+When it starts it connects to every configured server at once and restores where you were:
+
+- The servers are the hosts saved in `~/.config/kotlin-test/workspace.json` (the local server, the first time), plus
+  any in the local server's own host list. An endpoint is `unix:///path`, or `https://host` for a server reached over
+  the network. A server with built-in Tailscale is a device on the tailnet, so its `https://` address just works on a
+  machine that is on the tailnet too.
+- For each server it selects the session you last had (else the first listed), shows that session's windows as tabs,
+  and lays out the active tab's terminals where the server says they sit. It never creates or destroys a session.
+- A dropped connection is retried, and everything is read again when it comes back.
+
+Looking at a terminal is passive: it is drawn at the size its current owner gave it. Pressing a key in one claims it,
+which makes the terminal take its size from this client, as it would from any Rex client. Selecting a tab changes the
+session's active window, which every client on that session sees.
+
+How it is put together:
+
+- **The protocol.** The server documents its own API (`GET /llms.txt` on its socket). [rex](./rex/src) speaks it:
+  a JSON control connection, and one binary data connection per visible terminal.
+- **Terminal emulation.** A terminal's stream opens with a snapshot in Ghostty's format, so the client uses
+  libghostty-vt to restore it and to interpret the output that follows. [native/](./native) builds that library from the
+  Ghostty source pinned in [GHOSTTY.lock](./native/GHOSTTY.lock). [ghostty](./ghostty/src) calls it through Java's
+  foreign function API, using bindings generated from its headers (`mise run bindings` regenerates them from
+  [ghostty-vt.symbols](./native/ghostty-vt.symbols)).
+- **Drawing.** libghostty-vt reports which rows changed; [TerminalView.kt](./desktopApp/src/TerminalView.kt) draws the
+  cells on a Compose canvas, in the Omarchy font and colors, and recolors when the desktop's theme changes.
+- **Typing.** Key events go to the server as they came from the keyboard (`client.key`); the server applies key
+  bindings and encodes them for the terminal.
+
+Not there yet: mouse reporting and text selection, copy and paste, SSH hosts, resuming a terminal's stream after a
+drop (it is reopened from a new snapshot instead), floating layers drawn as windows, and images. Keys are named for a
+US layout, so on other layouts some shortcuts may be read as the wrong key; the text typed is still right.
 
 ### Testing
 

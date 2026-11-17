@@ -1,0 +1,14 @@
+# A client for the Rex server: connections, sessions, and live terminals. No UI.
+# The protocol is described by the server itself (GET /llms.txt on its socket).
+product: jvm/lib
+
+dependencies:
+  - //ghostty: exported
+  - $ktor.client.core
+  - $ktor.client.cio
+  - $ktor.client.websockets
+  - $libs.kotlinx.serialization.json: exported
+  - $libs.kotlinx.coroutines.core: exported
+
+settings:
+  ktor: enabled

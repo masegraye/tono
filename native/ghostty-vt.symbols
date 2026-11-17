@@ -1,0 +1,37 @@
+# The parts of libghostty-vt's C API that the app binds, one regular expression per line.
+# generate-bindings.sh asks jextract for every symbol in ghostty/vt.h and keeps the ones
+# that match. Add a pattern here, then run `mise run bindings`.
+
+# Lifecycle and I/O
+ghostty_terminal_(new|free|vt_write|resize|get|set|scroll_viewport)
+ghostty_free
+GhosttyTerminalScrollViewport(Value)?
+GHOSTTY_SCROLL_VIEWPORT_.*
+GHOSTTY_TERMINAL_DATA_.*
+GHOSTTY_TERMINAL_OPT_COLOR_.*
+GHOSTTY_(SUCCESS|OUT_OF_MEMORY|INVALID_VALUE|OUT_OF_SPACE|NO_VALUE|IO_ERROR|LIMIT_EXCEEDED|REJECTED)
+
+# Restoring a terminal from a snapshot
+ghostty_snapshot_decoder_(new_buf|decode|get|free)
+ghostty_snapshot_encode_alloc
+GHOSTTY_SNAPSHOT_DECODER_DATA_.*
+
+# Reading what to draw
+ghostty_render_state_(new|free|update|clean|get|set)
+ghostty_render_state_row_iterator_(new|free|next)
+ghostty_render_state_row_(get|set)
+ghostty_render_state_row_cells_(new|free|next|get)
+ghostty_cell_get
+GHOSTTY_RENDER_STATE_(DIRTY|DATA|OPTION|ROW_DATA|ROW_OPTION|ROW_CELLS_DATA|CURSOR_VISUAL_STYLE)_.*
+GHOSTTY_CELL_(DATA|WIDE)_.*
+GHOSTTY_STYLE_COLOR_.*
+GHOSTTY_SGR_UNDERLINE_.*
+GhosttyRenderState(Colors|Cursor)
+GhosttyStyle(Color|ColorValue)?
+GhosttyColorRgb
+ghostty_color_palette_default
+
+# The terminal as text, for tests and diagnostics
+ghostty_formatter_(terminal_new|format_alloc|free)
+GHOSTTY_FORMATTER_FORMAT_.*
+GhosttyFormatter(TerminalOptions|TerminalExtra|ScreenExtra)

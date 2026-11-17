@@ -1,110 +1,92 @@
 package org.example.kotlintest.rexspike
 
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.put
-import kotlin.system.exitProcess
+import kotlinx.coroutines.withTimeoutOrNull
+import org.example.kotlintest.rex.HostConnection
+import org.example.kotlintest.rex.RexClient
+import org.example.kotlintest.rex.RexKey
+import org.example.kotlintest.rex.Workspace
+import java.nio.file.Path
 
 /**
- * Reads one terminal from the local Rex server and prints its screen.
- *
- * It only looks: it attaches to the block's session and opens its terminal stream, but
- * never types, resizes, or claims the block.
- *
- * Usage: rexSpike [block-id] [session-id]   (defaults: $REX_BLOCK and $REX_SESSION)
+ * `--type <text>`: types the text and Enter into the selected host's focused terminal, the
+ * way the app does when you press keys. Unlike everything else here this is not passive:
+ * typing claims the terminal for this client.
  */
-fun main(args: Array<String>) = runBlocking {
-    val blockId = args.getOrNull(0) ?: System.getenv("REX_BLOCK")
-    val sessionId = args.getOrNull(1) ?: System.getenv("REX_SESSION")
-    if (blockId == null || sessionId == null) {
-        System.err.println("usage: rexSpike <block-id> <session-id>, or run inside a Rex terminal")
-        exitProcess(2)
+private suspend fun typeInto(client: RexClient, text: String) {
+    val host = client.hosts.value.firstOrNull { it.saved.label == client.selectedHost.value } ?: return
+    val window = host.state.value.view?.activeWindow ?: return
+    val blockId = window.focusedBlockId ?: window.panes.firstOrNull()?.blockId ?: return
+    fun press(name: String, typed: String, unshifted: Int) {
+        host.sendKey(blockId, RexKey(name, "", "", typed, unshifted, RexKey.Action.Press))
+        host.sendKey(blockId, RexKey(name, "", "", "", unshifted, RexKey.Action.Release))
     }
-    val socketPath = rexSocketPath()
-    val client = rexHttpClient()
-
-    // 1. The control connection.
-    val control = RexControl.connect(client, socketPath)
-    println("control   connected over $socketPath")
-    println("          api revision ${control.welcome.int("api_revision")}, client ${control.welcome["client"]?.jsonObject?.string("id")}")
-
-    val sessions = control.call("session.list").jsonObject["sessions"]?.jsonArray.orEmpty()
-    println("sessions  " + sessions.joinToString { it.jsonObject.string("label") ?: it.jsonObject.string("session_id").orEmpty() })
-
-    // 2. Attach to the session, then ask for a one-time ticket to the block's terminal stream.
-    control.call("session.attach", buildJsonObject { put("session_id", sessionId) })
-    val ticket = control.call(
-        "data.connect",
-        buildJsonObject {
-            put("session_id", sessionId)
-            put("block_id", blockId)
-            put("data_ref_id", "terminal")
-            put("subprotocol", RexTerminalStream.SUBPROTOCOL)
-        },
-    ).jsonObject.string("ticket") ?: error("data.connect returned no ticket")
-
-    // 3. The data connection.
-    val stream = RexTerminalStream.open(client, socketPath, ticket)
-    println("stream    open, nonce ${stream.nonce}, resumable for ${stream.resumeWindowMillis} ms")
-
-    // 4. Collect bytes until the whole snapshot has arrived, then restore a terminal from it.
-    val received = java.io.ByteArrayOutputStream()
-    var snapshotBytes: Int? = null
-    var chunks = 0
-    val receiveStarted = System.nanoTime()
-    while (snapshotBytes == null) {
-        received.write(stream.read(timeoutMillis = 5_000) ?: error("The snapshot stopped arriving after ${received.size()} bytes"))
-        // Walking the records from the start is too slow to do for every chunk of a large
-        // snapshot, so only look every so often and whenever the stream pauses.
-        if (++chunks % 64 == 0 || received.size() < 1_000_000 || stream.peekIdle()) {
-            snapshotBytes = snapshotLength(received.toByteArray(), received.size())
+    for (char in text) {
+        when (char) {
+            in 'a'..'z' -> press("key_$char", char.toString(), char.code)
+            in '0'..'9' -> press("digit_$char", char.toString(), char.code)
+            ' ' -> press("space", " ", ' '.code)
+            '-' -> press("minus", "-", '-'.code)
+            else -> error("The probe can only type lowercase letters, digits, spaces and dashes")
         }
     }
-    val buffer = received.toByteArray()
-    val receiveMillis = (System.nanoTime() - receiveStarted) / 1_000_000
-    val decodeStarted = System.nanoTime()
-    val (terminal, consumed) = GhosttyTerminal.restore(buffer)
-    val decodeMillis = (System.nanoTime() - decodeStarted) / 1_000_000
-    println("snapshot  $snapshotBytes bytes, format version ${snapshotVersion(buffer)}; libghostty-vt consumed $consumed")
-    println("          received in $receiveMillis ms, decoded in $decodeMillis ms")
-    check(consumed == snapshotBytes) { "The decoder and the record walk disagree on where the snapshot ends" }
-
-    // 5. Everything after the snapshot is live output. Follow it briefly.
-    var liveBytes = 0
-    val serverMessages = mutableListOf<String>()
-    fun feed(bytes: ByteArray, offset: Int) {
-        val length = bytes.size - offset
-        terminal.write(bytes, offset, length)
-        liveBytes += length
-        serverMessages += rexMessages(bytes, offset, length, stream.nonce).map { it.toString() }
-    }
-    feed(buffer, consumed)
-    // A busy terminal never goes quiet, so follow for a fixed time rather than until silence.
-    val followUntil = System.nanoTime() + FOLLOW_MILLIS * 1_000_000
-    while (true) {
-        val remaining = (followUntil - System.nanoTime()) / 1_000_000
-        if (remaining <= 0) break
-        feed(stream.read(timeoutMillis = remaining) ?: break, 0)
-    }
-    println("live      $liveBytes bytes in the $FOLLOW_MILLIS ms after the snapshot")
-    serverMessages.forEach { println("          server message: ${it.take(140)}") }
-
-    // 6. What the terminal looks like now.
-    val lines = terminal.text().lines()
-    println("terminal  ${terminal.columns}x${terminal.rows}, cursor at column ${terminal.cursorColumn}, row ${terminal.cursorRow}; formatted text is ${lines.size} lines")
-    println("─".repeat(terminal.columns.coerceAtMost(100)))
-    lines.takeLast(terminal.rows.coerceAtMost(24)).forEach(::println)
-    println("─".repeat(terminal.columns.coerceAtMost(100)))
-
-    terminal.close()
-    stream.close()
-    control.call("session.detach", buildJsonObject { put("session_id", sessionId) })
-    control.close()
-    client.close()
-    println("done      ${control.eventsSeen} events arrived on the control connection meanwhile")
+    press("enter", "", 0)
+    delay(1_200) // let the shell answer
 }
 
-/** How long to follow live output after the snapshot. */
-private const val FOLLOW_MILLIS = 2_000L
+/**
+ * Connects to every configured Rex server as the app would, waits for things to settle, and
+ * prints what was restored: each host, its sessions, the selected session's tabs and panes,
+ * and the text of each live terminal.
+ *
+ * It only looks. Pass a workspace file to use instead of the app's own.
+ */
+fun main(args: Array<String>) {
+    runBlocking { probe(args) }
+    // Connections keep threads alive; this is a one-shot command.
+    kotlin.system.exitProcess(0)
+}
+
+private suspend fun kotlinx.coroutines.CoroutineScope.probe(args: Array<String>) {
+    val typed = args.indexOf("--type").takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
+    val workspace = args.firstOrNull()?.takeIf { !it.startsWith("--") }?.let { Workspace.load(Path.of(it)) } ?: Workspace.load()
+    val client = RexClient(this, workspace)
+
+    // Give every host a chance to connect (or fail), and discovered hosts time to appear.
+    delay(1_500)
+    for (host in client.hosts.value) {
+        withTimeoutOrNull(6_000) { host.state.first { it.connection != HostConnection.Connecting } }
+    }
+    // Terminals open after the session's layout arrives; wait for their first frames.
+    for (host in client.hosts.value) {
+        withTimeoutOrNull(6_000) { host.state.first { state -> state.terminals.isNotEmpty() && state.terminals.values.all { it.frame.value != null } } }
+    }
+
+    if (typed != null) typeInto(client, typed)
+
+    for (host in client.hosts.value) {
+        val state = host.state.value
+        val selected = if (host.saved.label == client.selectedHost.value) " (selected)" else ""
+        println("host ${host.saved.label}$selected  ${host.saved.endpoint}${if (host.discovered) "  [from the home server's host list]" else ""}")
+        println("  ${state.connection}  api ${state.apiRevision}  client ${state.clientId}")
+        for (session in state.sessions) {
+            println("  session ${session.label}${if (session.id == state.selectedSessionId) "  <- showing" else ""}")
+        }
+        val view = state.view ?: continue
+        for (window in view.windows) {
+            println("    tab ${window.label}${if (window.id == view.activeWindowId) "  <- active" else ""}  (${window.panes.size} pane${if (window.panes.size == 1) "" else "s"})")
+        }
+        for ((blockId, terminal) in state.terminals) {
+            val frame = terminal.frame.value
+            val pane = view.activeWindow?.panes?.firstOrNull { it.blockId == blockId }
+            println("    terminal $blockId  ${terminal.status.value}  grid ${terminal.grid.value}  rect ${pane?.rect}")
+            if (frame == null) continue
+            val runs = frame.rows.sumOf { it.runs.size }
+            println("      frame: ${frame.rows.size} rows, $runs runs, cursor ${frame.cursor?.let { "${it.column},${it.row} ${it.shape}" }}")
+            frame.rows.map { it.text() }.filter { it.isNotBlank() }.takeLast(6).forEach { println("      | ${it.take(110)}") }
+        }
+    }
+    client.close()
+}

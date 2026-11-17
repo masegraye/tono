@@ -7,14 +7,20 @@ zig = "0.17.1"         # builds libghostty-vt (see native/)
 description = "Build libghostty-vt, the terminal emulation library, into native/out"
 run = "native/build-libghostty-vt.sh"
 
-[tasks.spike]
-description = "Spike: read a terminal from the local Rex server (run it inside a Rex terminal)"
+[tasks.bindings]
+description = "Regenerate the libghostty-vt bindings in ghostty/src/ffi from native/ghostty-vt.symbols"
+depends = ["native"]
+run = "native/generate-bindings.sh"
+
+[tasks.probe]
+description = "Connect to every configured Rex server without a UI and print what was restored"
 depends = ["native"]
 run = "./kotlin run -m rexSpike --jvm-args=--enable-native-access=ALL-UNNAMED --"
 
 [tasks.desktop]
-description = "Run the desktop app with Compose Hot Reload"
-run = "./kotlin run -m desktopApp"
+description = "Run the Rex client (desktop app) with Compose Hot Reload"
+depends = ["native"]
+run = "./kotlin run -m desktopApp --jvm-args=--enable-native-access=ALL-UNNAMED --"
 
 [tasks.web]
 description = "Serve the web app with live Omarchy theming at http://127.0.0.1:8080"

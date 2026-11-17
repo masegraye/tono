@@ -1,0 +1,3 @@
+# libghostty-vt, Ghostty's terminal emulation core, for the JVM.
+# src/ffi holds bindings generated from its C headers (see native/); the Kotlin files wrap them.
+product: jvm/lib

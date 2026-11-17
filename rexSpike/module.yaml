@@ -1,16 +1,11 @@
-# A throwaway spike: can a JVM client read a live terminal from the Rex server?
-# It connects to the local server, opens one block's terminal stream, and decodes it
-# with libghostty-vt (see native/). Run it with `mise run spike -- <block-id>`.
+# A command-line check of the Rex client core, with no UI: it connects to every configured
+# server the way the app does, and prints what it restored. Run it with `mise run probe`.
 product: jvm/app
 
 dependencies:
-  - $ktor.client.core
-  - $ktor.client.cio
-  - $ktor.client.websockets
-  - $libs.kotlinx.serialization.json
+  - //rex
   - $libs.logback.classic
 
 settings:
-  ktor: enabled
   jvm:
     mainClass: org.example.kotlintest.rexspike.MainKt
