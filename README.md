@@ -103,13 +103,17 @@ When it starts it connects to every configured server at once and restores where
   host goes there only when no local server can keep it.
 - A host that can't be reached shows a red dot and nothing else, and is tried again every few seconds until it
   answers. Hovering it offers a button to try now; the reason is in the debug log.
-- For each server it selects the session you last had (else the first listed) and lays out its active tab's terminals
-  where the server says they sit. It creates and closes things only when asked to.
-- The sidebar is a set of nested headings: servers, each with the same weight and this machine's first; their
-  sessions, as small quiet headings; and under each session its tabs (a tab is a Rex window), which are what you go
+- For each server it selects the session you last had (else the first listed) and the tab you last had in it, and
+  lays out that tab's terminals where the server says they sit. It creates and closes things only when asked to.
+- The sidebar is a set of nested headings: servers, each with the same weight (this machine's first, then the ones
+  that are connected by name, then the ones that aren't, so a server that is down takes no room from those in use);
+  their sessions, as small quiet headings; and under each session its tabs (a tab is a Rex window), which are what you go
   to. Clicking a server or a session folds it away. With the pointer over one, a plus fades in that creates what
   belongs under it: a session on that server, or a tab in that session. The layouts of all sessions are read and
   kept current, not just the one on screen.
+- Dragging a tab moves it among the tabs of its session, and dragging a session by its heading moves it, tabs and
+  all, among the sessions of its server. Both orders are the server's (`session.move_window`, `session.move`), so
+  the new order shows in every client, as an order made in Rex.app shows here.
 - A tab is called by the program in the foreground of its focused pane, with that program's directory beside it in
   quieter text (`nvim  ~/dev/rex`), and follows it as commands start and finish. Rex itself stores only a label per
   window, which is a placeholder such as `Window 89abcdef` until someone sets it; what to show instead of the
@@ -122,8 +126,13 @@ When it starts it connects to every configured server at once and restores where
 - A dropped connection is retried, and everything is read again when it comes back.
 
 Looking at a terminal is passive: it is drawn at the size its current owner gave it. Pressing a key in one claims it,
-which makes the terminal take its size from this client, as it would from any Rex client. A session's active tab and
-focused pane are the session's own state, so changing them here changes them for every client on that session.
+which makes the terminal take its size from this client, as it would from any Rex client.
+
+Which tab is on screen is this app's own choice. Two clients on one session share its terminals, so each sees what
+the other types, but each looks at the tab it chose: going to a tab in Rex.app doesn't move this app, and the other
+way round. The session does keep an active window, the last one any client went to, and this app sets it when you
+go to a tab, as Rex.app does; that is where a command naming no window acts. Which pane of a tab has the keyboard
+is the tab's own state, and is the same for every client looking at it.
 
 #### Shortcuts and the command palette
 
@@ -153,8 +162,7 @@ of Command, and Shift added where Control alone belongs to the terminal.
 Tabs are one list, in sidebar order, across every session and server: Control and a digit go to that tab, whichever
 session it is in, and next and previous carry on from one session into the next. Holding Control shows each tab's
 digit at the right of its row, until Control is let go. Tabs folded away with their session or server are left out of
-the numbering, so folding what you aren't using brings the rest within reach. Going to a tab makes it its session's
-active tab.
+the numbering, so folding what you aren't using brings the rest within reach.
 
 A bound key does not reach the terminal; every other key does. The keymap is not fixed in the app: it declares its
 actions and these defaults to the home server (`client.keymap`), which layers the account's configuration file on top
