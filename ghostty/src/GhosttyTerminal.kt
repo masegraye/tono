@@ -4,6 +4,7 @@ import org.example.kotlintest.ghostty.ffi.GhosttyColorRgb
 import org.example.kotlintest.ghostty.ffi.GhosttyFormatterScreenExtra
 import org.example.kotlintest.ghostty.ffi.GhosttyFormatterTerminalExtra
 import org.example.kotlintest.ghostty.ffi.GhosttyFormatterTerminalOptions
+import org.example.kotlintest.ghostty.ffi.GhosttyTerminalModeConfig
 import org.example.kotlintest.ghostty.ffi.GhosttyTerminalScrollViewport
 import org.example.kotlintest.ghostty.ffi.GhosttyTerminalScrollViewportValue
 import org.example.kotlintest.ghostty.ffi.GhosttyVt
@@ -148,6 +149,18 @@ class GhosttyTerminal private constructor(internal val handle: MemorySegment) : 
         }
     }
 
+    /**
+     * Whether the terminal's program has asked for pasted text to be bracketed (mode 2004),
+     * which lets it tell a paste from typing.
+     */
+    val bracketedPaste: Boolean
+        get() = Arena.ofConfined().use { arena ->
+            val config = arena.allocate(GhosttyTerminalModeConfig.layout())
+            GhosttyTerminalModeConfig.mode(config, MODE_BRACKETED_PASTE)
+            check("terminal_get", GhosttyVt.ghostty_terminal_get(handle, GhosttyVt.GHOSTTY_TERMINAL_DATA_MODE(), config))
+            GhosttyTerminalModeConfig.value(config)
+        }
+
     /** A snapshot that [restore] can rebuild this terminal from. */
     fun snapshot(): ByteArray = Arena.ofConfined().use { arena ->
         val pointerOut = arena.allocate(ADDRESS)
@@ -172,6 +185,28 @@ class GhosttyTerminal private constructor(internal val handle: MemorySegment) : 
 }
 
 internal val NULL: MemorySegment = MemorySegment.NULL
+
+/** DEC private mode 2004. A mode is its number, with the top bit set for ANSI modes. */
+private const val MODE_BRACKETED_PASTE: Short = 2004
+
+/**
+ * Prepares text for pasting into a terminal: control characters that could run commands
+ * are replaced with spaces, and the text is wrapped in bracketed-paste markers when
+ * [bracketed] is true, or has its newlines turned into carriage returns when it isn't.
+ */
+fun encodePaste(text: String, bracketed: Boolean): ByteArray {
+    GhosttyLibrary.ensureLoaded()
+    val input = text.toByteArray()
+    return Arena.ofConfined().use { arena ->
+        val data = arena.allocate(maxOf(input.size, 1).toLong())
+        MemorySegment.copy(input, 0, data, JAVA_BYTE, 0, input.size)
+        val capacity = input.size + 16L // room for the bracketed-paste markers
+        val buffer = arena.allocate(capacity)
+        val written = arena.allocate(JAVA_LONG)
+        check("paste_encode", GhosttyVt.ghostty_paste_encode(data, input.size.toLong(), bracketed, buffer, capacity, written))
+        buffer.asSlice(0, written.get(JAVA_LONG, 0)).toArray(JAVA_BYTE)
+    }
+}
 
 internal fun writeRgb(segment: MemorySegment, offset: Long, color: Int) {
     segment.set(JAVA_BYTE, offset, (color shr 16).toByte())

@@ -3,6 +3,7 @@ package org.example.kotlintest
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -33,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,44 +43,103 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.awt.awtEventOrNull
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.HostState
+import org.example.kotlintest.rex.PaneRect
 import org.example.kotlintest.rex.PaneView
-import org.example.kotlintest.rex.RexClient
 import org.example.kotlintest.rex.RexHost
 import org.example.kotlintest.rex.SessionView
 import org.example.kotlintest.rex.TerminalSession
 import org.example.kotlintest.rex.WindowView
+import java.awt.event.KeyEvent
 
 /**
  * The Rex client: every configured server and its sessions down the side, and the selected
- * session's tabs and terminals in the rest of the window.
+ * session's tabs and terminals in the rest of the window. Shortcuts, the command palette
+ * and the debug log sit on top.
  */
 @Composable
-fun RexApp(client: RexClient, onOpenShowcase: () -> Unit) {
-    val hosts by client.hosts.collectAsState()
-    val selectedLabel by client.selectedHost.collectAsState()
+fun RexApp(ui: RexUiState, commands: RexCommands) {
+    val hosts by ui.client.hosts.collectAsState()
+    val selectedLabel by ui.client.selectedHost.collectAsState()
+    val keymap by ui.client.keymap.collectAsState()
     val selected = hosts.firstOrNull { it.saved.label == selectedLabel } ?: hosts.firstOrNull()
 
+    // Shortcuts are looked up here, above everything, so they work wherever the keyboard is.
+    // A key that isn't a shortcut carries on down to the focused terminal.
+    val rootFocus = remember { FocusRequester() }
+    val shortcutKeysDown = remember { HashSet<Int>() }
+    LaunchedEffect(Unit) { rootFocus.requestFocus() }
+
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Row(Modifier.fillMaxSize()) {
-            Sidebar(
-                hosts = hosts,
-                selected = selected,
-                onSelectSession = { host, sessionId ->
-                    client.selectHost(host.saved.label)
-                    host.selectSession(sessionId)
-                },
-                onSelectHost = { client.selectHost(it.saved.label) },
-                onOpenShowcase = onOpenShowcase,
-            )
-            VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            if (selected != null) HostContent(selected, Modifier.weight(1f))
+        Box(
+            Modifier.fillMaxSize().focusRequester(rootFocus).focusable().onPreviewKeyEvent { event ->
+                val awt = event.awtEventOrNull ?: return@onPreviewKeyEvent false
+                if (ui.palette != null) return@onPreviewKeyEvent false // the palette has the keyboard
+                when (awt.id) {
+                    KeyEvent.KEY_PRESSED -> {
+                        val chord = keyChord(awt) ?: return@onPreviewKeyEvent false
+                        commands.handleKey(chord).also { if (it) shortcutKeysDown += awt.keyCode }
+                    }
+                    // The release of a key whose press was a shortcut isn't the terminal's either.
+                    KeyEvent.KEY_RELEASED -> shortcutKeysDown.remove(awt.keyCode)
+                    else -> false
+                }
+            },
+        ) {
+            Column(Modifier.fillMaxSize()) {
+                Row(Modifier.weight(1f).fillMaxWidth()) {
+                    if (ui.sidebarVisible) {
+                        Sidebar(
+                            hosts = hosts,
+                            selected = selected,
+                            onSelectSession = { host, sessionId ->
+                                ui.client.selectHost(host.saved.label)
+                                host.selectSession(sessionId)
+                                ui.returnFocusToTerminal()
+                            },
+                            onSelectHost = { ui.client.selectHost(it.saved.label) },
+                            commands = commands,
+                            paletteShortcut = keymap.shortcutFor("client.palette.toggle")?.display(),
+                        )
+                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                    if (selected != null) HostContent(selected, ui, Modifier.weight(1f))
+                }
+                if (ui.debugLogVisible) {
+                    DebugLogPanel(
+                        log = ui.client.log,
+                        shortcut = keymap.shortcutFor("client.debug_log.toggle")?.display(),
+                        onClose = { ui.debugLogVisible = false; ui.returnFocusToTerminal() },
+                    )
+                }
+            }
+            ui.palette?.let { CommandPalette(ui, commands, it) }
+            ui.confirmation?.let { pending ->
+                val dismiss = { ui.confirmation = null; ui.returnFocusToTerminal() }
+                // The confirm button has the keyboard, so Enter confirms and Escape cancels.
+                val confirmFocus = remember { FocusRequester() }
+                LaunchedEffect(pending) { confirmFocus.requestFocus() }
+                AlertDialog(
+                    onDismissRequest = dismiss,
+                    title = { Text(pending.title) },
+                    text = { Text(pending.text) },
+                    confirmButton = {
+                        TextButton(onClick = { dismiss(); pending.onConfirm() }, modifier = Modifier.focusRequester(confirmFocus)) { Text(pending.confirmLabel) }
+                    },
+                    dismissButton = { TextButton(onClick = dismiss) { Text("Cancel") } },
+                )
+            }
         }
     }
 }
@@ -88,7 +150,8 @@ private fun Sidebar(
     selected: RexHost?,
     onSelectSession: (RexHost, String) -> Unit,
     onSelectHost: (RexHost) -> Unit,
-    onOpenShowcase: () -> Unit,
+    commands: RexCommands,
+    paletteShortcut: String?,
 ) {
     Column(
         Modifier.width(232.dp).fillMaxHeight().background(MaterialTheme.colorScheme.surfaceContainerLow),
@@ -99,7 +162,12 @@ private fun Sidebar(
             Box {
                 IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(text = { Text("UI showcase") }, onClick = { menuOpen = false; onOpenShowcase() })
+                    DropdownMenuItem(
+                        text = { Text("Command Palette…") },
+                        trailingIcon = paletteShortcut?.let { { HintText(it) } },
+                        onClick = { menuOpen = false; commands.run("client.palette.toggle", origin = "menu") },
+                    )
+                    DropdownMenuItem(text = { Text("UI Showcase") }, onClick = { menuOpen = false; commands.run("client.showcase.toggle", origin = "menu") })
                 }
             }
         }
@@ -158,17 +226,16 @@ private fun HostHeader(host: RexHost, state: HostState, onClick: () -> Unit, onR
 }
 
 @Composable
-private fun HostContent(host: RexHost, modifier: Modifier) {
+private fun HostContent(host: RexHost, ui: RexUiState, modifier: Modifier) {
     val state by host.state.collectAsState()
     val view = state.view
     val window = view?.activeWindow
-    // Which pane has the keyboard is this client's own business; it starts where the session's focus is.
-    var focusedBlock by remember(view?.sessionId, window?.id) { mutableStateOf(window?.focusedBlockId) }
     val panes = window?.panes.orEmpty().filter { window?.zoomedBlockId == null || it.blockId == window.zoomedBlockId }
-    val focused = panes.firstOrNull { it.blockId == focusedBlock } ?: panes.firstOrNull()
+    // Which pane has the keyboard is the session's own state, so every client agrees on it.
+    val focusedId = window?.let(::focusedBlockOf)
 
     Column(modifier.fillMaxSize()) {
-        if (view != null) TabStrip(view, onSelect = host::focusWindow)
+        if (view != null) TabStrip(view, onSelect = { host.focusWindow(it); ui.returnFocusToTerminal() })
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
                 state.connection != HostConnection.Connected ->
@@ -179,7 +246,7 @@ private fun HostContent(host: RexHost, modifier: Modifier) {
                     val width = maxWidth
                     val height = maxHeight
                     for (pane in panes) {
-                        val rect = if (window?.zoomedBlockId != null) org.example.kotlintest.rex.PaneRect.Full else pane.rect
+                        val rect = if (window?.zoomedBlockId != null) PaneRect.Full else pane.rect
                         Box(
                             Modifier
                                 .offset(x = width * rect.x, y = height * rect.y)
@@ -189,16 +256,17 @@ private fun HostContent(host: RexHost, modifier: Modifier) {
                             Pane(
                                 pane = pane,
                                 terminal = state.terminals[pane.blockId],
-                                focused = pane.blockId == focused?.blockId,
-                                onFocus = { focusedBlock = pane.blockId },
+                                focused = pane.blockId == focusedId,
+                                onFocus = { host.focusBlock(pane.blockId) },
                                 host = host,
+                                ui = ui,
                             )
                         }
                     }
                 }
             }
         }
-        StatusBar(host, state, view, focused, state.terminals[focused?.blockId])
+        StatusBar(host, view, state.terminals[focusedId])
     }
 }
 
@@ -208,27 +276,32 @@ private fun TabStrip(view: SessionView, onSelect: (String) -> Unit) {
         Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow).horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp, vertical = 5.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        for (window in view.windows) Tab(window, active = window.id == view.activeWindow?.id, onClick = { onSelect(window.id) })
+        view.windows.forEachIndexed { index, window ->
+            Tab(window, number = index + 1, active = window.id == view.activeWindow?.id, onClick = { onSelect(window.id) })
+        }
     }
 }
 
 @Composable
-private fun Tab(window: WindowView, active: Boolean, onClick: () -> Unit) {
-    Text(
-        window.label,
-        style = MaterialTheme.typography.labelLarge,
-        color = if (active) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
+private fun Tab(window: WindowView, number: Int, active: Boolean, onClick: () -> Unit) {
+    val color = if (active) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier
             .clip(MaterialTheme.shapes.small)
             .background(if (active) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 6.dp),
-    )
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        // The number is the tab's shortcut: Control and that digit.
+        if (number <= 8) Text(number.toString(), style = MaterialTheme.typography.labelSmall, color = color.copy(alpha = 0.6f))
+        Text(window.label, style = MaterialTheme.typography.labelLarge, color = color, maxLines = 1)
+    }
 }
 
 @Composable
-private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, onFocus: () -> Unit, host: RexHost) {
+private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, onFocus: () -> Unit, host: RexHost, ui: RexUiState) {
     val shape = MaterialTheme.shapes.small
     Box(
         Modifier
@@ -249,6 +322,8 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, o
                     onFocusRequested = onFocus,
                     onKey = { host.sendKey(pane.blockId, it) },
                     onDesiredGrid = { host.setDesiredGrid(pane.blockId, it) },
+                    fontSize = ui.fontSize.sp,
+                    focusRequests = ui.focusRequests,
                 )
                 when (val current = status) {
                     TerminalSession.Status.Connecting -> Notice("Restoring…")
@@ -261,26 +336,12 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, o
 }
 
 @Composable
-private fun StatusBar(host: RexHost, state: HostState, view: SessionView?, pane: PaneView?, terminal: TerminalSession?) {
+private fun StatusBar(host: RexHost, view: SessionView?, terminal: TerminalSession?) {
     val grid = terminal?.grid?.collectAsState()?.value
     val exit = terminal?.exitCode?.collectAsState()?.value
-    val parts = listOfNotNull(
-        host.saved.label,
-        view?.label,
-        grid?.let { "${it.columns}×${it.rows}" },
-        exit?.let { "exited with $it" },
-        // Looking is passive. Typing claims the terminal, as with any Rex client.
-        pane?.takeIf { it.isTerminal }?.let {
-            when (it.ownerClientId) {
-                state.clientId -> "this client controls the terminal's size"
-                null -> "no client controls this terminal's size yet"
-                else -> "sized by another client until you type here"
-            }
-        },
-    )
+    val parts = listOfNotNull(host.saved.label, view?.label, grid?.let { "${it.columns}×${it.rows}" }, exit?.let { "exited with $it" })
     Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow).padding(horizontal = 12.dp, vertical = 4.dp)) {
         HintText(parts.joinToString("  ·  "))
-        Spacer(Modifier.height(1.dp))
     }
 }
 

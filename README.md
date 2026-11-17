@@ -100,8 +100,42 @@ When it starts it connects to every configured server at once and restores where
 - A dropped connection is retried, and everything is read again when it comes back.
 
 Looking at a terminal is passive: it is drawn at the size its current owner gave it. Pressing a key in one claims it,
-which makes the terminal take its size from this client, as it would from any Rex client. Selecting a tab changes the
-session's active window, which every client on that session sees.
+which makes the terminal take its size from this client, as it would from any Rex client. A session's active tab and
+focused pane are the session's own state, so changing them here changes them for every client on that session.
+
+#### Shortcuts and the command palette
+
+Everything the app can do is an action with a name, and the names, titles and categories are Rex.app's
+(`client.tab.new`, `pane.split.right`, `session.switch`, …). The default keys are Rex.app's too, with Control in place
+of Command, and Shift added where Control alone belongs to the terminal.
+
+| Keys | Action |
+| --- | --- |
+| Ctrl+Shift+P | Command palette: every command, plus sessions, tabs and hosts to go to |
+| Ctrl+K | Change session, on any host |
+| Ctrl+Shift+H | Switch host |
+| Ctrl+1 … Ctrl+8, Ctrl+9 | Go to that tab; Ctrl+9 is the last tab |
+| Ctrl+PageDown / Ctrl+PageUp, Ctrl+Shift+] / [ | Next / previous tab |
+| Ctrl+Tab / Ctrl+Shift+Tab | Next / previous tab, carrying on into the other sessions and hosts |
+| Ctrl+Shift+T / Ctrl+Shift+N | New tab / new session |
+| Ctrl+Shift+D / Ctrl+Alt+D | Split the pane right / down |
+| Ctrl+Alt+arrows | Focus the pane in that direction |
+| Ctrl+Shift+Enter | Zoom the pane, or restore the layout |
+| Ctrl+Shift+W / Ctrl+Alt+W | Close the pane / the tab, after asking |
+| Ctrl+Shift+V | Paste, bracketed when the program asks for that |
+| Shift+PageUp / Shift+PageDown | Scroll through history |
+| Ctrl+= / Ctrl+- / Ctrl+0 | Larger / smaller / default text |
+| Ctrl+Shift+B | Show or hide the sidebar |
+| Ctrl+` | Show or hide the debug log |
+
+A bound key does not reach the terminal; every other key does. The keymap is not fixed in the app: it declares its
+actions and these defaults to the home server (`client.keymap`), which layers the account's configuration file on top
+and answers with what each key does. So a key bound in Rex's `init.lua` applies here as it does in Rex.app, and
+changes take effect when the file is reloaded. The server's own actions, such as Clear Terminal, appear in the
+palette as well.
+
+The debug log is a panel along the bottom showing what the client is doing: connections, the events servers send,
+the requests that change something, and the actions run. It never records what is typed.
 
 How it is put together:
 
@@ -115,11 +149,13 @@ How it is put together:
 - **Drawing.** libghostty-vt reports which rows changed; [TerminalView.kt](./desktopApp/src/TerminalView.kt) draws the
   cells on a Compose canvas, in the Omarchy font and colors, and recolors when the desktop's theme changes.
 - **Typing.** Key events go to the server as they came from the keyboard (`client.key`); the server applies key
-  bindings and encodes them for the terminal.
+  bindings and encodes them for the terminal. Pasted text is made safe and framed by libghostty-vt's paste encoder.
+- **Actions.** [RexActions.kt](./desktopApp/src/RexActions.kt) is the table of what the app can do and its default keys.
 
-Not there yet: mouse reporting and text selection, copy and paste, SSH hosts, resuming a terminal's stream after a
-drop (it is reopened from a new snapshot instead), floating layers drawn as windows, and images. Keys are named for a
-US layout, so on other layouts some shortcuts may be read as the wrong key; the text typed is still right.
+Not there yet: mouse reporting, text selection and copy, SSH hosts, resuming a terminal's stream after a drop (it is
+reopened from a new snapshot instead), floating layers drawn as windows, images, key sequences and modes in the
+keymap, and performing actions for other clients (`rex -C … do`). Keys are named for a US layout, so on other layouts
+some shortcuts may be read as the wrong key; the text typed is still right.
 
 ### Testing
 

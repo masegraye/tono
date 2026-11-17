@@ -1,6 +1,7 @@
 package org.example.kotlintest.rex
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,7 +35,18 @@ class RexClient(
     private val http = rexHttpClient()
     private val mutableHosts = MutableStateFlow<List<RexHost>>(emptyList())
     private val mutableSelectedHost = MutableStateFlow<String?>(null)
+    private val mutableKeymap = MutableStateFlow(Keymap(emptyList()))
+    private val keymapRefresh = Channel<Unit>(Channel.CONFLATED)
     @Volatile private var terminalColors: TerminalColors? = null
+    @Volatile private var declaredActions: List<RexAction> = emptyList()
+    @Volatile private var defaultBindings: List<KeyBinding> = emptyList()
+    private val home: RexHost?
+
+    /** What the client has been doing, for the debug panel. */
+    val log = RexLog()
+
+    /** What each key does. Starts as the app's defaults, then follows the home server's configuration. */
+    val keymap: StateFlow<Keymap> get() = mutableKeymap
 
     val hosts: StateFlow<List<RexHost>> get() = mutableHosts
     /** The label of the host being shown. */
@@ -51,8 +63,36 @@ class RexClient(
         mutableHosts.value = saved.map { host(it, discovered = false) }
         mutableSelectedHost.value = workspace.lastHost?.takeIf { label -> saved.any { it.label == label } } ?: saved.first().label
 
-        val home = mutableHosts.value.firstOrNull { it.saved.endpoint.startsWith("unix://") || it.saved.endpoint.startsWith("/") }
+        home = mutableHosts.value.firstOrNull { it.saved.endpoint.startsWith("unix://") || it.saved.endpoint.startsWith("/") }
         if (home != null) scope.launch { addHostsFrom(home) }
+        scope.launch { for (request in keymapRefresh) resolveKeymap() }
+    }
+
+    /**
+     * Tells Rex which actions this app performs and which keys it binds to them by default.
+     * The home server layers the account's configuration file on top and answers with what
+     * each key does, so a binding made there applies here as it does in other Rex clients.
+     * That is read again whenever the configuration changes.
+     */
+    fun declareKeymap(actions: List<RexAction>, defaults: List<KeyBinding>) {
+        declaredActions = actions
+        defaultBindings = defaults
+        // Until the server answers, and whenever it can't be reached: the defaults as they are.
+        // Later bindings sit above earlier ones, and the keymap lists the top first.
+        mutableKeymap.value = Keymap(defaults.reversed())
+        keymapRefresh.trySend(Unit)
+    }
+
+    private suspend fun resolveKeymap() {
+        val home = home ?: return
+        if (home.state.value.connection != HostConnection.Connected || declaredActions.isEmpty()) return
+        runCatching { home.keymap(declaredActions, defaultBindings) }
+            .onSuccess { resolved ->
+                mutableKeymap.value = resolved
+                val configured = resolved.bindings.count { it.source != "default" }
+                log.add("keys", "keymap from ${home.saved.label}: ${resolved.bindings.size} bindings, $configured from the configuration file, ${resolved.serverActions.size} server actions")
+            }
+            .onFailure { log.add("keys", "couldn't read the keymap: ${it.message}", isError = true) }
     }
 
     fun selectHost(label: String) {
@@ -74,10 +114,13 @@ class RexClient(
         info = info,
         rememberedSession = workspace.sessions[saved.label],
         discovered = discovered,
+        log = log,
         onSessionSelected = { sessionId ->
             workspace.sessions[saved.label] = sessionId
             workspace.save()
         },
+        // The keymap belongs to the home server; read it when that connects or its configuration changes.
+        onServerEvent = { type -> if (type == "connected" || type == "keymap_changed") keymapRefresh.trySend(Unit) },
     ).also { host -> terminalColors?.let(host::setTerminalColors) }
 
     /** Connects to the hosts the home server lists, once it is reachable. */

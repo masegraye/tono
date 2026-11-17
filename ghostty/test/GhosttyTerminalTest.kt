@@ -136,6 +136,26 @@ class GhosttyTerminalTest {
     }
 
     @Test
+    fun `a program can ask for pastes to be bracketed`() = terminal().use { terminal ->
+        assertEquals(false, terminal.bracketedPaste)
+        terminal.write("$ESC[?2004h")
+        assertEquals(true, terminal.bracketedPaste)
+        terminal.write("$ESC[?2004l")
+        assertEquals(false, terminal.bracketedPaste)
+    }
+
+    @Test
+    fun `pasted text is made safe for the terminal`() {
+        // Bracketed: the program is told where the paste starts and ends, and the text is kept.
+        assertEquals("$ESC[200~ls\nrm$ESC[201~", String(encodePaste("ls\nrm", bracketed = true)))
+        // Not bracketed: a newline becomes Return, as if typed.
+        assertEquals("ls\rrm", String(encodePaste("ls\nrm", bracketed = false)))
+        // An escape character in the text can't end the paste early or start a sequence.
+        assertEquals("$ESC[200~a b$ESC[201~", String(encodePaste("a${ESC}b", bracketed = true)))
+        assertEquals("", String(encodePaste("", bracketed = false)))
+    }
+
+    @Test
     fun `resizing changes the grid`() = terminal().use { terminal ->
         terminal.resize(columns = 10, rows = 2)
 

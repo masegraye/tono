@@ -63,6 +63,7 @@ import kotlin.math.roundToInt
  *
  * @param focused whether this is the terminal the user is typing into
  * @param onKey a key was pressed, released, or is repeating while this view had focus
+ * @param focusRequests change it to hand the keyboard back to this view, if it is the focused one
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -74,6 +75,7 @@ fun TerminalView(
     onDesiredGrid: (GridSize) -> Unit,
     modifier: Modifier = Modifier,
     fontSize: TextUnit = 13.sp,
+    focusRequests: Int = 0,
 ) {
     val frame by terminal.frame.collectAsState()
     val fontFamily = MaterialTheme.typography.bodyMedium.fontFamily ?: FontFamily.Monospace
@@ -94,7 +96,7 @@ fun TerminalView(
 
     val focusRequester = remember { FocusRequester() }
     var hasKeyboard by remember { mutableStateOf(false) }
-    LaunchedEffect(focused) { if (focused) focusRequester.requestFocus() }
+    LaunchedEffect(focused, focusRequests) { if (focused) focusRequester.requestFocus() }
     val keysDown = remember { HashSet<Int>() }
 
     Canvas(

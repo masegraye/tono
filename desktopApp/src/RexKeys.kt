@@ -1,5 +1,6 @@
 package org.example.kotlintest
 
+import org.example.kotlintest.rex.KeyChord
 import org.example.kotlintest.rex.RexKey
 import java.awt.event.KeyEvent
 
@@ -37,6 +38,30 @@ internal fun rexKey(event: KeyEvent, repeat: Boolean): RexKey? {
     }
     return RexKey(name, mods, consumed, text, unshifted, action)
 }
+
+/**
+ * The key and modifiers of a press, in the form keymaps are written in (`ctrl+shift+t`), for
+ * looking up shortcuts. Null for keys that can't be bound, such as a modifier on its own.
+ */
+internal fun keyChord(event: KeyEvent): KeyChord? {
+    val name = keyName(event) ?: return null
+    val key = CHORD_KEYS[name]
+        ?: name.removePrefix("key_").takeIf { name.startsWith("key_") }
+        ?: name.removePrefix("digit_").takeIf { name.startsWith("digit_") }
+        ?: name.takeIf { it.matches(Regex("f\\d+")) }
+        ?: return null
+    return KeyChord(key, ctrl = event.isControlDown, alt = event.isAltDown, shift = event.isShiftDown, cmd = event.isMetaDown)
+}
+
+/** How Rex spells the keys whose names differ from the ones the server takes in `client.key`. */
+private val CHORD_KEYS = mapOf(
+    "enter" to "enter", "tab" to "tab", "space" to "space", "escape" to "escape", "backspace" to "backspace",
+    "delete" to "delete", "insert" to "insert", "home" to "home", "end" to "end",
+    "page_up" to "pageup", "page_down" to "pagedown",
+    "arrow_up" to "up", "arrow_down" to "down", "arrow_left" to "left", "arrow_right" to "right",
+    "minus" to "-", "equal" to "=", "bracket_left" to "[", "bracket_right" to "]", "backslash" to "\\",
+    "semicolon" to ";", "quote" to "'", "backquote" to "`", "comma" to ",", "period" to ".", "slash" to "/",
+)
 
 private fun keyName(event: KeyEvent): String? {
     val code = event.keyCode

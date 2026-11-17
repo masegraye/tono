@@ -3127,6 +3127,71 @@ public class GhosttyVt extends GhosttyVt$shared {
     public static int GHOSTTY_SGR_UNDERLINE_MAX_VALUE() {
         return GHOSTTY_SGR_UNDERLINE_MAX_VALUE;
     }
+
+    private static class ghostty_paste_encode {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_LONG,
+            GhosttyVt.C_BOOL,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_LONG,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_paste_encode");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_paste_encode(char *data, size_t data_len, _Bool bracketed, char *buf, size_t buf_len, size_t *out_written)
+     * }
+     */
+    public static FunctionDescriptor ghostty_paste_encode$descriptor() {
+        return ghostty_paste_encode.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_paste_encode(char *data, size_t data_len, _Bool bracketed, char *buf, size_t buf_len, size_t *out_written)
+     * }
+     */
+    public static MethodHandle ghostty_paste_encode$handle() {
+        return ghostty_paste_encode.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_paste_encode(char *data, size_t data_len, _Bool bracketed, char *buf, size_t buf_len, size_t *out_written)
+     * }
+     */
+    public static MemorySegment ghostty_paste_encode$address() {
+        return ghostty_paste_encode.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_paste_encode(char *data, size_t data_len, _Bool bracketed, char *buf, size_t buf_len, size_t *out_written)
+     * }
+     */
+    public static int ghostty_paste_encode(MemorySegment data, long data_len, boolean bracketed, MemorySegment buf, long buf_len, MemorySegment out_written) {
+        var mh$ = ghostty_paste_encode.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_paste_encode", data, data_len, bracketed, buf, buf_len, out_written);
+            }
+            return (int)mh$.invokeExact(data, data_len, bracketed, buf, buf_len, out_written);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
     private static final int GHOSTTY_SNAPSHOT_DECODER_DATA_INVALID = (int)0L;
     /**
      * {@snippet lang=c :

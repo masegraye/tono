@@ -5,10 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.DpSize
@@ -55,15 +52,17 @@ fun main(args: Array<String>) {
         ) {
             // Renders at the Hyprland monitor's scale, which the JVM doesn't see under XWayland.
             OmarchyWindowScale {
-                var showcase by remember { mutableStateOf(false) }
-                if (showcase) {
-                    Showcase(onBack = { showcase = false })
+                val ui = remember { RexUiState(client) }
+                // Tells Rex what this app can do and its default keys; the keymap comes back resolved.
+                val commands = remember { RexCommands(ui).also { it.declare() } }
+                if (ui.showcase) {
+                    Showcase(onBack = { ui.showcase = false })
                 } else {
                     val theme = rememberOmarchyThemeState()
                     // Terminals are drawn in the desktop's colors too, and follow a theme change.
                     LaunchedEffect(theme.palette) { client.setTerminalColors(theme.palette.toTerminalColors()) }
                     OmarchyTheme(theme) {
-                        RexApp(client, onOpenShowcase = { showcase = true })
+                        RexApp(ui, commands)
                     }
                 }
             }

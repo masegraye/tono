@@ -31,6 +31,10 @@ GhosttyStyle(Color|ColorValue)?
 GhosttyColorRgb
 ghostty_color_palette_default
 
+# Pasting: whether the program wants pastes bracketed, and encoding text safely
+ghostty_paste_encode
+GhosttyTerminalModeConfig
+
 # The terminal as text, for tests and diagnostics
 ghostty_formatter_(terminal_new|format_alloc|free)
 GHOSTTY_FORMATTER_FORMAT_.*

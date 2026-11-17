@@ -39,6 +39,7 @@ class TerminalSession internal constructor(
     val blockId: String,
     scope: CoroutineScope,
     colors: TerminalColors?,
+    private val log: (String) -> Unit = {},
     private val open: suspend () -> RexTerminalStream,
 ) {
     sealed interface Status {
@@ -60,6 +61,11 @@ class TerminalSession internal constructor(
     val grid: StateFlow<GridSize?> get() = mutableGrid
     /** Set once the terminal's program has exited. */
     val exitCode: StateFlow<Int?> get() = mutableExitCode
+
+    /** Whether the terminal's program currently wants pasted text bracketed. */
+    @Volatile
+    var bracketedPaste: Boolean = false
+        private set
 
     private sealed interface Command {
         class SetColors(val colors: TerminalColors) : Command
@@ -93,6 +99,7 @@ class TerminalSession internal constructor(
             renderer = GhosttyRenderer()
             colors?.let(terminal::setColors)
             mutableGrid.value = GridSize(terminal.columns, terminal.rows)
+            log("restored from a ${restored.snapshotBytes}-byte snapshot at ${terminal.columns}×${terminal.rows}")
 
             val live = terminal
             val scanner = RexStreamScanner(stream.nonce)
@@ -100,6 +107,7 @@ class TerminalSession internal constructor(
                 scanner.feed(bytes, offset, onOutput = live::write, onMessage = { handleMessage(live, it) })
             apply(snapshot, restored.snapshotBytes)
             mutableFrame.value = renderer.render(terminal)
+            bracketedPaste = terminal.bracketedPaste
             mutableStatus.value = Status.Live
 
             while (true) {
@@ -124,16 +132,20 @@ class TerminalSession internal constructor(
                 }
                 if (!more) break
                 mutableFrame.value = renderer.render(terminal)
+                bracketedPaste = terminal.bracketedPaste
                 delay(FRAME_INTERVAL_MILLIS)
             }
             val reason = stream.closeReason()
-            mutableStatus.value = Status.Ended(
+            val ended = Status.Ended(
                 reason = reason?.message?.ifEmpty { null } ?: "The terminal stream ended",
                 blockClosed = reason?.code == CLOSE_BLOCK_CLOSED,
             )
+            log("stream ended: ${ended.reason}")
+            mutableStatus.value = ended
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
+            log("stream failed: ${failure.message ?: failure}")
             mutableStatus.value = Status.Ended(failure.message ?: failure.toString())
         } finally {
             withContext(NonCancellable) { stream?.close() }
@@ -169,8 +181,13 @@ class TerminalSession internal constructor(
                 val cellHeight = message["cell_height_px"]?.jsonPrimitive?.int ?: 0
                 terminal.resize(columns, rows, cellWidth, cellHeight)
                 mutableGrid.value = GridSize(columns, rows, cellWidth, cellHeight)
+                log("is now $columns×$rows, sized by ${message.string("owner")?.let { "client …" + it.takeLast(6) } ?: "no client"}")
             }
-            "child_exited" -> mutableExitCode.value = message["exit_code"]?.jsonPrimitive?.int ?: 0
+            "child_exited" -> {
+                val code = message["exit_code"]?.jsonPrimitive?.int ?: 0
+                mutableExitCode.value = code
+                log("its program exited with $code")
+            }
             // "theme" carries the block owner's colors. This client draws with its own.
         }
     }

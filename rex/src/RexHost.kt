@@ -4,25 +4,27 @@ import io.ktor.client.HttpClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import org.example.kotlintest.ghostty.TerminalColors
+import org.example.kotlintest.ghostty.encodePaste
 import java.util.concurrent.ConcurrentHashMap
 
 sealed interface HostConnection {
@@ -48,6 +50,14 @@ data class HostState(
     val terminals: Map<String, TerminalSession> = emptyMap(),
 )
 
+/** Which side of a pane a new one goes on. */
+enum class SplitDirection(internal val axis: String, internal val side: String) {
+    Left("horizontal", "before"),
+    Right("horizontal", "after"),
+    Up("vertical", "before"),
+    Down("vertical", "after"),
+}
+
 /**
  * One Rex server, and the app's connection to it.
  *
@@ -55,7 +65,7 @@ data class HostState(
  * waits and tries again, carrying on as the same client where the server still remembers
  * it. Each time it connects it reads everything afresh in one `session.bootstrap`, selects
  * the session it had (or [rememberedSession], or the first listed), and opens the
- * terminals that session shows. It never creates or destroys a session by itself.
+ * terminals that session shows. It never creates or destroys anything unless asked to.
  */
 class RexHost(
     val saved: SavedHost,
@@ -66,7 +76,10 @@ class RexHost(
     private val rememberedSession: String? = null,
     /** True for a host that came from the home server's host list rather than this app's saved hosts. */
     val discovered: Boolean = false,
+    private val log: RexLog = RexLog(),
     private val onSessionSelected: (sessionId: String) -> Unit = {},
+    /** Called for the server's own events, such as `keymap_changed`, and with `connected` after each connect. */
+    private val onServerEvent: (type: String) -> Unit = {},
 ) {
     private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]))
     private val mutableState = MutableStateFlow(HostState())
@@ -80,20 +93,96 @@ class RexHost(
     private val claimed = ConcurrentHashMap.newKeySet<String>()
     @Volatile private var terminalColors: TerminalColors? = null
     @Volatile private var control: RexControl? = null
+    private val endpoint: RexEndpoint? = runCatching { RexEndpoint.parse(saved.endpoint) }.getOrNull()
 
     init {
         scope.launch { run() }
     }
 
-    /** Shows another session. Nothing is created: the session must be in [HostState.sessions]. */
-    fun selectSession(sessionId: String) = act { attach(it, sessionId) }
+    // What the user can do. Each is queued and runs in order on the control connection.
 
-    /** Makes a window the session's active one. This is the session's own state, shared by every client on it. */
-    fun focusWindow(windowId: String) = act { control ->
-        val sessionId = state.value.selectedSessionId ?: return@act
-        control.call("session.focus_window", buildJsonObject {
-            put("session_id", sessionId)
-            put("window_id", windowId)
+    /** Shows another session. */
+    fun selectSession(sessionId: String) = act("select session") { attach(it, sessionId) }
+
+    /** Makes a window the session's active one. That is the session's own state, shared by every client on it. */
+    fun focusWindow(windowId: String) = act("focus tab") { control ->
+        control.call("session.focus_window", sessionPayload { put("window_id", windowId) })
+    }
+
+    /** Moves to the tab after or before the active one. */
+    fun stepWindow(forward: Boolean) = act("step tab") { control ->
+        control.call(if (forward) "session.focus_next_window" else "session.focus_previous_window", sessionPayload {})
+    }
+
+    /** Opens a tab with a shell in it, and shows it. */
+    fun newTab() = act("new tab") { control ->
+        val created = control.call("session.new_window", sessionPayload { put("layout", SHELL_LAYOUT) })
+        log.add(saved.label, "created tab ${created.string("window_id")}")
+        claimCreated(control, created["block_ids"] as? JsonArray)
+    }
+
+    /** Creates a session with a shell in it, and shows it. */
+    fun newSession() = act("new session") { control ->
+        val created = control.call("session.create", buildJsonObject {
+            put("initial_windows", buildJsonArray { add(buildJsonObject { put("layout", SHELL_LAYOUT) }) })
+        })
+        val sessionId = created.string("session_id") ?: return@act
+        log.add(saved.label, "created session $sessionId")
+        attach(control, sessionId)
+        val blocks = ((created["initial_windows"] as? JsonArray)?.firstOrNull() as? JsonObject)?.get("block_ids") as? JsonArray
+        claimCreated(control, blocks)
+    }
+
+    /** Opens a shell beside a pane. */
+    fun split(blockId: String, direction: SplitDirection) = act("split") { control ->
+        val created = control.call("session.new_split", sessionPayload {
+            put("anchor_id", blockId)
+            put("direction", direction.axis)
+            put("side", direction.side)
+            put("layout", SHELL_LAYOUT)
+            put("focus", true)
+        })
+        claimCreated(control, created["block_ids"] as? JsonArray)
+    }
+
+    /** Closes a pane and ends the program in it. */
+    fun closeBlock(blockId: String) = act("close pane") { control ->
+        control.call("block.close", sessionPayload { put("block_id", blockId) })
+    }
+
+    /** Closes a tab and every pane in it. */
+    fun closeWindow(windowId: String) = act("close tab") { control ->
+        control.call("session.close_window", sessionPayload { put("window_id", windowId) })
+    }
+
+    /** Zooms a pane to fill its tab, or restores the layout if it already does. */
+    fun toggleZoom(blockId: String) = act("zoom") { control ->
+        control.call("session.zoom_block", sessionPayload { put("block_id", blockId) })
+    }
+
+    /** Moves the session's focus to a pane. */
+    fun focusBlock(blockId: String) = act("focus pane") { control ->
+        control.call("session.focus_block", sessionPayload { put("block_id", blockId) })
+    }
+
+    /** Moves focus to the nearest pane in a direction: `left`, `right`, `up` or `down`. */
+    fun focusDirection(direction: String) = act("focus $direction") { control ->
+        control.call("session.focus_direction", sessionPayload { put("direction", direction) })
+    }
+
+    /** Moves focus to the next or previous pane of the tab. */
+    fun stepPane(forward: Boolean) = act("step pane") { control ->
+        control.call(if (forward) "session.focus_next_pane" else "session.focus_previous_pane", sessionPayload {})
+    }
+
+    /** Runs one of the server's own actions, such as clearing a terminal, on a pane. */
+    fun performServerAction(name: String, args: JsonObject?, blockId: String?) = act(name) { control ->
+        control.call("client.action", buildJsonObject {
+            put("action", name)
+            args?.let { put("args", it) }
+            put("origin", "palette")
+            state.value.selectedSessionId?.let { put("session_id", it) }
+            if (blockId != null) put("block_id", blockId)
         })
     }
 
@@ -103,7 +192,7 @@ class RexHost(
      * Looking at a terminal is passive, but pressing a key in one claims it: the block then
      * takes its size from this client, as it would from any Rex client being typed into.
      */
-    fun sendKey(blockId: String, key: RexKey) = act { control ->
+    fun sendKey(blockId: String, key: RexKey) = act(null) { control ->
         val current = state.value
         val sessionId = current.selectedSessionId ?: return@act
         if (key.action != RexKey.Action.Release) {
@@ -118,13 +207,25 @@ class RexHost(
         })
     }
 
+    /** Pastes text into a block, bracketed if its program asked for that. */
+    fun paste(blockId: String, text: String) = act("paste") { control ->
+        if (text.isEmpty()) return@act
+        val current = state.value
+        val sessionId = current.selectedSessionId ?: return@act
+        val terminal = current.terminals[blockId] ?: return@act
+        claim(control, sessionId, blockId)
+        terminal.scrollToBottom()
+        val data = String(encodePaste(text, terminal.bracketedPaste), Charsets.UTF_8)
+        control.callBlock("$TERMINAL_CREATOR.write", sessionId, blockId, buildJsonObject { put("data", data) })
+    }
+
     /**
      * Says how large a block's terminal would be to fill the space this app gives it.
      * It takes effect only for blocks this client owns.
      */
     fun setDesiredGrid(blockId: String, grid: GridSize) {
         if (desiredGrids.put(blockId, grid) == grid) return
-        act { control ->
+        act(null) { control ->
             val sessionId = state.value.selectedSessionId ?: return@act
             if (owns(blockId) && desiredGrids[blockId] == grid) resize(control, sessionId, blockId, grid)
         }
@@ -143,9 +244,28 @@ class RexHost(
     suspend fun call(method: String, payload: JsonObject = EMPTY): JsonObject =
         (control ?: throw RexDisconnected("Not connected to ${saved.label}")).call(method, payload)
 
+    /** Declares this client's actions and default keys, and returns what each key does once the server's configuration is applied. */
+    suspend fun keymap(actions: List<RexAction>, defaults: List<KeyBinding>): Keymap =
+        parseKeymap(call("client.keymap", keymapRequest(actions, defaults)))
+
     fun close() = scope.cancel()
 
-    private fun act(action: suspend (RexControl) -> Unit) { actions.trySend(action) }
+    /** Queues work for the connection. [what] names it in the log; null keeps it out (typing, resizing). */
+    private fun act(what: String?, action: suspend (RexControl) -> Unit) {
+        actions.trySend { control ->
+            try {
+                action(control)
+                if (what != null) log.add(saved.label, "→ $what")
+            } catch (refused: RexError) {
+                log.add(saved.label, "✗ ${what ?: "request"}: ${refused.message}", isError = true)
+            }
+        }
+    }
+
+    private inline fun sessionPayload(build: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit): JsonObject = buildJsonObject {
+        state.value.selectedSessionId?.let { put("session_id", it) }
+        build()
+    }
 
     private fun owns(blockId: String): Boolean {
         val current = state.value
@@ -158,13 +278,20 @@ class RexHost(
         val taken = runCatching {
             control.call("session.own_block", buildJsonObject {
                 put("session_id", sessionId)
-                put("block_ids", buildJsonArray { add(kotlinx.serialization.json.JsonPrimitive(blockId)) })
+                put("block_ids", buildJsonArray { add(JsonPrimitive(blockId)) })
                 put("mode", "take")
             })
         }.isSuccess
         if (!taken) return
         claimed += blockId
+        log.add(saved.label, "claimed ${short(blockId)}: it now takes its size from this client")
         desiredGrids[blockId]?.let { resize(control, sessionId, blockId, it) }
+    }
+
+    /** Blocks this client just created are its own from the start, so they fill their panes. */
+    private suspend fun claimCreated(control: RexControl, blockIds: JsonArray?) {
+        val sessionId = state.value.selectedSessionId ?: return
+        for (id in blockIds.orEmpty()) (id as? JsonPrimitive)?.content?.let { claim(control, sessionId, it) }
     }
 
     private suspend fun resize(control: RexControl, sessionId: String, blockId: String, grid: GridSize) {
@@ -177,20 +304,21 @@ class RexHost(
                     put("cell_height_px", grid.cellHeightPx)
                 }
             })
-        }
+        }.onSuccess { log.add(saved.label, "asked for ${short(blockId)} to be ${grid.columns}×${grid.rows}") }
     }
 
     private suspend fun run() {
-        val endpoint = try {
-            RexEndpoint.parse(saved.endpoint)
-        } catch (invalid: IllegalArgumentException) {
-            mutableState.update { it.copy(connection = HostConnection.Disconnected(invalid.message ?: "Invalid endpoint", permanent = true)) }
+        val endpoint = endpoint ?: run {
+            val reason = runCatching { RexEndpoint.parse(saved.endpoint) }.exceptionOrNull()?.message ?: "Invalid endpoint"
+            log.add(saved.label, reason, isError = true)
+            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason, permanent = true)) }
             return
         }
         var reconnectToken: String? = null
         var attempt = 0
         while (true) {
             mutableState.update { it.copy(connection = HostConnection.Connecting) }
+            log.add(saved.label, "connecting to ${saved.endpoint}")
             val reason = try {
                 coroutineScope {
                     val connection = RexControl.connect(http, endpoint, this, info, reconnectToken)
@@ -218,7 +346,9 @@ class RexHost(
             claimed.clear()
             mutableState.value.terminals.values.forEach { it.close() }
             mutableState.update { it.copy(connection = HostConnection.Disconnected(reason), view = null, terminals = emptyMap()) }
-            withTimeoutOrNull(RETRY_DELAYS_MILLIS[minOf(attempt++, RETRY_DELAYS_MILLIS.lastIndex)]) { retryNow.receive() }
+            val delayMillis = RETRY_DELAYS_MILLIS[minOf(attempt++, RETRY_DELAYS_MILLIS.lastIndex)]
+            log.add(saved.label, "disconnected: $reason. Trying again in ${delayMillis / 1000.0}s", isError = true)
+            withTimeoutOrNull(delayMillis) { retryNow.receive() }
         }
     }
 
@@ -242,12 +372,14 @@ class RexHost(
                 sessions = sessions,
             )
         }
+        log.add(saved.label, "connected: API ${connection.apiRevision}, ${sessions.size} session${if (sessions.size == 1) "" else "s"}, as ${connection.clientId}")
         control = connection
-        chooseSession(sessions)?.let { attach(connection, it, endpoint) }
+        onServerEvent("connected")
+        chooseSession(sessions)?.let { attach(connection, it) }
 
         coroutineScope {
             val events = launch {
-                for (event in connection.events) runCatching { handleEvent(connection, event, endpoint) }
+                for (event in connection.events) runCatching { handleEvent(connection, event) }
             }
             val work = launch {
                 for (action in actions) {
@@ -256,7 +388,7 @@ class RexHost(
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (_: Exception) {
-                        // One refused request shouldn't take the connection down with it.
+                        // One failed request shouldn't take the connection down with it.
                     }
                 }
             }
@@ -274,7 +406,7 @@ class RexHost(
         return matches.singleOrNull()?.id ?: sessions.firstOrNull()?.id
     }
 
-    private suspend fun attach(connection: RexControl, sessionId: String, endpoint: RexEndpoint = RexEndpoint.parse(saved.endpoint)) {
+    private suspend fun attach(connection: RexControl, sessionId: String) {
         val previous = state.value.selectedSessionId
         if (previous != null && previous != sessionId) {
             runCatching { connection.call("session.detach", buildJsonObject { put("session_id", previous) }) }
@@ -282,12 +414,14 @@ class RexHost(
         val response = connection.call("session.attach", buildJsonObject { put("session_id", sessionId) })
         val view = parseSessionView(response.obj("view") ?: response)
         mutableState.update { it.copy(selectedSessionId = sessionId) }
-        showView(connection, view, endpoint)
+        log.add(saved.label, "attached to ${view.label}: ${view.windows.size} tab${if (view.windows.size == 1) "" else "s"}, revision ${view.revision}")
+        showView(connection, view)
         onSessionSelected(sessionId)
     }
 
     /** Takes a new layout, and makes the open terminals match the blocks it shows. */
-    private fun showView(connection: RexControl, view: SessionView, endpoint: RexEndpoint) {
+    private fun showView(connection: RexControl, view: SessionView) {
+        val endpoint = endpoint ?: return
         val window = view.activeWindow
         val visible = window?.panes.orEmpty()
             .filter { it.isTerminal && (window?.zoomedBlockId == null || it.blockId == window.zoomedBlockId) }
@@ -313,7 +447,7 @@ class RexHost(
     }
 
     private fun openTerminal(connection: RexControl, endpoint: RexEndpoint, sessionId: String, blockId: String) =
-        TerminalSession(sessionId, blockId, scope, terminalColors) {
+        TerminalSession(sessionId, blockId, scope, terminalColors, log = { log.add(saved.label, "${short(blockId)} $it") }) {
             val ticket = connection.call("data.connect", buildJsonObject {
                 put("session_id", sessionId)
                 put("block_id", blockId)
@@ -323,15 +457,16 @@ class RexHost(
             RexTerminalStream.open(http, endpoint, ticket)
         }
 
-    private suspend fun handleEvent(connection: RexControl, event: RexEvent, endpoint: RexEndpoint) {
+    private suspend fun handleEvent(connection: RexControl, event: RexEvent) {
         val current = state.value
+        log.add(saved.label, "event ${describe(event, current)}")
         when (event.type) {
             // Says only that the layout changed, so fetch it, unless this one is already known.
             "session_view_changed" -> if (event.sessionId == current.selectedSessionId) {
                 val revision = event.payload.long("revision") ?: Long.MAX_VALUE
                 if (revision > (current.view?.revision ?: -1)) {
                     val view = connection.call("session.view", buildJsonObject { put("session_id", event.sessionId) })
-                    if (state.value.selectedSessionId == event.sessionId) showView(connection, parseSessionView(view), endpoint)
+                    if (state.value.selectedSessionId == event.sessionId) showView(connection, parseSessionView(view))
                 }
             }
             "session_created", "session_destroyed", "session_label_changed" -> {
@@ -341,10 +476,31 @@ class RexHost(
                     // The session being shown is gone. Show another rather than nothing.
                     state.value.terminals.values.forEach { it.close() }
                     mutableState.update { it.copy(selectedSessionId = null, view = null, terminals = emptyMap()) }
-                    sessions.firstOrNull()?.let { attach(connection, it.id, endpoint) }
+                    sessions.firstOrNull()?.let { attach(connection, it.id) }
                 }
             }
+            "keymap_changed", "hosts_changed" -> onServerEvent(event.type)
+            // Another client asked this one to perform an action. That isn't offered yet, and
+            // the caller is waiting, so say so rather than leave it to time out.
+            "client_perform_requested" -> event.payload.string("call_id")?.let { callId ->
+                connection.request("client.reply", buildJsonObject {
+                    put("call_id", callId)
+                    putJsonObject("error") {
+                        put("code", "refused")
+                        put("message", "This client doesn't perform actions for other clients yet")
+                    }
+                })
+            }
         }
+    }
+
+    /** An event in a line: its name, the session it is about, and the fields worth seeing. */
+    private fun describe(event: RexEvent, current: HostState): String {
+        val session = event.sessionId?.let { id -> current.sessions.firstOrNull { it.id == id }?.label ?: short(id) }
+        val detail = event.payload.entries
+            .filter { (_, value) -> value is JsonPrimitive }
+            .joinToString(" ") { (key, value) -> "$key=${(value as JsonPrimitive).content.let { if (it.contains(':')) short(it) else it }}" }
+        return listOfNotNull(event.type, session?.let { "[$it]" }, detail.takeIf { it.isNotEmpty() }).joinToString(" ")
     }
 
     /** Why a connection attempt failed, in words fit to show next to the host. */
@@ -358,5 +514,9 @@ class RexHost(
     private companion object {
         const val BOOTSTRAP_TIMEOUT_MILLIS = 8_000L
         val RETRY_DELAYS_MILLIS = longArrayOf(500, 1_000, 2_000, 5_000, 10_000)
+        val SHELL_LAYOUT = buildJsonObject { putJsonObject("block") { put("flavor", "$TERMINAL_CREATOR.shell") } }
+
+        /** `block:01a1eb49-4eac-…` is too long to read in a log; its kind and last few characters identify it. */
+        fun short(id: String): String = id.substringBefore(':') + ":…" + id.takeLast(6)
     }
 }

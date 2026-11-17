@@ -1,0 +1,248 @@
+package org.example.kotlintest
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.awt.awtEventOrNull
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import org.example.kotlintest.rex.HostConnection
+import org.example.kotlintest.rex.Keymap
+import java.awt.event.KeyEvent
+
+/** One thing the palette offers. */
+class PaletteItem(
+    val title: String,
+    /** Shown dimmed beside the title: a category, or where the thing is. */
+    val detail: String,
+    val shortcut: String? = null,
+    val keywords: String = "",
+    val run: () -> Unit,
+)
+
+/**
+ * Everything the palette can list in a mode: the commands that can run right now, and the
+ * places to go (sessions on every host, the current session's tabs, the hosts).
+ */
+internal fun paletteItems(ui: RexUiState, commands: RexCommands, keymap: Keymap, mode: PaletteMode): List<PaletteItem> = buildList {
+    val hosts = ui.client.hosts.value
+    if (mode == PaletteMode.Commands) {
+        for (action in commands.actions) {
+            if (!action.inPalette || !commands.isAvailable(action)) continue
+            add(PaletteItem(action.title, action.category, keymap.shortcutFor(action.name)?.display(), action.keywords) {
+                commands.run(action.name, origin = "palette")
+            })
+        }
+        for (action in keymap.serverActions) {
+            add(PaletteItem(action.title, action.category, keymap.shortcutFor(action.name)?.display(), action.keywords) {
+                commands.run(action.name, origin = "palette")
+            })
+        }
+        ui.view?.windows?.forEachIndexed { index, tab ->
+            val number = index + 1
+            add(PaletteItem("Go to Tab: ${tab.label}", "Tab $number", keymap.shortcutFor("client.tab.goto", buildJsonObject { put("index", number) })?.display()) {
+                commands.run("client.tab.goto", buildJsonObject { put("index", number) }, origin = "palette")
+            })
+        }
+    }
+    if (mode != PaletteMode.Hosts) {
+        val prefix = if (mode == PaletteMode.Commands) "Go to Session: " else ""
+        for (host in hosts) {
+            if (host.state.value.connection != HostConnection.Connected) continue
+            for (session in host.state.value.sessions) {
+                add(PaletteItem("$prefix${session.label}", host.saved.label, keywords = "session") {
+                    ui.go(NavigationStop(host.saved.label, session.id))
+                })
+            }
+        }
+    }
+    if (mode != PaletteMode.Sessions) {
+        for (host in hosts) {
+            val state = host.state.value
+            val status = when (state.connection) {
+                HostConnection.Connected -> "${state.sessions.size} session${if (state.sessions.size == 1) "" else "s"}"
+                HostConnection.Connecting -> "connecting"
+                is HostConnection.Disconnected -> "not connected"
+            }
+            val prefix = if (mode == PaletteMode.Commands) "Switch to Host: " else ""
+            add(PaletteItem("$prefix${host.saved.label}", status, keywords = "host server ${host.saved.endpoint}") {
+                ui.client.selectHost(host.saved.label)
+                ui.returnFocusToTerminal()
+            })
+        }
+    }
+}
+
+/**
+ * Keeps the items matching every word of [query], best first. A word matches where it
+ * appears, or failing that where its letters appear in order (`nt` finds New Tab).
+ */
+internal fun filterPalette(items: List<PaletteItem>, query: String): List<PaletteItem> {
+    val words = query.lowercase().split(' ').filter { it.isNotEmpty() }
+    if (words.isEmpty()) return items
+    return items.mapIndexedNotNull { index, item ->
+        val title = item.title.lowercase()
+        val rest = "${item.detail} ${item.keywords}".lowercase()
+        var score = 0
+        for (word in words) {
+            val at = title.indexOf(word)
+            score += when {
+                at == 0 -> 100
+                at > 0 && !title[at - 1].isLetterOrDigit() -> 80 // at the start of a word
+                at > 0 -> 60
+                rest.contains(word) -> 30
+                isSubsequence(word, title) -> 10
+                else -> return@mapIndexedNotNull null
+            }
+        }
+        Triple(score, index, item)
+    }.sortedWith(compareByDescending<Triple<Int, Int, PaletteItem>> { it.first }.thenBy { it.second }).map { it.third }
+}
+
+private fun isSubsequence(word: String, text: String): Boolean {
+    var next = 0
+    for (char in text) if (next < word.length && char == word[next]) next++
+    return next == word.length
+}
+
+/** The palette itself: a search field over a list, drawn above everything else. */
+@Composable
+fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
+    val keymap by ui.client.keymap.collectAsState()
+    var query by remember(mode) { mutableStateOf("") }
+    var selected by remember(mode) { mutableIntStateOf(0) }
+    // Listed once per opening: the palette shows the moment it was opened.
+    val all = remember(mode, keymap) { paletteItems(ui, commands, keymap, mode) }
+    val shown = remember(all, query) { filterPalette(all, query) }
+    val listState = rememberLazyListState()
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(mode) { focus.requestFocus() }
+    LaunchedEffect(selected, shown.size) { if (selected in shown.indices) listState.scrollToItem(selected) }
+
+    fun choose(item: PaletteItem) {
+        // Close first: the item may open the palette again in another mode.
+        ui.closePalette()
+        item.run()
+    }
+
+    Box(
+        Modifier.fillMaxSize()
+            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { ui.closePalette() },
+    ) {
+        Surface(
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 72.dp).widthIn(max = 640.dp).fillMaxWidth(0.8f),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 6.dp,
+            shadowElevation = 12.dp,
+        ) {
+            Column {
+                TextField(
+                    value = query,
+                    onValueChange = { query = it; selected = 0 },
+                    singleLine = true,
+                    placeholder = {
+                        Text(
+                            when (mode) {
+                                PaletteMode.Commands -> "Run a command, or go to a session, tab or host"
+                                PaletteMode.Sessions -> "Go to a session"
+                                PaletteMode.Hosts -> "Switch to a host"
+                            },
+                        )
+                    },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                    ),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus).onPreviewKeyEvent { event ->
+                        val awt = event.awtEventOrNull ?: return@onPreviewKeyEvent false
+                        if (awt.id != KeyEvent.KEY_PRESSED) return@onPreviewKeyEvent false
+                        when (awt.keyCode) {
+                            KeyEvent.VK_ESCAPE -> ui.closePalette()
+                            KeyEvent.VK_DOWN -> if (shown.isNotEmpty()) selected = (selected + 1) % shown.size
+                            KeyEvent.VK_UP -> if (shown.isNotEmpty()) selected = Math.floorMod(selected - 1, shown.size)
+                            KeyEvent.VK_ENTER -> shown.getOrNull(selected)?.let(::choose)
+                            else -> {
+                                // The key that opened the palette closes it again.
+                                val chord = keyChord(awt) ?: return@onPreviewKeyEvent false
+                                if (keymap.bindingsFor(chord).firstOrNull()?.action != "client.palette.toggle") return@onPreviewKeyEvent false
+                                ui.closePalette()
+                            }
+                        }
+                        true
+                    },
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                if (shown.isEmpty()) {
+                    Text(
+                        "Nothing matches",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp),
+                    )
+                }
+                LazyColumn(state = listState, modifier = Modifier.heightIn(max = 420.dp).padding(vertical = 4.dp)) {
+                    itemsIndexed(shown) { index, item ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 6.dp)
+                                .clip(MaterialTheme.shapes.small)
+                                .background(if (index == selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+                                .clickable { choose(item) }
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                        ) {
+                            Text(item.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                item.detail,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                modifier = Modifier.padding(start = 10.dp).weight(1f),
+                            )
+                            item.shortcut?.let {
+                                Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
