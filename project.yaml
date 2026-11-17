@@ -2,6 +2,7 @@ modules:
   - androidApp
   - desktopApp
   - iosApp
+  - rexSpike
   - server
   - shared
   - webApp

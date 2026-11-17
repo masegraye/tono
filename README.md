@@ -74,6 +74,20 @@ What this project does with them:
   involved at runtime. The server reads `WEB_DIR`, `HOST` (default `127.0.0.1`) and `PORT` (default `8080`) from the
   environment.
 
+### Rex client spike
+
+[rexSpike](./rexSpike) is a throwaway experiment towards a Linux client for [Rex](https://www.superlogical.com/rex),
+whose server documents its own API at `/llms.txt`. It connects to the local Rex server, opens one terminal's data
+stream, and decodes it with libghostty-vt, Ghostty's terminal core, called through Java's foreign function API. It only
+reads: it never types, resizes or claims a terminal.
+
+```sh
+mise run native   # once: download and build libghostty-vt into native/out (about two minutes, needs Zig 0.17)
+mise run spike    # inside a Rex terminal: print that terminal's screen, or pass <block-id> <session-id>
+```
+
+The Ghostty source is pinned by commit and SHA-256 in [native/GHOSTTY.lock](./native/GHOSTTY.lock).
+
 ### Testing
 
 Run the project's tests with `./kotlin test`, or `./kotlin test -m <module>` for a single module.

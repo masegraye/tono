@@ -1,6 +1,16 @@
 [tools]
 java = "temurin-25.0.5+8.0.LTS"
 watchexec = "latest"   # used by `mise watch`
+zig = "0.17.1"         # builds libghostty-vt (see native/)
+
+[tasks.native]
+description = "Build libghostty-vt, the terminal emulation library, into native/out"
+run = "native/build-libghostty-vt.sh"
+
+[tasks.spike]
+description = "Spike: read a terminal from the local Rex server (run it inside a Rex terminal)"
+depends = ["native"]
+run = "./kotlin run -m rexSpike --jvm-args=--enable-native-access=ALL-UNNAMED --"
 
 [tasks.desktop]
 description = "Run the desktop app with Compose Hot Reload"

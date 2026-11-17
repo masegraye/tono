@@ -17,3 +17,7 @@ xcuserdata
 # Android SDK location and signing/publishing credentials
 local.properties
 creds.properties
+
+# libghostty-vt: the downloaded source and the built library (see native/)
+/native/work/
+/native/out/

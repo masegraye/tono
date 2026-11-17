@@ -5,6 +5,7 @@ androidx-lifecycle = "2.11.0"
 kotlinx-coroutines = "1.11.0"
 compose-material-icons = "1.7.3"
 omarchy-theme = "0.1.0"
+kotlinx-serialization = "1.13.0"
 
 [libraries]
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
@@ -16,3 +17,4 @@ compose-material-icons-core = { module = "org.jetbrains.compose.material:materia
 # Built from ../omarchy-theme-kmp and installed with `./kotlin publish mavenLocal` there
 omarchy-theme-compose = { module = "dev.mg.omarchy:omarchy-theme-compose", version.ref = "omarchy-theme" }
 omarchy-theme-ktor = { module = "dev.mg.omarchy:omarchy-theme-ktor", version.ref = "omarchy-theme" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
