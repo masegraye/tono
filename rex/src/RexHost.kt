@@ -212,7 +212,7 @@ class RexHost(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
-                failure.message ?: failure.toString()
+                describe(failure)
             }
             // Everything read on that connection is stale now; it is all read again on the next.
             claimed.clear()
@@ -345,6 +345,14 @@ class RexHost(
                 }
             }
         }
+    }
+
+    /** Why a connection attempt failed, in words fit to show next to the host. */
+    private fun describe(failure: Exception): String = when (failure) {
+        is java.nio.channels.UnresolvedAddressException -> "Host name not found"
+        is kotlinx.coroutines.TimeoutCancellationException -> "The server didn't answer in time"
+        is java.nio.file.NoSuchFileException -> "No server is listening at ${failure.file}"
+        else -> failure.message?.takeIf { it.isNotBlank() } ?: failure.javaClass.simpleName
     }
 
     private companion object {
