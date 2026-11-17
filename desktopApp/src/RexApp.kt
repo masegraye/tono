@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -38,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -50,6 +50,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -103,11 +104,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
                         Sidebar(
                             hosts = hosts,
                             selected = selected,
-                            onSelectSession = { host, sessionId ->
-                                ui.client.selectHost(host.saved.label)
-                                host.selectSession(sessionId)
-                                ui.returnFocusToTerminal()
-                            },
+                            onGo = ui::go,
                             onSelectHost = { ui.client.selectHost(it.saved.label) },
                             commands = commands,
                             paletteShortcut = keymap.shortcutFor("client.palette.toggle")?.display(),
@@ -148,13 +145,17 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
 private fun Sidebar(
     hosts: List<RexHost>,
     selected: RexHost?,
-    onSelectSession: (RexHost, String) -> Unit,
+    onGo: (NavigationStop) -> Unit,
     onSelectHost: (RexHost) -> Unit,
     commands: RexCommands,
     paletteShortcut: String?,
 ) {
+    // Every host's state, read here so that tabs can be numbered across all of them.
+    val states = hosts.map { host -> key(host) { host.state.collectAsState().value } }
+    val tabs = linearTabs(hosts.map { it.saved.label }.zip(states))
+
     Column(
-        Modifier.width(232.dp).fillMaxHeight().background(MaterialTheme.colorScheme.surfaceContainerLow),
+        Modifier.width(248.dp).fillMaxHeight().background(MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Rex", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -172,28 +173,73 @@ private fun Sidebar(
             }
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 12.dp)) {
-            for (host in hosts) {
-                val state by host.state.collectAsState()
+            hosts.forEachIndexed { hostIndex, host ->
+                val state = states[hostIndex]
+                val label = host.saved.label
                 HostHeader(host, state, onClick = { onSelectHost(host) }, onRetry = host::retry)
                 for (session in state.sessions) {
                     val showing = host === selected && session.id == state.selectedSessionId
-                    Text(
-                        session.label,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (showing) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 1.dp)
-                            .clip(MaterialTheme.shapes.small)
-                            .background(if (showing) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
-                            .clickable { onSelectSession(host, session.id) }
-                            .padding(horizontal = 20.dp, vertical = 6.dp),
-                    )
+                    SessionRow(session.label, showing, onClick = { onGo(NavigationStop(label, session.id)) })
+                    val layout = state.views[session.id]
+                    for (tab in layout?.windows.orEmpty()) {
+                        val stop = NavigationStop(label, session.id, tab.id)
+                        val active = tab.id == layout?.activeWindow?.id
+                        TabRow(
+                            label = tab.label,
+                            digit = tabShortcutDigit(tabs.indexOf(stop), tabs.size),
+                            // The tab on screen, as opposed to the tab a session not on screen would show.
+                            showing = showing && active,
+                            active = active,
+                            onClick = { onGo(stop) },
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+/** A session's name. Its tabs are listed beneath it. */
+@Composable
+private fun SessionRow(label: String, showing: Boolean, onClick: () -> Unit) {
+    Text(
+        label,
+        style = MaterialTheme.typography.labelLarge,
+        color = if (showing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 28.dp, end = 12.dp, top = 8.dp, bottom = 3.dp),
+    )
+}
+
+/** A tab, with the digit that goes to it when held with Control. */
+@Composable
+private fun TabRow(label: String, digit: Int?, showing: Boolean, active: Boolean, onClick: () -> Unit) {
+    val color = when {
+        showing -> MaterialTheme.colorScheme.onSecondaryContainer
+        active -> MaterialTheme.colorScheme.onSurface
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 1.dp)
+            .clip(MaterialTheme.shapes.small)
+            .background(if (showing) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(start = 8.dp, end = 10.dp, top = 5.dp, bottom = 5.dp),
+    ) {
+        Text(
+            digit?.toString().orEmpty(),
+            style = MaterialTheme.typography.labelSmall,
+            color = color.copy(alpha = 0.55f),
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(20.dp).padding(end = 8.dp),
+        )
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        // Marks the tab a session will show, for sessions that aren't the one on screen.
+        if (active && !showing) Box(Modifier.size(5.dp).background(color.copy(alpha = 0.5f), CircleShape))
     }
 }
 
@@ -235,7 +281,6 @@ private fun HostContent(host: RexHost, ui: RexUiState, modifier: Modifier) {
     val focusedId = window?.let(::focusedBlockOf)
 
     Column(modifier.fillMaxSize()) {
-        if (view != null) TabStrip(view, onSelect = { host.focusWindow(it); ui.returnFocusToTerminal() })
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
                 state.connection != HostConnection.Connected ->
@@ -267,36 +312,6 @@ private fun HostContent(host: RexHost, ui: RexUiState, modifier: Modifier) {
             }
         }
         StatusBar(host, view, state.terminals[focusedId])
-    }
-}
-
-@Composable
-private fun TabStrip(view: SessionView, onSelect: (String) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow).horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp, vertical = 5.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        view.windows.forEachIndexed { index, window ->
-            Tab(window, number = index + 1, active = window.id == view.activeWindow?.id, onClick = { onSelect(window.id) })
-        }
-    }
-}
-
-@Composable
-private fun Tab(window: WindowView, number: Int, active: Boolean, onClick: () -> Unit) {
-    val color = if (active) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier
-            .clip(MaterialTheme.shapes.small)
-            .background(if (active) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        // The number is the tab's shortcut: Control and that digit.
-        if (number <= 8) Text(number.toString(), style = MaterialTheme.typography.labelSmall, color = color.copy(alpha = 0.6f))
-        Text(window.label, style = MaterialTheme.typography.labelLarge, color = color, maxLines = 1)
     }
 }
 

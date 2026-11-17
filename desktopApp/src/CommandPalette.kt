@@ -72,10 +72,16 @@ internal fun paletteItems(ui: RexUiState, commands: RexCommands, keymap: Keymap,
                 commands.run(action.name, origin = "palette")
             })
         }
-        ui.view?.windows?.forEachIndexed { index, tab ->
-            val number = index + 1
-            add(PaletteItem("Go to Tab: ${tab.label}", "Tab $number", keymap.shortcutFor("client.tab.goto", buildJsonObject { put("index", number) })?.display()) {
-                commands.run("client.tab.goto", buildJsonObject { put("index", number) }, origin = "palette")
+        // Every tab of every session, with the digit that goes to it.
+        val tabs = ui.tabs()
+        tabs.forEachIndexed { index, stop ->
+            val state = hosts.firstOrNull { it.saved.label == stop.host }?.state?.value ?: return@forEachIndexed
+            val session = state.views[stop.sessionId] ?: return@forEachIndexed
+            val tab = session.windows.firstOrNull { it.id == stop.windowId } ?: return@forEachIndexed
+            val digit = tabShortcutDigit(index, tabs.size)
+            val goto = digit?.let { buildJsonObject { put("index", if (it == 9) -1 else it) } }
+            add(PaletteItem("Go to Tab: ${tab.label}", "${session.label} · ${stop.host}", goto?.let { keymap.shortcutFor("client.tab.goto", it)?.display() }, "tab") {
+                ui.go(stop)
             })
         }
     }

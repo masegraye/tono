@@ -113,8 +113,8 @@ internal fun clientActions(): List<ClientAction> = buildList {
         client.hosts.value.firstOrNull { host -> host.state.value.sessions.any { it.id == sessionId } }
             ?.let { go(NavigationStop(it.saved.label, sessionId)) }
     })
-    add(ClientAction("session.next", "Next Session", "Session", "cycle") { step(forward = true, sessionsOnly = true) })
-    add(ClientAction("session.previous", "Previous Session", "Session", "cycle") { step(forward = false, sessionsOnly = true) })
+    add(ClientAction("session.next", "Next Session", "Session", "cycle") { stepSession(forward = true) })
+    add(ClientAction("session.previous", "Previous Session", "Session", "cycle") { stepSession(forward = false) })
 
     // Host
     add(ClientAction("client.host.switch", "Switch Host", "Host", "server machine", keys = listOf("ctrl+shift+h")) {
@@ -136,27 +136,21 @@ internal fun clientActions(): List<ClientAction> = buildList {
             onConfirm = { owner.closeWindow(tab.id) },
         )
     })
-    add(ClientAction("client.tab.next", "Show Next Tab", "Tab", keys = listOf("ctrl+pagedown", "ctrl+shift+]"), available = hasSession) {
-        host?.stepWindow(forward = true)
+    // Tabs are one list across every session and host, in sidebar order, so "next" carries
+    // on from a session's last tab into the next session's first.
+    add(ClientAction("client.tab.next", "Show Next Tab", "Tab", "cycle", keys = listOf("ctrl+tab", "ctrl+pagedown", "ctrl+shift+]")) {
+        stepTab(forward = true)
     })
-    add(ClientAction("client.tab.previous", "Show Previous Tab", "Tab", keys = listOf("ctrl+pageup", "ctrl+shift+["), available = hasSession) {
-        host?.stepWindow(forward = false)
+    add(ClientAction("client.tab.previous", "Show Previous Tab", "Tab", "cycle", keys = listOf("ctrl+shift+tab", "ctrl+pageup", "ctrl+shift+[")) {
+        stepTab(forward = false)
     })
     add(ClientAction(
-        "client.tab.goto", "Go to Tab", "Tab", inPalette = false, available = hasSession,
-        // As in Rex.app: 1 to 8 are the tabs in order, and 9 is always the last one.
+        "client.tab.goto", "Go to Tab", "Tab", inPalette = false,
+        // As in Rex.app: 1 to 8 are the first eight tabs in sidebar order, whichever session
+        // each is in, and 9 is always the last one.
         argKeys = (1..8).map { "ctrl+$it" to index(it) } + ("ctrl+9" to index(-1)),
     ) { args ->
-        val tabs = view?.windows.orEmpty()
-        val wanted = args?.get("index")?.jsonPrimitive?.int ?: return@ClientAction
-        (if (wanted == -1) tabs.lastOrNull() else tabs.getOrNull(wanted - 1))?.let { host?.focusWindow(it.id) }
-    })
-    // Not in Rex.app: Rex Rune's way to move through every tab of every session and host.
-    add(ClientAction("client.tab.next_global", "Next Tab in Any Session", "Tab", "cycle all sessions hosts", keys = listOf("ctrl+tab")) {
-        step(forward = true)
-    })
-    add(ClientAction("client.tab.previous_global", "Previous Tab in Any Session", "Tab", "cycle all sessions hosts", keys = listOf("ctrl+shift+tab")) {
-        step(forward = false)
+        args?.get("index")?.jsonPrimitive?.int?.let(::goToTab)
     })
 
     // Pane

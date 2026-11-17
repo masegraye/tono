@@ -59,6 +59,10 @@ private suspend fun kotlinx.coroutines.CoroutineScope.probe(args: Array<String>)
     for (host in client.hosts.value) {
         withTimeoutOrNull(6_000) { host.state.first { it.connection != HostConnection.Connecting } }
     }
+    // Every session's layout is read in the background, so all their tabs can be listed.
+    for (host in client.hosts.value) {
+        withTimeoutOrNull(6_000) { host.state.first { state -> state.sessions.all { it.id in state.views } } }
+    }
     // Terminals open after the session's layout arrives; wait for their first frames.
     for (host in client.hosts.value) {
         withTimeoutOrNull(6_000) { host.state.first { state -> state.terminals.isNotEmpty() && state.terminals.values.all { it.frame.value != null } } }
@@ -73,11 +77,13 @@ private suspend fun kotlinx.coroutines.CoroutineScope.probe(args: Array<String>)
         println("  ${state.connection}  api ${state.apiRevision}  client ${state.clientId}")
         for (session in state.sessions) {
             println("  session ${session.label}${if (session.id == state.selectedSessionId) "  <- showing" else ""}")
+            val layout = state.views[session.id]
+            if (layout == null) println("    (layout not read)")
+            for (window in layout?.windows.orEmpty()) {
+                println("    tab ${window.label}${if (window.id == layout?.activeWindowId) "  <- active" else ""}  (${window.panes.size} pane${if (window.panes.size == 1) "" else "s"})")
+            }
         }
         val view = state.view ?: continue
-        for (window in view.windows) {
-            println("    tab ${window.label}${if (window.id == view.activeWindowId) "  <- active" else ""}  (${window.panes.size} pane${if (window.panes.size == 1) "" else "s"})")
-        }
         for ((blockId, terminal) in state.terminals) {
             val frame = terminal.frame.value
             val pane = view.activeWindow?.panes?.firstOrNull { it.blockId == blockId }

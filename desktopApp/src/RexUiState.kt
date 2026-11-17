@@ -55,15 +55,27 @@ class RexUiState(val client: RexClient) {
     val focusedBlockId: String? get() = window?.let(::focusedBlockOf)
     val focusedTerminal: TerminalSession? get() = focusedBlockId?.let { hostState?.terminals?.get(it) }
 
-    /** Moves to the next or previous tab, carrying on into the other sessions and hosts, in sidebar order. */
-    fun step(forward: Boolean, sessionsOnly: Boolean = false) {
-        val hosts = client.hosts.value.map { it.saved.label to it.state.value }
-        val here = host?.saved?.label
-        val all = navigationStops(hosts, here, sessionsOnly)
+    private fun hostStates(): List<Pair<String, HostState>> = client.hosts.value.map { it.saved.label to it.state.value }
+
+    /** Every tab of every session on every host, in the order the sidebar lists them. */
+    fun tabs(): List<NavigationStop> = linearTabs(hostStates())
+
+    /** Goes to a tab by its place in [tabs], counting from 1. As in Rex.app, -1 is the last tab. */
+    fun goToTab(index: Int) {
+        val all = tabs()
+        (if (index == -1) all.lastOrNull() else all.getOrNull(index - 1))?.let(::go)
+    }
+
+    /** Moves to the tab after or before the one showing, through every session and host, wrapping around. */
+    fun stepTab(forward: Boolean) = step(tabs(), forward) { it.windowId == window?.id }
+
+    /** Moves to the session after or before the one showing, wrapping around. */
+    fun stepSession(forward: Boolean) = step(linearSessions(hostStates()), forward) { true }
+
+    private fun step(all: List<NavigationStop>, forward: Boolean, isHere: (NavigationStop) -> Boolean) {
         if (all.isEmpty()) return
-        val current = all.indexOfFirst {
-            it.host == here && it.sessionId == hostState?.selectedSessionId && (it.windowId == null || it.windowId == window?.id)
-        }
+        val here = host?.saved?.label
+        val current = all.indexOfFirst { it.host == here && it.sessionId == hostState?.selectedSessionId && isHere(it) }
         val next = when {
             current < 0 -> if (forward) 0 else all.lastIndex
             else -> Math.floorMod(current + if (forward) 1 else -1, all.size)
@@ -71,11 +83,11 @@ class RexUiState(val client: RexClient) {
         go(all[next])
     }
 
+    /** Shows a session, or one of its tabs. Showing a tab makes it its session's active tab, for every client on that session. */
     fun go(stop: NavigationStop) {
         val target = client.hosts.value.firstOrNull { it.saved.label == stop.host } ?: return
         client.selectHost(stop.host)
-        if (target.state.value.selectedSessionId != stop.sessionId) target.selectSession(stop.sessionId)
-        stop.windowId?.let(target::focusWindow)
+        if (stop.windowId != null) target.showTab(stop.sessionId, stop.windowId) else target.selectSession(stop.sessionId)
         returnFocusToTerminal()
     }
 
@@ -89,23 +101,34 @@ class RexUiState(val client: RexClient) {
 internal fun focusedBlockOf(window: WindowView): String? =
     window.zoomedBlockId ?: window.focusedBlockId?.takeIf { id -> window.panes.any { it.blockId == id } } ?: window.panes.firstOrNull()?.blockId
 
-/** A place the user can go: a session, or one tab of the session they are in. */
+/** A place the user can go: a session, or one of its tabs. */
 data class NavigationStop(val host: String, val sessionId: String, val windowId: String? = null)
 
 /**
- * Every place to go, in sidebar order, for moving through all of them with one key.
- *
- * Only the session being looked at is stepped through tab by tab. Every other session is a
- * single stop, entered at whichever tab it already shows: a session's active tab is shared
- * by everyone attached to it, so passing through must not change it.
+ * Every tab of every session on every connected host, in the order the sidebar lists them:
+ * host by host, session by session, tab by tab. A tab's place in this list is its number,
+ * which is what Control and a digit go to.
  *
  * @param hosts each host's label and state, in sidebar order
- * @param currentHost the label of the host being looked at
  */
-internal fun navigationStops(hosts: List<Pair<String, HostState>>, currentHost: String?, sessionsOnly: Boolean = false): List<NavigationStop> =
+internal fun linearTabs(hosts: List<Pair<String, HostState>>): List<NavigationStop> =
     hosts.filter { (_, state) -> state.connection == HostConnection.Connected }.flatMap { (label, state) ->
         state.sessions.flatMap { session ->
-            val tabs = state.view?.windows?.takeIf { !sessionsOnly && label == currentHost && session.id == state.selectedSessionId && it.isNotEmpty() }
-            tabs?.map { NavigationStop(label, session.id, it.id) } ?: listOf(NavigationStop(label, session.id))
+            state.views[session.id]?.windows.orEmpty().map { NavigationStop(label, session.id, it.id) }
         }
     }
+
+/** Every session on every connected host, in sidebar order. */
+internal fun linearSessions(hosts: List<Pair<String, HostState>>): List<NavigationStop> =
+    hosts.filter { (_, state) -> state.connection == HostConnection.Connected }
+        .flatMap { (label, state) -> state.sessions.map { NavigationStop(label, it.id) } }
+
+/**
+ * The digit to show beside the tab at [index] of [count]: 1 to 8 for the first eight, and 9
+ * for the last tab when there are more than eight, since Control+9 always goes to the last.
+ */
+internal fun tabShortcutDigit(index: Int, count: Int): Int? = when {
+    index < 8 -> index + 1
+    index == count - 1 -> 9
+    else -> null
+}

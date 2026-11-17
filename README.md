@@ -95,8 +95,10 @@ When it starts it connects to every configured server at once and restores where
   any in the local server's own host list. An endpoint is `unix:///path`, or `https://host` for a server reached over
   the network. A server with built-in Tailscale is a device on the tailnet, so its `https://` address just works on a
   machine that is on the tailnet too.
-- For each server it selects the session you last had (else the first listed), shows that session's windows as tabs,
-  and lays out the active tab's terminals where the server says they sit. It never creates or destroys a session.
+- For each server it selects the session you last had (else the first listed) and lays out its active tab's terminals
+  where the server says they sit. It creates and closes things only when asked to.
+- The sidebar lists every server, its sessions, and each session's tabs beneath it (a tab is a Rex window). The
+  layouts of all sessions are read and kept current, not just the one on screen.
 - A dropped connection is retried, and everything is read again when it comes back.
 
 Looking at a terminal is passive: it is drawn at the size its current owner gave it. Pressing a key in one claims it,
@@ -115,8 +117,7 @@ of Command, and Shift added where Control alone belongs to the terminal.
 | Ctrl+K | Change session, on any host |
 | Ctrl+Shift+H | Switch host |
 | Ctrl+1 … Ctrl+8, Ctrl+9 | Go to that tab; Ctrl+9 is the last tab |
-| Ctrl+PageDown / Ctrl+PageUp, Ctrl+Shift+] / [ | Next / previous tab |
-| Ctrl+Tab / Ctrl+Shift+Tab | Next / previous tab, carrying on into the other sessions and hosts |
+| Ctrl+Tab / Ctrl+Shift+Tab, Ctrl+PageDown / PageUp | Next / previous tab |
 | Ctrl+Shift+T / Ctrl+Shift+N | New tab / new session |
 | Ctrl+Shift+D / Ctrl+Alt+D | Split the pane right / down |
 | Ctrl+Alt+arrows | Focus the pane in that direction |
@@ -127,6 +128,10 @@ of Command, and Shift added where Control alone belongs to the terminal.
 | Ctrl+= / Ctrl+- / Ctrl+0 | Larger / smaller / default text |
 | Ctrl+Shift+B | Show or hide the sidebar |
 | Ctrl+` | Show or hide the debug log |
+
+Tabs are one list, in sidebar order, across every session and server: the digit beside a tab is the one that goes to
+it, whichever session it is in, and next and previous carry on from one session into the next. Going to a tab makes it
+its session's active tab.
 
 A bound key does not reach the terminal; every other key does. The keymap is not fixed in the app: it declares its
 actions and these defaults to the home server (`client.keymap`), which layers the account's configuration file on top

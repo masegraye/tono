@@ -44,11 +44,17 @@ data class HostState(
     val apiRevision: Int? = null,
     val sessions: List<SessionSummary> = emptyList(),
     val selectedSessionId: String? = null,
-    /** The selected session's layout. */
-    val view: SessionView? = null,
+    /**
+     * The layout of every session, by session id, so that all their tabs can be listed.
+     * One is missing only until it has been read.
+     */
+    val views: Map<String, SessionView> = emptyMap(),
     /** The live terminals of the selected session's active window, by block id. */
     val terminals: Map<String, TerminalSession> = emptyMap(),
-)
+) {
+    /** The selected session's layout. */
+    val view: SessionView? get() = views[selectedSessionId]
+}
 
 /** Which side of a pane a new one goes on. */
 enum class SplitDirection(internal val axis: String, internal val side: String) {
@@ -104,9 +110,19 @@ class RexHost(
     /** Shows another session. */
     fun selectSession(sessionId: String) = act("select session") { attach(it, sessionId) }
 
-    /** Makes a window the session's active one. That is the session's own state, shared by every client on it. */
-    fun focusWindow(windowId: String) = act("focus tab") { control ->
-        control.call("session.focus_window", sessionPayload { put("window_id", windowId) })
+    /**
+     * Shows a tab of any session: selects the session if it isn't the one showing, and makes
+     * the tab its active one. A session's active tab is its own state, shared by every client
+     * on it, so nothing is sent when the tab is already the active one.
+     */
+    fun showTab(sessionId: String, windowId: String) = act("show tab") { control ->
+        if (state.value.selectedSessionId != sessionId) attach(control, sessionId)
+        if (state.value.views[sessionId]?.activeWindowId != windowId) {
+            control.call("session.focus_window", buildJsonObject {
+                put("session_id", sessionId)
+                put("window_id", windowId)
+            })
+        }
     }
 
     /** Moves to the tab after or before the active one. */
@@ -345,7 +361,7 @@ class RexHost(
             // Everything read on that connection is stale now; it is all read again on the next.
             claimed.clear()
             mutableState.value.terminals.values.forEach { it.close() }
-            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason), view = null, terminals = emptyMap()) }
+            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason), views = emptyMap(), terminals = emptyMap()) }
             val delayMillis = RETRY_DELAYS_MILLIS[minOf(attempt++, RETRY_DELAYS_MILLIS.lastIndex)]
             log.add(saved.label, "disconnected: $reason. Trying again in ${delayMillis / 1000.0}s", isError = true)
             withTimeoutOrNull(delayMillis) { retryNow.receive() }
@@ -378,6 +394,8 @@ class RexHost(
         chooseSession(sessions)?.let { attach(connection, it) }
 
         coroutineScope {
+            // The other sessions' layouts, so their tabs can be listed beside the selected one's.
+            launch { for (session in sessions) readView(connection, session.id) }
             val events = launch {
                 for (event in connection.events) runCatching { handleEvent(connection, event) }
             }
@@ -419,18 +437,29 @@ class RexHost(
         onSessionSelected(sessionId)
     }
 
-    /** Takes a new layout, and makes the open terminals match the blocks it shows. */
+    /** Reads a session's layout, unless it is already known. Any session can be read, attached or not. */
+    private suspend fun readView(connection: RexControl, sessionId: String) {
+        if (sessionId in state.value.views) return
+        runCatching { connection.call("session.view", buildJsonObject { put("session_id", sessionId) }) }
+            .onSuccess { showView(connection, parseSessionView(it)) }
+            .onFailure { log.add(saved.label, "couldn't read the layout of ${short(sessionId)}: ${it.message}", isError = true) }
+    }
+
+    /** Takes a session's new layout. For the selected session, also makes the open terminals match the blocks it shows. */
     private fun showView(connection: RexControl, view: SessionView) {
         val endpoint = endpoint ?: return
-        val window = view.activeWindow
-        val visible = window?.panes.orEmpty()
-            .filter { it.isTerminal && (window?.zoomedBlockId == null || it.blockId == window.zoomedBlockId) }
-        // The server's word on who owns a block replaces this connection's own bookkeeping.
-        claimed.removeAll { blockId ->
-            val owner = view.windows.firstNotNullOfOrNull { w -> w.panes.firstOrNull { it.blockId == blockId } }?.ownerClientId
-            owner != connection.clientId
-        }
         mutableState.update { current ->
+            val views = current.views + (view.sessionId to view)
+            if (view.sessionId != current.selectedSessionId) return@update current.copy(views = views)
+
+            val window = view.activeWindow
+            val visible = window?.panes.orEmpty()
+                .filter { it.isTerminal && (window?.zoomedBlockId == null || it.blockId == window.zoomedBlockId) }
+            // The server's word on who owns a block replaces this connection's own bookkeeping.
+            claimed.removeAll { blockId ->
+                val owner = view.windows.firstNotNullOfOrNull { w -> w.panes.firstOrNull { it.blockId == blockId } }?.ownerClientId
+                owner != connection.clientId
+            }
             val terminals = HashMap<String, TerminalSession>()
             for (pane in visible) {
                 val existing = current.terminals[pane.blockId]
@@ -442,7 +471,7 @@ class RexHost(
                 }
             }
             current.terminals.filterKeys { it !in terminals }.values.forEach { it.close() }
-            current.copy(view = view, terminals = terminals)
+            current.copy(views = views, terminals = terminals)
         }
     }
 
@@ -461,23 +490,25 @@ class RexHost(
         val current = state.value
         log.add(saved.label, "event ${describe(event, current)}")
         when (event.type) {
-            // Says only that the layout changed, so fetch it, unless this one is already known.
-            "session_view_changed" -> if (event.sessionId == current.selectedSessionId) {
+            // Says only that a session's layout changed, so fetch it, unless this one is already known.
+            "session_view_changed" -> event.sessionId?.let { sessionId ->
                 val revision = event.payload.long("revision") ?: Long.MAX_VALUE
-                if (revision > (current.view?.revision ?: -1)) {
-                    val view = connection.call("session.view", buildJsonObject { put("session_id", event.sessionId) })
-                    if (state.value.selectedSessionId == event.sessionId) showView(connection, parseSessionView(view))
+                if (revision > (current.views[sessionId]?.revision ?: -1)) {
+                    val view = connection.call("session.view", buildJsonObject { put("session_id", sessionId) })
+                    showView(connection, parseSessionView(view))
                 }
             }
             "session_created", "session_destroyed", "session_label_changed" -> {
                 val sessions = parseSessions(connection.call("session.list")["sessions"] as? JsonArray)
-                mutableState.update { it.copy(sessions = sessions) }
+                // Forget the layouts of sessions that are gone, and read those of new ones.
+                mutableState.update { state -> state.copy(sessions = sessions, views = state.views.filterKeys { id -> sessions.any { it.id == id } }) }
                 if (sessions.none { it.id == state.value.selectedSessionId }) {
                     // The session being shown is gone. Show another rather than nothing.
                     state.value.terminals.values.forEach { it.close() }
-                    mutableState.update { it.copy(selectedSessionId = null, view = null, terminals = emptyMap()) }
+                    mutableState.update { it.copy(selectedSessionId = null, terminals = emptyMap()) }
                     sessions.firstOrNull()?.let { attach(connection, it.id) }
                 }
+                for (session in sessions) readView(connection, session.id)
             }
             "keymap_changed", "hosts_changed" -> onServerEvent(event.type)
             // Another client asked this one to perform an action. That isn't offered yet, and
