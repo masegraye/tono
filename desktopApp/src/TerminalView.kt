@@ -22,6 +22,16 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.unit.IntOffset
+import org.example.kotlintest.ghostty.TerminalImage
+import org.example.kotlintest.ghostty.TerminalImagePlacement
+import org.jetbrains.skia.ColorAlphaType
+import org.jetbrains.skia.ColorType
+import org.jetbrains.skia.ImageInfo
+import org.jetbrains.skia.Image as SkiaImage
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -95,6 +105,7 @@ fun TerminalView(
     val measurer = rememberTextMeasurer(cacheSize = 0) // rows are cached below, by identity
     val cell = remember(style, measurer) { measureCell(measurer, style) }
     val layouts = remember(style) { RowLayouts() }
+    val pictures = remember(terminal) { Pictures() }
 
     var size by remember { mutableStateOf(IntSize.Zero) }
     // Wait for a resize to settle before asking for a new grid. Keyed on the terminal too:
@@ -186,9 +197,13 @@ fun TerminalView(
         if (current == null) return@Canvas
         drawRect(Color(0xFF000000 or current.background.toLong()))
         layouts.retain(current.rows)
+        pictures.retain(current.images)
+        // Images a program asked to have behind its text go down first, the rest on top of it.
+        current.images.forEach { if (it.layer != TerminalImagePlacement.Layer.AboveText) drawImage(it, current, cell, pictures) }
         current.rows.forEachIndexed { rowIndex, row ->
             drawRow(row, rowIndex, cell, layouts.of(row, measurer, style))
         }
+        current.images.forEach { if (it.layer == TerminalImagePlacement.Layer.AboveText) drawImage(it, current, cell, pictures) }
         current.cursor?.let { drawCursor(it, current, cell, active = focused && hasKeyboard) }
     }
 }
@@ -260,6 +275,49 @@ private fun DrawScope.drawCursor(cursor: TerminalCursor, frame: TerminalFrame, c
 }
 
 private const val SCROLL_ROWS_PER_NOTCH = 3f
+
+/**
+ * The bitmaps made from the images a terminal shows, kept for as long as each is on screen.
+ * An image object stands for one version of one image, so it is the key.
+ */
+private class Pictures {
+    private var made = IdentityHashMap<TerminalImage, ImageBitmap>()
+
+    fun of(image: TerminalImage): ImageBitmap = made.getOrPut(image) {
+        val info = ImageInfo(image.width, image.height, ColorType.RGBA_8888, ColorAlphaType.UNPREMUL)
+        SkiaImage.makeRaster(info, image.rgba, image.width * 4).toComposeImageBitmap()
+    }
+
+    /** Forgets the bitmaps of images that are no longer shown. */
+    fun retain(shown: List<TerminalImagePlacement>) {
+        if (made.isEmpty()) return
+        val kept = IdentityHashMap<TerminalImage, ImageBitmap>()
+        for (placement in shown) made[placement.image]?.let { kept[placement.image] = it }
+        made = kept
+    }
+}
+
+/**
+ * Draws an image where its program put it. A program sizes an image in the pixels of the
+ * terminal's own cells, which are whatever the terminal's owner draws them at; this client
+ * may draw cells another size, so the image is scaled to cover the same cells here.
+ */
+private fun DrawScope.drawImage(placement: TerminalImagePlacement, frame: TerminalFrame, cell: CellSize, pictures: Pictures) {
+    if (placement.sourceWidth <= 0 || placement.sourceHeight <= 0 || placement.pixelWidth <= 0 || placement.pixelHeight <= 0) return
+    val scaleX = if (frame.cellWidthPx > 0) cell.width / frame.cellWidthPx else 1f
+    val scaleY = if (frame.cellHeightPx > 0) cell.height / frame.cellHeightPx else 1f
+    drawImage(
+        image = pictures.of(placement.image),
+        srcOffset = IntOffset(placement.sourceX, placement.sourceY),
+        srcSize = IntSize(placement.sourceWidth, placement.sourceHeight),
+        dstOffset = IntOffset(
+            (placement.column * cell.width + placement.offsetX * scaleX).roundToInt(),
+            (placement.row * cell.height + placement.offsetY * scaleY).roundToInt(),
+        ),
+        dstSize = IntSize((placement.pixelWidth * scaleX).roundToInt().coerceAtLeast(1), (placement.pixelHeight * scaleY).roundToInt().coerceAtLeast(1)),
+        filterQuality = FilterQuality.Medium,
+    )
+}
 
 /** The terminal's name for a pointer button, or null for one it has none for. */
 private fun mouseButton(button: PointerButton?): MouseButton? = when (button) {

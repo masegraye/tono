@@ -211,6 +211,12 @@ How it is put together:
   cells on a Compose canvas, in the Omarchy font and colors, and recolors when the desktop's theme changes.
 - **Typing.** Key events go to the server as they came from the keyboard (`client.key`); the server applies key
   bindings and encodes them for the terminal. Pasted text is made safe and framed by libghostty-vt's paste encoder.
+- **Images.** Programs can show pictures with the Kitty graphics protocol (`kitten icat`, image previews in file
+  managers, plots). libghostty-vt keeps the images and works out where each goes; the app decodes PNGs for it and
+  draws them, scaled to cover the same cells as in the terminal's owner. Images come back with a terminal's snapshot,
+  so they are still there after going to another tab and back. Only pixels sent in the output are accepted: the
+  protocol's ways of naming a file or shared memory to read are turned off, so what a remote program prints can't make
+  this machine read its own files. Animated images show their first frame.
 - **The mouse.** A program that tracks the mouse (Neovim, htop, tmux) says so by setting terminal modes, which
   libghostty-vt keeps; its mouse encoder turns each click, drag, movement and wheel notch into the report the
   program asked for, by cell, or into nothing if it didn't ask. Over a program that isn't tracking, the wheel scrolls
@@ -218,7 +224,7 @@ How it is put together:
 - **Actions.** [RexActions.kt](./desktopApp/src/RexActions.kt) is the table of what the app can do and its default keys.
 
 Not there yet: text selection and copy, SSH hosts, resuming a terminal's stream after a drop (it is
-reopened from a new snapshot instead), floating layers drawn as windows, images, key sequences and modes in the
+reopened from a new snapshot instead), floating layers drawn as windows, animated images, key sequences and modes in the
 keymap, and performing actions for other clients (`rex -C … do`). Keys are named for a US layout, so on other layouts
 some shortcuts may be read as the wrong key; the text typed is still right.
 

@@ -42,6 +42,14 @@ class GhosttyRenderer : AutoCloseable {
     private var codepointsCapacity = 16
     private var codepointsOut = arena.allocate(JAVA_INT, codepointsCapacity.toLong())
 
+    private val imagesRef = arena.allocate(ADDRESS)
+    private val images: MemorySegment
+    private val pointerOut = arena.allocate(ADDRESS)
+    /** The images already copied out, by number and version. */
+    private var imageCache = HashMap<ImageKey, TerminalImage>()
+    private var placements: List<TerminalImagePlacement> = emptyList()
+    private var placementsGeneration = -1L
+
     private var rowCache = HashMap<RowId, TerminalRow>()
     private var cachedForeground = -1
     private var cachedBackground = -1
@@ -56,6 +64,8 @@ class GhosttyRenderer : AutoCloseable {
         iterator = iteratorRef.get(ADDRESS, 0)
         check("render_state_row_cells_new", GhosttyVt.ghostty_render_state_row_cells_new(NULL, cellsRef))
         cells = cellsRef.get(ADDRESS, 0)
+        check("render_state_image_iterator_new", GhosttyVt.ghostty_render_state_image_iterator_new(NULL, imagesRef))
+        images = imagesRef.get(ADDRESS, 0)
         GhosttyStyle.size(styleOut, GhosttyStyle.sizeof())
         GhosttyRenderStateCursor.size(cursorOut, GhosttyRenderStateCursor.sizeof())
         GhosttyRenderStateColors.size(colorsOut, GhosttyRenderStateColors.sizeof())
@@ -106,8 +116,63 @@ class GhosttyRenderer : AutoCloseable {
 
         check("render_state_get", GhosttyVt.ghostty_render_state_get(state, GhosttyVt.GHOSTTY_RENDER_STATE_DATA_CURSOR(), cursorOut))
         val cursor = readCursor(cursorColor)
+        readImages(terminal)
         check("render_state_clean", GhosttyVt.ghostty_render_state_clean(state))
-        return TerminalFrame(columns, rows, background, foreground, cursor)
+        return TerminalFrame(columns, rows, background, foreground, cursor, placements, terminal.cellWidthPx, terminal.cellHeightPx)
+    }
+
+    /**
+     * Reads which images are on screen and where, when that changed since the last frame.
+     * Most frames change no image, and an image's pixels are copied out once per version.
+     */
+    private fun readImages(terminal: GhosttyTerminal) {
+        if (GhosttyVt.ghostty_render_state_get(state, GhosttyVt.GHOSTTY_RENDER_STATE_DATA_IMAGE_PLACEMENTS_GENERATION(), longOut) != GhosttyVt.GHOSTTY_SUCCESS()) return
+        val generation = longOut.get(JAVA_LONG, 0)
+        if (generation == placementsGeneration) return
+        placementsGeneration = generation
+        if (GhosttyVt.ghostty_render_state_get(state, GhosttyVt.GHOSTTY_RENDER_STATE_DATA_IMAGE_ITERATOR(), imagesRef) != GhosttyVt.GHOSTTY_SUCCESS()) return
+
+        val found = ArrayList<TerminalImagePlacement>()
+        val nextCache = HashMap<ImageKey, TerminalImage>()
+        while (GhosttyVt.ghostty_render_state_image_iterator_next(images)) {
+            if (imageInt(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_PROTOCOL()) != GhosttyVt.GHOSTTY_IMAGE_PROTOCOL_KITTY()) continue
+            val id = imageInt(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_ID())
+            imageGet(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_GENERATION(), longOut)
+            val key = ImageKey(id, longOut.get(JAVA_LONG, 0))
+            // Pixels still on their way (an image restored from a snapshot) are drawn once they arrive.
+            val image = nextCache[key] ?: imageCache[key] ?: terminal.readImage(id) ?: continue
+            nextCache[key] = image
+            found += TerminalImagePlacement(
+                image = image,
+                layer = when (imageInt(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_LAYER())) {
+                    GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_LAYER_BELOW_BACKGROUND() -> TerminalImagePlacement.Layer.BelowBackground
+                    GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_LAYER_BELOW_TEXT() -> TerminalImagePlacement.Layer.BelowText
+                    else -> TerminalImagePlacement.Layer.AboveText
+                },
+                column = imageInt(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_COL()),
+                row = imageInt(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_ROW()),
+                columns = imageInt(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_GRID_COLS()),
+                rows = imageInt(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_GRID_ROWS()),
+                sourceX = imageInt(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_X()),
+                sourceY = imageInt(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_Y()),
+                sourceWidth = imageInt(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_WIDTH()),
+                sourceHeight = imageInt(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_HEIGHT()),
+                pixelWidth = imageInt(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_WIDTH()),
+                pixelHeight = imageInt(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_HEIGHT()),
+                offsetX = imageInt(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_X()),
+                offsetY = imageInt(GhosttyVt.GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_Y()),
+            )
+        }
+        imageCache = nextCache
+        placements = found
+    }
+
+    private fun imageGet(data: Int, out: MemorySegment) =
+        check("render_state_image_get", GhosttyVt.ghostty_render_state_image_get(images, data, out))
+
+    private fun imageInt(data: Int): Int {
+        imageGet(data, intOut)
+        return intOut.get(JAVA_INT, 0)
     }
 
     private fun readCursor(color: Int?): TerminalCursor? {
@@ -217,6 +282,7 @@ class GhosttyRenderer : AutoCloseable {
         GhosttyVt.ghostty_render_state_row_cells_get(cells, data, out) == GhosttyVt.GHOSTTY_SUCCESS()
 
     override fun close() {
+        GhosttyVt.ghostty_render_state_image_iterator_free(images)
         GhosttyVt.ghostty_render_state_row_cells_free(cells)
         GhosttyVt.ghostty_render_state_row_iterator_free(iterator)
         GhosttyVt.ghostty_render_state_free(state)
@@ -224,6 +290,7 @@ class GhosttyRenderer : AutoCloseable {
     }
 
     private data class RowId(val low: Long, val high: Long)
+    private data class ImageKey(val id: Int, val generation: Long)
 
     /** The run being put together as cells are read. */
     private class PendingRun {

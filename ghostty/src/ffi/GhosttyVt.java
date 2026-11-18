@@ -132,6 +132,67 @@ public class GhosttyVt extends GhosttyVt$shared {
         return GHOSTTY_FORMATTER_FORMAT_MAX_VALUE;
     }
 
+    private static class ghostty_alloc {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_LONG
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_alloc");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * uint8_t *ghostty_alloc(const GhosttyAllocator *allocator, size_t len)
+     * }
+     */
+    public static FunctionDescriptor ghostty_alloc$descriptor() {
+        return ghostty_alloc.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * uint8_t *ghostty_alloc(const GhosttyAllocator *allocator, size_t len)
+     * }
+     */
+    public static MethodHandle ghostty_alloc$handle() {
+        return ghostty_alloc.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * uint8_t *ghostty_alloc(const GhosttyAllocator *allocator, size_t len)
+     * }
+     */
+    public static MemorySegment ghostty_alloc$address() {
+        return ghostty_alloc.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * uint8_t *ghostty_alloc(const GhosttyAllocator *allocator, size_t len)
+     * }
+     */
+    public static MemorySegment ghostty_alloc(MemorySegment allocator, long len) {
+        var mh$ = ghostty_alloc.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_alloc", allocator, len);
+            }
+            return (MemorySegment)mh$.invokeExact(allocator, len);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
     private static class ghostty_free {
         public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
             GhosttyVt.C_POINTER,
@@ -186,6 +247,76 @@ public class GhosttyVt extends GhosttyVt$shared {
                 traceDowncall("ghostty_free", allocator, ptr, len);
             }
             mh$.invokeExact(allocator, ptr, len);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+    private static final int GHOSTTY_BUILD_INFO_KITTY_GRAPHICS = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_BUILD_INFO_KITTY_GRAPHICS = 2
+     * }
+     */
+    public static int GHOSTTY_BUILD_INFO_KITTY_GRAPHICS() {
+        return GHOSTTY_BUILD_INFO_KITTY_GRAPHICS;
+    }
+
+    private static class ghostty_build_info {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_build_info");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_build_info(GhosttyBuildInfo data, void *out)
+     * }
+     */
+    public static FunctionDescriptor ghostty_build_info$descriptor() {
+        return ghostty_build_info.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_build_info(GhosttyBuildInfo data, void *out)
+     * }
+     */
+    public static MethodHandle ghostty_build_info$handle() {
+        return ghostty_build_info.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_build_info(GhosttyBuildInfo data, void *out)
+     * }
+     */
+    public static MemorySegment ghostty_build_info$address() {
+        return ghostty_build_info.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_build_info(GhosttyBuildInfo data, void *out)
+     * }
+     */
+    public static int ghostty_build_info(int data, MemorySegment out) {
+        var mh$ = ghostty_build_info.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_build_info", data, out);
+            }
+            return (int)mh$.invokeExact(data, out);
         } catch (Error | RuntimeException ex) {
            throw ex;
         } catch (Throwable ex$) {
@@ -511,6 +642,282 @@ public class GhosttyVt extends GhosttyVt$shared {
     public static int GHOSTTY_STYLE_COLOR_TAG_MAX_VALUE() {
         return GHOSTTY_STYLE_COLOR_TAG_MAX_VALUE;
     }
+    private static final int GHOSTTY_KITTY_IMAGE_FORMAT_RGB = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_FORMAT_RGB = 0
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_FORMAT_RGB() {
+        return GHOSTTY_KITTY_IMAGE_FORMAT_RGB;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_FORMAT_RGBA = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_FORMAT_RGBA = 1
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_FORMAT_RGBA() {
+        return GHOSTTY_KITTY_IMAGE_FORMAT_RGBA;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_FORMAT_PNG = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_FORMAT_PNG = 2
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_FORMAT_PNG() {
+        return GHOSTTY_KITTY_IMAGE_FORMAT_PNG;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_FORMAT_GRAY_ALPHA = (int)3L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_FORMAT_GRAY_ALPHA = 3
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_FORMAT_GRAY_ALPHA() {
+        return GHOSTTY_KITTY_IMAGE_FORMAT_GRAY_ALPHA;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_FORMAT_GRAY = (int)4L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_FORMAT_GRAY = 4
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_FORMAT_GRAY() {
+        return GHOSTTY_KITTY_IMAGE_FORMAT_GRAY;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_FORMAT_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_FORMAT_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_FORMAT_MAX_VALUE() {
+        return GHOSTTY_KITTY_IMAGE_FORMAT_MAX_VALUE;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_DATA_INVALID = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_DATA_INVALID = 0
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_DATA_INVALID() {
+        return GHOSTTY_KITTY_IMAGE_DATA_INVALID;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_DATA_ID = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_DATA_ID = 1
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_DATA_ID() {
+        return GHOSTTY_KITTY_IMAGE_DATA_ID;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_DATA_NUMBER = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_DATA_NUMBER = 2
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_DATA_NUMBER() {
+        return GHOSTTY_KITTY_IMAGE_DATA_NUMBER;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_DATA_WIDTH = (int)3L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_DATA_WIDTH = 3
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_DATA_WIDTH() {
+        return GHOSTTY_KITTY_IMAGE_DATA_WIDTH;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_DATA_HEIGHT = (int)4L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_DATA_HEIGHT = 4
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_DATA_HEIGHT() {
+        return GHOSTTY_KITTY_IMAGE_DATA_HEIGHT;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_DATA_FORMAT = (int)5L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_DATA_FORMAT = 5
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_DATA_FORMAT() {
+        return GHOSTTY_KITTY_IMAGE_DATA_FORMAT;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_DATA_COMPRESSION = (int)6L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_DATA_COMPRESSION = 6
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_DATA_COMPRESSION() {
+        return GHOSTTY_KITTY_IMAGE_DATA_COMPRESSION;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_DATA_DATA_PTR = (int)7L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_DATA_DATA_PTR = 7
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_DATA_DATA_PTR() {
+        return GHOSTTY_KITTY_IMAGE_DATA_DATA_PTR;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_DATA_DATA_LEN = (int)8L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_DATA_DATA_LEN = 8
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_DATA_DATA_LEN() {
+        return GHOSTTY_KITTY_IMAGE_DATA_DATA_LEN;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_DATA_GENERATION = (int)9L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_DATA_GENERATION = 9
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_DATA_GENERATION() {
+        return GHOSTTY_KITTY_IMAGE_DATA_GENERATION;
+    }
+    private static final int GHOSTTY_KITTY_IMAGE_DATA_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_KITTY_IMAGE_DATA_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_KITTY_IMAGE_DATA_MAX_VALUE() {
+        return GHOSTTY_KITTY_IMAGE_DATA_MAX_VALUE;
+    }
+
+    private static class ghostty_kitty_graphics_image {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_INT
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_kitty_graphics_image");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyKittyGraphicsImage ghostty_kitty_graphics_image(GhosttyKittyGraphics graphics, uint32_t image_id)
+     * }
+     */
+    public static FunctionDescriptor ghostty_kitty_graphics_image$descriptor() {
+        return ghostty_kitty_graphics_image.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyKittyGraphicsImage ghostty_kitty_graphics_image(GhosttyKittyGraphics graphics, uint32_t image_id)
+     * }
+     */
+    public static MethodHandle ghostty_kitty_graphics_image$handle() {
+        return ghostty_kitty_graphics_image.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyKittyGraphicsImage ghostty_kitty_graphics_image(GhosttyKittyGraphics graphics, uint32_t image_id)
+     * }
+     */
+    public static MemorySegment ghostty_kitty_graphics_image$address() {
+        return ghostty_kitty_graphics_image.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyKittyGraphicsImage ghostty_kitty_graphics_image(GhosttyKittyGraphics graphics, uint32_t image_id)
+     * }
+     */
+    public static MemorySegment ghostty_kitty_graphics_image(MemorySegment graphics, int image_id) {
+        var mh$ = ghostty_kitty_graphics_image.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_kitty_graphics_image", graphics, image_id);
+            }
+            return (MemorySegment)mh$.invokeExact(graphics, image_id);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_kitty_graphics_image_get {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_kitty_graphics_image_get");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_kitty_graphics_image_get(GhosttyKittyGraphicsImage image, GhosttyKittyGraphicsImageData data, void *out)
+     * }
+     */
+    public static FunctionDescriptor ghostty_kitty_graphics_image_get$descriptor() {
+        return ghostty_kitty_graphics_image_get.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_kitty_graphics_image_get(GhosttyKittyGraphicsImage image, GhosttyKittyGraphicsImageData data, void *out)
+     * }
+     */
+    public static MethodHandle ghostty_kitty_graphics_image_get$handle() {
+        return ghostty_kitty_graphics_image_get.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_kitty_graphics_image_get(GhosttyKittyGraphicsImage image, GhosttyKittyGraphicsImageData data, void *out)
+     * }
+     */
+    public static MemorySegment ghostty_kitty_graphics_image_get$address() {
+        return ghostty_kitty_graphics_image_get.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_kitty_graphics_image_get(GhosttyKittyGraphicsImage image, GhosttyKittyGraphicsImageData data, void *out)
+     * }
+     */
+    public static int ghostty_kitty_graphics_image_get(MemorySegment image, int data, MemorySegment out) {
+        var mh$ = ghostty_kitty_graphics_image_get.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_kitty_graphics_image_get", image, data, out);
+            }
+            return (int)mh$.invokeExact(image, data, out);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
     private static final int GHOSTTY_SCROLL_VIEWPORT_TOP = (int)0L;
     /**
      * {@snippet lang=c :
@@ -609,6 +1016,42 @@ public class GhosttyVt extends GhosttyVt$shared {
      */
     public static int GHOSTTY_TERMINAL_OPT_COLOR_PALETTE() {
         return GHOSTTY_TERMINAL_OPT_COLOR_PALETTE;
+    }
+    private static final int GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_STORAGE_LIMIT = (int)15L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_STORAGE_LIMIT = 15
+     * }
+     */
+    public static int GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_STORAGE_LIMIT() {
+        return GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_STORAGE_LIMIT;
+    }
+    private static final int GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_FILE = (int)16L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_FILE = 16
+     * }
+     */
+    public static int GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_FILE() {
+        return GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_FILE;
+    }
+    private static final int GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_TEMP_FILE = (int)17L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_TEMP_FILE = 17
+     * }
+     */
+    public static int GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_TEMP_FILE() {
+        return GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_TEMP_FILE;
+    }
+    private static final int GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_SHARED_MEM = (int)18L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_SHARED_MEM = 18
+     * }
+     */
+    public static int GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_SHARED_MEM() {
+        return GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_SHARED_MEM;
     }
     private static final int GHOSTTY_TERMINAL_DATA_INVALID = (int)0L;
     /**
@@ -1955,6 +2398,249 @@ public class GhosttyVt extends GhosttyVt$shared {
     public static int GHOSTTY_RENDER_STATE_OPTION_MAX_VALUE() {
         return GHOSTTY_RENDER_STATE_OPTION_MAX_VALUE;
     }
+    private static final int GHOSTTY_IMAGE_PROTOCOL_KITTY = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_IMAGE_PROTOCOL_KITTY = 0
+     * }
+     */
+    public static int GHOSTTY_IMAGE_PROTOCOL_KITTY() {
+        return GHOSTTY_IMAGE_PROTOCOL_KITTY;
+    }
+    private static final int GHOSTTY_IMAGE_PROTOCOL_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_IMAGE_PROTOCOL_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_IMAGE_PROTOCOL_MAX_VALUE() {
+        return GHOSTTY_IMAGE_PROTOCOL_MAX_VALUE;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_LAYER_BELOW_BACKGROUND = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_LAYER_BELOW_BACKGROUND = 0
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_LAYER_BELOW_BACKGROUND() {
+        return GHOSTTY_RENDER_STATE_IMAGE_LAYER_BELOW_BACKGROUND;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_LAYER_BELOW_TEXT = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_LAYER_BELOW_TEXT = 1
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_LAYER_BELOW_TEXT() {
+        return GHOSTTY_RENDER_STATE_IMAGE_LAYER_BELOW_TEXT;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_LAYER_ABOVE_TEXT = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_LAYER_ABOVE_TEXT = 2
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_LAYER_ABOVE_TEXT() {
+        return GHOSTTY_RENDER_STATE_IMAGE_LAYER_ABOVE_TEXT;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_LAYER_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_LAYER_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_LAYER_MAX_VALUE() {
+        return GHOSTTY_RENDER_STATE_IMAGE_LAYER_MAX_VALUE;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_INVALID = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_INVALID = 0
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_INVALID() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_INVALID;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_PROTOCOL = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_PROTOCOL = 1
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_PROTOCOL() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_PROTOCOL;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_ID = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_ID = 2
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_ID() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_ID;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_GENERATION = (int)3L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_GENERATION = 3
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_GENERATION() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_GENERATION;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_LAYER = (int)4L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_LAYER = 4
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_LAYER() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_LAYER;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_Z = (int)5L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_Z = 5
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_Z() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_Z;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_COL = (int)6L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_COL = 6
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_COL() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_COL;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_ROW = (int)7L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_ROW = 7
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_ROW() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_ROW;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_GRID_COLS = (int)8L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_GRID_COLS = 8
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_GRID_COLS() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_GRID_COLS;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_GRID_ROWS = (int)9L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_GRID_ROWS = 9
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_GRID_ROWS() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_GRID_ROWS;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_X = (int)10L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_X = 10
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_X() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_X;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_Y = (int)11L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_Y = 11
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_Y() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_Y;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_WIDTH = (int)12L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_WIDTH = 12
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_WIDTH() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_WIDTH;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_HEIGHT = (int)13L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_HEIGHT = 13
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_HEIGHT() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_HEIGHT;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_X = (int)14L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_X = 14
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_X() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_X;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_Y = (int)15L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_Y = 15
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_Y() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_Y;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_WIDTH = (int)16L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_WIDTH = 16
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_WIDTH() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_WIDTH;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_HEIGHT = (int)17L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_HEIGHT = 17
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_HEIGHT() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_HEIGHT;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_KITTY_PLACEMENT_ID = (int)18L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_KITTY_PLACEMENT_ID = 18
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_KITTY_PLACEMENT_ID() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_KITTY_PLACEMENT_ID;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_KITTY_KIND = (int)19L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_KITTY_KIND = 19
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_KITTY_KIND() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_KITTY_KIND;
+    }
+    private static final int GHOSTTY_RENDER_STATE_IMAGE_DATA_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_RENDER_STATE_IMAGE_DATA_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_RENDER_STATE_IMAGE_DATA_MAX_VALUE() {
+        return GHOSTTY_RENDER_STATE_IMAGE_DATA_MAX_VALUE;
+    }
     private static final int GHOSTTY_RENDER_STATE_ROW_DATA_INVALID = (int)0L;
     /**
      * {@snippet lang=c :
@@ -3064,6 +3750,248 @@ public class GhosttyVt extends GhosttyVt$shared {
            throw new AssertionError("should not reach here", ex$);
         }
     }
+
+    private static class ghostty_render_state_image_iterator_new {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_render_state_image_iterator_new");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_render_state_image_iterator_new(const GhosttyAllocator *allocator, GhosttyRenderStateImageIterator *out_iterator)
+     * }
+     */
+    public static FunctionDescriptor ghostty_render_state_image_iterator_new$descriptor() {
+        return ghostty_render_state_image_iterator_new.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_render_state_image_iterator_new(const GhosttyAllocator *allocator, GhosttyRenderStateImageIterator *out_iterator)
+     * }
+     */
+    public static MethodHandle ghostty_render_state_image_iterator_new$handle() {
+        return ghostty_render_state_image_iterator_new.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_render_state_image_iterator_new(const GhosttyAllocator *allocator, GhosttyRenderStateImageIterator *out_iterator)
+     * }
+     */
+    public static MemorySegment ghostty_render_state_image_iterator_new$address() {
+        return ghostty_render_state_image_iterator_new.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_render_state_image_iterator_new(const GhosttyAllocator *allocator, GhosttyRenderStateImageIterator *out_iterator)
+     * }
+     */
+    public static int ghostty_render_state_image_iterator_new(MemorySegment allocator, MemorySegment out_iterator) {
+        var mh$ = ghostty_render_state_image_iterator_new.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_render_state_image_iterator_new", allocator, out_iterator);
+            }
+            return (int)mh$.invokeExact(allocator, out_iterator);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_render_state_image_iterator_free {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_render_state_image_iterator_free");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void ghostty_render_state_image_iterator_free(GhosttyRenderStateImageIterator iterator)
+     * }
+     */
+    public static FunctionDescriptor ghostty_render_state_image_iterator_free$descriptor() {
+        return ghostty_render_state_image_iterator_free.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void ghostty_render_state_image_iterator_free(GhosttyRenderStateImageIterator iterator)
+     * }
+     */
+    public static MethodHandle ghostty_render_state_image_iterator_free$handle() {
+        return ghostty_render_state_image_iterator_free.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void ghostty_render_state_image_iterator_free(GhosttyRenderStateImageIterator iterator)
+     * }
+     */
+    public static MemorySegment ghostty_render_state_image_iterator_free$address() {
+        return ghostty_render_state_image_iterator_free.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void ghostty_render_state_image_iterator_free(GhosttyRenderStateImageIterator iterator)
+     * }
+     */
+    public static void ghostty_render_state_image_iterator_free(MemorySegment iterator) {
+        var mh$ = ghostty_render_state_image_iterator_free.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_render_state_image_iterator_free", iterator);
+            }
+            mh$.invokeExact(iterator);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_render_state_image_iterator_next {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_BOOL,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_render_state_image_iterator_next");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * _Bool ghostty_render_state_image_iterator_next(GhosttyRenderStateImageIterator iterator)
+     * }
+     */
+    public static FunctionDescriptor ghostty_render_state_image_iterator_next$descriptor() {
+        return ghostty_render_state_image_iterator_next.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * _Bool ghostty_render_state_image_iterator_next(GhosttyRenderStateImageIterator iterator)
+     * }
+     */
+    public static MethodHandle ghostty_render_state_image_iterator_next$handle() {
+        return ghostty_render_state_image_iterator_next.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * _Bool ghostty_render_state_image_iterator_next(GhosttyRenderStateImageIterator iterator)
+     * }
+     */
+    public static MemorySegment ghostty_render_state_image_iterator_next$address() {
+        return ghostty_render_state_image_iterator_next.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * _Bool ghostty_render_state_image_iterator_next(GhosttyRenderStateImageIterator iterator)
+     * }
+     */
+    public static boolean ghostty_render_state_image_iterator_next(MemorySegment iterator) {
+        var mh$ = ghostty_render_state_image_iterator_next.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_render_state_image_iterator_next", iterator);
+            }
+            return (boolean)mh$.invokeExact(iterator);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_render_state_image_get {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_render_state_image_get");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_render_state_image_get(GhosttyRenderStateImageIterator iterator, GhosttyRenderStateImageData data, void *out)
+     * }
+     */
+    public static FunctionDescriptor ghostty_render_state_image_get$descriptor() {
+        return ghostty_render_state_image_get.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_render_state_image_get(GhosttyRenderStateImageIterator iterator, GhosttyRenderStateImageData data, void *out)
+     * }
+     */
+    public static MethodHandle ghostty_render_state_image_get$handle() {
+        return ghostty_render_state_image_get.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_render_state_image_get(GhosttyRenderStateImageIterator iterator, GhosttyRenderStateImageData data, void *out)
+     * }
+     */
+    public static MemorySegment ghostty_render_state_image_get$address() {
+        return ghostty_render_state_image_get.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_render_state_image_get(GhosttyRenderStateImageIterator iterator, GhosttyRenderStateImageData data, void *out)
+     * }
+     */
+    public static int ghostty_render_state_image_get(MemorySegment iterator, int data, MemorySegment out) {
+        var mh$ = ghostty_render_state_image_get.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_render_state_image_get", iterator, data, out);
+            }
+            return (int)mh$.invokeExact(iterator, data, out);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
     private static final int GHOSTTY_SGR_UNDERLINE_NONE = (int)0L;
     /**
      * {@snippet lang=c :
@@ -3126,6 +4054,76 @@ public class GhosttyVt extends GhosttyVt$shared {
      */
     public static int GHOSTTY_SGR_UNDERLINE_MAX_VALUE() {
         return GHOSTTY_SGR_UNDERLINE_MAX_VALUE;
+    }
+    private static final int GHOSTTY_SYS_OPT_DECODE_PNG = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SYS_OPT_DECODE_PNG = 1
+     * }
+     */
+    public static int GHOSTTY_SYS_OPT_DECODE_PNG() {
+        return GHOSTTY_SYS_OPT_DECODE_PNG;
+    }
+
+    private static class ghostty_sys_set {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_sys_set");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_sys_set(GhosttySysOption option, const void *value)
+     * }
+     */
+    public static FunctionDescriptor ghostty_sys_set$descriptor() {
+        return ghostty_sys_set.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_sys_set(GhosttySysOption option, const void *value)
+     * }
+     */
+    public static MethodHandle ghostty_sys_set$handle() {
+        return ghostty_sys_set.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_sys_set(GhosttySysOption option, const void *value)
+     * }
+     */
+    public static MemorySegment ghostty_sys_set$address() {
+        return ghostty_sys_set.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_sys_set(GhosttySysOption option, const void *value)
+     * }
+     */
+    public static int ghostty_sys_set(int option, MemorySegment value) {
+        var mh$ = ghostty_sys_set.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_sys_set", option, value);
+            }
+            return (int)mh$.invokeExact(option, value);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
     }
     private static final int GHOSTTY_MOUSE_ACTION_PRESS = (int)0L;
     /**
@@ -4182,6 +5180,15 @@ public class GhosttyVt extends GhosttyVt$shared {
            throw new AssertionError("should not reach here", ex$);
         }
     }
+    private static final int GHOSTTY_SNAPSHOT_DECODER_OPT_KITTY_IMAGE_STORAGE_LIMIT = (int)3L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SNAPSHOT_DECODER_OPT_KITTY_IMAGE_STORAGE_LIMIT = 3
+     * }
+     */
+    public static int GHOSTTY_SNAPSHOT_DECODER_OPT_KITTY_IMAGE_STORAGE_LIMIT() {
+        return GHOSTTY_SNAPSHOT_DECODER_OPT_KITTY_IMAGE_STORAGE_LIMIT;
+    }
     private static final int GHOSTTY_SNAPSHOT_DECODER_DATA_INVALID = (int)0L;
     /**
      * {@snippet lang=c :
@@ -4541,6 +5548,68 @@ public class GhosttyVt extends GhosttyVt$shared {
                 traceDowncall("ghostty_snapshot_decoder_free", decoder);
             }
             mh$.invokeExact(decoder);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_snapshot_decoder_set {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_snapshot_decoder_set");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_snapshot_decoder_set(GhosttySnapshotDecoder decoder, GhosttySnapshotDecoderOption option, const void *value)
+     * }
+     */
+    public static FunctionDescriptor ghostty_snapshot_decoder_set$descriptor() {
+        return ghostty_snapshot_decoder_set.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_snapshot_decoder_set(GhosttySnapshotDecoder decoder, GhosttySnapshotDecoderOption option, const void *value)
+     * }
+     */
+    public static MethodHandle ghostty_snapshot_decoder_set$handle() {
+        return ghostty_snapshot_decoder_set.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_snapshot_decoder_set(GhosttySnapshotDecoder decoder, GhosttySnapshotDecoderOption option, const void *value)
+     * }
+     */
+    public static MemorySegment ghostty_snapshot_decoder_set$address() {
+        return ghostty_snapshot_decoder_set.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_snapshot_decoder_set(GhosttySnapshotDecoder decoder, GhosttySnapshotDecoderOption option, const void *value)
+     * }
+     */
+    public static int ghostty_snapshot_decoder_set(MemorySegment decoder, int option, MemorySegment value) {
+        var mh$ = ghostty_snapshot_decoder_set.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_snapshot_decoder_set", decoder, option, value);
+            }
+            return (int)mh$.invokeExact(decoder, option, value);
         } catch (Error | RuntimeException ex) {
            throw ex;
         } catch (Throwable ex$) {

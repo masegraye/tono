@@ -34,7 +34,7 @@ class GhosttyTerminal private constructor(internal val handle: MemorySegment) : 
             return Arena.ofConfined().use { arena ->
                 val out = arena.allocate(ADDRESS)
                 check("terminal_new", GhosttyVt.ghostty_terminal_new(NULL, out, columns.toShort(), rows.toShort()))
-                GhosttyTerminal(out.get(ADDRESS, 0))
+                GhosttyTerminal(out.get(ADDRESS, 0)).also { it.allowImages() }
             }
         }
 
@@ -52,6 +52,12 @@ class GhosttyTerminal private constructor(internal val handle: MemorySegment) : 
                 check("snapshot_decoder_new_buf", GhosttyVt.ghostty_snapshot_decoder_new_buf(NULL, decoderOut, buffer, length.toLong()))
                 val decoder = decoderOut.get(ADDRESS, 0)
                 try {
+                    // A snapshot can carry the images on screen; they are dropped unless there is room for them.
+                    val limit = arena.allocate(JAVA_LONG).also { it.set(JAVA_LONG, 0, IMAGE_STORAGE_BYTES) }
+                    check(
+                        "snapshot_decoder_set",
+                        GhosttyVt.ghostty_snapshot_decoder_set(decoder, GhosttyVt.GHOSTTY_SNAPSHOT_DECODER_OPT_KITTY_IMAGE_STORAGE_LIMIT(), limit),
+                    )
                     val terminalOut = arena.allocate(ADDRESS)
                     check("snapshot_decoder_decode", GhosttyVt.ghostty_snapshot_decoder_decode(decoder, terminalOut))
                     val consumed = arena.allocate(JAVA_LONG)
@@ -59,7 +65,7 @@ class GhosttyTerminal private constructor(internal val handle: MemorySegment) : 
                         "snapshot_decoder_get",
                         GhosttyVt.ghostty_snapshot_decoder_get(decoder, GhosttyVt.GHOSTTY_SNAPSHOT_DECODER_DATA_SOURCE_OFFSET(), consumed),
                     )
-                    Restored(GhosttyTerminal(terminalOut.get(ADDRESS, 0)), consumed.get(JAVA_LONG, 0).toInt())
+                    Restored(GhosttyTerminal(terminalOut.get(ADDRESS, 0)).also { it.allowImages() }, consumed.get(JAVA_LONG, 0).toInt())
                 } finally {
                     GhosttyVt.ghostty_snapshot_decoder_free(decoder)
                 }
@@ -176,6 +182,56 @@ class GhosttyTerminal private constructor(internal val handle: MemorySegment) : 
     }
 
     override fun close() = GhosttyVt.ghostty_terminal_free(handle)
+
+    /** The size of a cell in pixels, as the terminal was last told, or zero. Programs size images by it. */
+    val cellWidthPx: Int get() = readInt(GhosttyVt.GHOSTTY_TERMINAL_DATA_WIDTH_PX()) / columns.coerceAtLeast(1)
+    val cellHeightPx: Int get() = readInt(GhosttyVt.GHOSTTY_TERMINAL_DATA_HEIGHT_PX()) / rows.coerceAtLeast(1)
+
+    private fun readInt(data: Int): Int = Arena.ofConfined().use { arena ->
+        val out = arena.allocate(JAVA_LONG)
+        if (GhosttyVt.ghostty_terminal_get(handle, data, out) == GhosttyVt.GHOSTTY_SUCCESS()) out.get(java.lang.foreign.ValueLayout.JAVA_INT, 0) else 0
+    }
+
+    /**
+     * Copies out the pixels of an image a program sent, as RGBA. Null if there is no such
+     * image, its pixels haven't arrived yet, or they are in a form this doesn't know.
+     */
+    internal fun readImage(id: Int): TerminalImage? = Arena.ofConfined().use { arena ->
+        val graphics = arena.allocate(ADDRESS)
+        if (GhosttyVt.ghostty_terminal_get(handle, GhosttyVt.GHOSTTY_TERMINAL_DATA_KITTY_GRAPHICS(), graphics) != GhosttyVt.GHOSTTY_SUCCESS()) return null
+        val image = GhosttyVt.ghostty_kitty_graphics_image(graphics.get(ADDRESS, 0), id)
+        if (image == NULL) return null
+        val number = arena.allocate(JAVA_LONG)
+        fun int(data: Int): Int? =
+            if (GhosttyVt.ghostty_kitty_graphics_image_get(image, data, number) == GhosttyVt.GHOSTTY_SUCCESS()) number.get(java.lang.foreign.ValueLayout.JAVA_INT, 0) else null
+        val width = int(GhosttyVt.GHOSTTY_KITTY_IMAGE_DATA_WIDTH()) ?: return null
+        val height = int(GhosttyVt.GHOSTTY_KITTY_IMAGE_DATA_HEIGHT()) ?: return null
+        val format = int(GhosttyVt.GHOSTTY_KITTY_IMAGE_DATA_FORMAT()) ?: return null
+        val pointer = arena.allocate(ADDRESS)
+        if (GhosttyVt.ghostty_kitty_graphics_image_get(image, GhosttyVt.GHOSTTY_KITTY_IMAGE_DATA_DATA_PTR(), pointer) != GhosttyVt.GHOSTTY_SUCCESS()) return null
+        if (GhosttyVt.ghostty_kitty_graphics_image_get(image, GhosttyVt.GHOSTTY_KITTY_IMAGE_DATA_DATA_LEN(), number) != GhosttyVt.GHOSTTY_SUCCESS()) return null
+        val length = number.get(JAVA_LONG, 0)
+        val data = pointer.get(ADDRESS, 0)
+        if (data == NULL || width <= 0 || height <= 0 || length <= 0) return null
+        val rgba = toRgba(format, data.reinterpret(length).toArray(JAVA_BYTE), width * height) ?: return null
+        TerminalImage(id, width, height, rgba)
+    }
+
+    /**
+     * Lets programs show images with the Kitty graphics protocol, which is off until a
+     * terminal is given room to keep them. Only pixels sent in the output itself are taken:
+     * the protocol can also name a file or shared memory to read, and what a remote program
+     * prints must not be able to make this machine read its own files.
+     */
+    private fun allowImages() = Arena.ofConfined().use { arena ->
+        val limit = arena.allocate(JAVA_LONG).also { it.set(JAVA_LONG, 0, IMAGE_STORAGE_BYTES) }
+        check("terminal_set", GhosttyVt.ghostty_terminal_set(handle, GhosttyVt.GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_STORAGE_LIMIT(), limit))
+        val off = arena.allocate(java.lang.foreign.ValueLayout.JAVA_BOOLEAN).also { it.set(java.lang.foreign.ValueLayout.JAVA_BOOLEAN, 0, false) }
+        check("terminal_set", GhosttyVt.ghostty_terminal_set(handle, GhosttyVt.GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_FILE(), off))
+        check("terminal_set", GhosttyVt.ghostty_terminal_set(handle, GhosttyVt.GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_SHARED_MEM(), off))
+        // Temporary files are allowed by naming a directory for them; none is named.
+        check("terminal_set", GhosttyVt.ghostty_terminal_set(handle, GhosttyVt.GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_TEMP_FILE(), NULL))
+    }
 
     private fun readShort(data: Int): Int = Arena.ofConfined().use { arena ->
         val out = arena.allocate(JAVA_SHORT)

@@ -220,4 +220,89 @@ class GhosttyTerminalTest {
             assertEquals("", mouse.report(terminal, at(3, 1, MouseAction.Press, MouseButton.Left)))
         }
     }
+
+    private fun base64(bytes: ByteArray) = java.util.Base64.getEncoder().encodeToString(bytes)
+
+    /** A Kitty graphics command that sends pixels and shows them where the cursor is. */
+    private fun showImage(format: Int, width: Int, height: Int, pixels: ByteArray) =
+        "\u001b_Ga=T,f=$format,s=$width,v=$height;${base64(pixels)}\u001b\\"
+
+    private fun bytes(vararg values: Int) = ByteArray(values.size) { values[it].toByte() }
+
+    @Test
+    fun `an image a program sends is on screen where the cursor was, with its pixels`() = terminal(columns = 20, rows = 6).use { terminal ->
+        GhosttyRenderer().use { renderer ->
+            terminal.resize(20, 6, cellWidthPx = 10, cellHeightPx = 20)
+            assertEquals(emptyList(), renderer.render(terminal).images)
+
+            // Two pixels by two: red, green, blue, and half-transparent white.
+            val pixels = bytes(255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 128)
+            terminal.write("ab\r\nc")
+            terminal.write(showImage(format = 32, width = 2, height = 2, pixels))
+
+            val frame = renderer.render(terminal)
+            val placed = frame.images.single()
+            assertEquals(1 to 1, placed.column to placed.row, "after the c on the second row")
+            assertEquals(2 to 2, placed.image.width to placed.image.height)
+            assertEquals(pixels.toList(), placed.image.rgba.toList())
+            assertEquals(listOf(0, 0, 2, 2), listOf(placed.sourceX, placed.sourceY, placed.sourceWidth, placed.sourceHeight))
+            assertEquals(10 to 20, frame.cellWidthPx to frame.cellHeightPx)
+
+            // Nothing changed: the same image object comes back, so what was made from it can be kept.
+            assertEquals(true, renderer.render(terminal).images.single().image === placed.image)
+        }
+    }
+
+    @Test
+    fun `pixels without alpha are opaque`() = terminal().use { terminal ->
+        GhosttyRenderer().use { renderer ->
+            terminal.resize(20, 4, cellWidthPx = 10, cellHeightPx = 20) // an image is sized in cells, so a cell needs a size
+            terminal.write(showImage(format = 24, width = 1, height = 2, bytes(10, 20, 30, 40, 50, 60)))
+            assertEquals(bytes(10, 20, 30, 255, 40, 50, 60, 255).toList(), renderer.render(terminal).images.single().image.rgba.toList())
+        }
+    }
+
+    @Test
+    fun `a PNG is decoded on its way in`() = terminal().use { terminal ->
+        GhosttyRenderer().use { renderer ->
+            val picture = java.awt.image.BufferedImage(3, 2, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+            picture.setRGB(0, 0, 0xFF112233.toInt())
+            picture.setRGB(2, 1, 0x80AABBCC.toInt())
+            val png = java.io.ByteArrayOutputStream().also { javax.imageio.ImageIO.write(picture, "png", it) }.toByteArray()
+            terminal.resize(20, 4, cellWidthPx = 10, cellHeightPx = 20)
+            terminal.write("\u001b_Ga=T,f=100;${base64(png)}\u001b\\")
+
+            val image = renderer.render(terminal).images.single().image
+            assertEquals(3 to 2, image.width to image.height)
+            assertEquals(bytes(0x11, 0x22, 0x33, 0xFF).toList(), image.rgba.take(4))
+            assertEquals(bytes(0xAA, 0xBB, 0xCC, 0x80).toList(), image.rgba.takeLast(4))
+        }
+    }
+
+    @Test
+    fun `an image comes back with the terminal it was in`() = terminal().use { terminal ->
+        terminal.resize(20, 4, cellWidthPx = 10, cellHeightPx = 20)
+        terminal.write(showImage(format = 32, width = 1, height = 1, bytes(1, 2, 3, 4)))
+        GhosttyTerminal.restore(terminal.snapshot()).terminal.use { restored ->
+            GhosttyRenderer().use { renderer ->
+                assertEquals(bytes(1, 2, 3, 4).toList(), renderer.render(restored).images.single().image.rgba.toList())
+            }
+        }
+    }
+
+    @Test
+    fun `a program cannot make the terminal read a file`() = terminal().use { terminal ->
+        GhosttyRenderer().use { renderer ->
+            val file = java.nio.file.Files.createTempFile("tono-image", ".rgba")
+            try {
+                java.nio.file.Files.write(file, bytes(9, 9, 9, 255))
+                terminal.resize(20, 4, cellWidthPx = 10, cellHeightPx = 20)
+                // t=f names a file for the terminal to read the pixels from.
+                terminal.write("\u001b_Ga=T,t=f,f=32,s=1,v=1;${base64(file.toString().toByteArray())}\u001b\\")
+                assertEquals(emptyList(), renderer.render(terminal).images)
+            } finally {
+                java.nio.file.Files.deleteIfExists(file)
+            }
+        }
+    }
 }

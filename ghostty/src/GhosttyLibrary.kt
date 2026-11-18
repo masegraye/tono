@@ -15,6 +15,7 @@ internal object GhosttyLibrary {
                 "libghostty-vt.so not found. Build it with `task native`, or set GHOSTTY_VT_LIB to its path.",
             )
         System.load(path.toAbsolutePath().toString())
+        PngDecoder.install()
     }
 
     fun ensureLoaded() = loaded

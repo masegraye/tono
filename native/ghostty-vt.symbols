@@ -46,3 +46,22 @@ ghostty_mouse_event_(new|free|set_action|set_button|clear_button|set_mods|set_po
 GhosttyMouse(EncoderSize|Position)
 GHOSTTY_MOUSE_(ACTION|BUTTON|ENCODER_OPT)_.*
 GHOSTTY_MODS_(SHIFT|CTRL|ALT)
+
+# Images sent with the Kitty graphics protocol: turning it on, decoding PNGs, and reading
+# which image goes where and its pixels
+GHOSTTY_TERMINAL_OPT_KITTY_.*
+GHOSTTY_SNAPSHOT_DECODER_OPT_KITTY_IMAGE_STORAGE_LIMIT
+ghostty_snapshot_decoder_set
+ghostty_sys_set
+GHOSTTY_SYS_OPT_DECODE_PNG
+GhosttySysDecodePngFn
+GhosttySysImage
+ghostty_alloc
+ghostty_render_state_image_iterator_(new|free|next)
+ghostty_render_state_image_get
+GHOSTTY_RENDER_STATE_IMAGE_(DATA|LAYER)_.*
+GHOSTTY_IMAGE_PROTOCOL_.*
+ghostty_kitty_graphics_image(_get)?
+GHOSTTY_KITTY_IMAGE_(DATA|FORMAT)_.*
+ghostty_build_info
+GHOSTTY_BUILD_INFO_KITTY_GRAPHICS

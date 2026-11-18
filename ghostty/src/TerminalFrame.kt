@@ -14,6 +14,11 @@ class TerminalFrame(
     val foreground: Int,
     /** Null when the cursor is hidden or scrolled out of view. */
     val cursor: TerminalCursor?,
+    /** The images on screen, in the order to draw them within each layer. */
+    val images: List<TerminalImagePlacement> = emptyList(),
+    /** The size of a cell in the terminal's own pixels, which image sizes are given in. Zero if it was never told one. */
+    val cellWidthPx: Int = 0,
+    val cellHeightPx: Int = 0,
 )
 
 /**
