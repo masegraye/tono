@@ -63,3 +63,6 @@ The order proposed in inv-001, not yet agreed:
 | 033 | [Publish the Omarchy theme libraries](backlog-033-publish-the-theme-libraries.md) | Shipping | medium | captured (on hold: shelved) |
 | 034 | [The web app may not notice that it lost focus](backlog-034-the-web-app-may-not-notice-losing-focus.md) | The web app | small | captured |
 | 035 | [Going back to a tab shouldn't wait for it to load again](backlog-035-keep-recent-terminals-open.md) | Reading a terminal | medium | captured |
+| 036 | [Close the connections a silent server never answered](backlog-036-close-connections-a-silent-server-never-answered.md) | Connecting to servers | small | captured |
+| 037 | [The web relay may keep a page's connection after the page is gone](backlog-037-the-relay-may-keep-a-page-that-is-gone.md) | The web app | small | captured |
+| 038 | [A host that is still being connected to looks like one that is connected](backlog-038-a-host-being-connected-to-looks-connected.md) | The sidebar | small | captured |

@@ -18,6 +18,10 @@ dependencies:
 dependencies@jvm:
   - $ktor.client.cio
 
+# Time that the tests move by hand, for what waits
+test-dependencies:
+  - $libs.kotlinx.coroutines.test
+
 dependencies@wasmJs:
   - $libs.ktor.client.js
 

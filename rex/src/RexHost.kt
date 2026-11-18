@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -646,7 +645,7 @@ class RexHost(
         // One request tells this client everything it needs to draw the host, and turns on
         // events for every session, including what the programs in their terminals report.
         // Attaching to none here: the session to show is chosen next.
-        val boot = withTimeout(BOOTSTRAP_TIMEOUT_MILLIS) {
+        val boot = within(BOOTSTRAP_TIMEOUT_MILLIS) {
             connection.call("session.bootstrap", buildJsonObject {
                 put("event_scope", "all")
                 put("attach_session_ids", JsonArray(emptyList()))
@@ -928,10 +927,8 @@ class RexHost(
     }
 
     /** Why a connection attempt failed, in words fit to show next to the host. */
-    private fun describe(failure: Exception): String = connectFailureMessage(failure) ?: when (failure) {
-        is kotlinx.coroutines.TimeoutCancellationException -> "The server didn't answer in time"
-        else -> failure.message?.takeIf { it.isNotBlank() } ?: failure::class.simpleName ?: "It failed"
-    }
+    private fun describe(failure: Exception): String =
+        connectFailureMessage(failure) ?: failure.message?.takeIf { it.isNotBlank() } ?: failure::class.simpleName ?: "It failed"
 
     private companion object {
         const val BOOTSTRAP_TIMEOUT_MILLIS = 8_000L

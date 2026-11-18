@@ -210,6 +210,9 @@ When it starts it connects to every configured server at once and restores where
   name in quieter text than a tab's: the picture makes where one computer ends and the next begins easy to see, and
   the quiet name leaves the tabs as what the eye lands on. A host that can't be reached has its picture in red and
   nothing else, and is tried again every few seconds until it answers. Hovering it offers a button to try now; the reason is in the debug log.
+  A machine that goes to sleep or drops off the network closes nothing, so a server that has said nothing for ten
+  seconds is asked whether it is there, and one that says nothing for ten more is marked as down: about twenty
+  seconds after it went.
 - For each server it selects the session you last had (else the first listed) and the tab you last had in it, and
   lays out that tab's terminals where the server says they sit. It creates and closes things only when asked to.
 - Along the top of the sidebar are buttons for what it can do: hide itself, show only the tabs whose programs are

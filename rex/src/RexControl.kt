@@ -6,11 +6,16 @@ import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
+import kotlin.concurrent.Volatile
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
@@ -83,7 +88,7 @@ class RexControl private constructor(
             info: RexClientInfo,
             reconnectToken: String? = null,
         ): RexControl {
-            val socket = withTimeout(CONNECT_TIMEOUT_MILLIS) { client.rexWebSocket(endpoint, "/api/control", "rex.control.v1") }
+            val socket = within(CONNECT_TIMEOUT_MILLIS) { client.rexWebSocket(endpoint, "/api/control", "rex.control.v1") }
             val hello = buildJsonObject {
                 put("type", "hello")
                 put("api_revision", API_REVISION)
@@ -98,16 +103,46 @@ class RexControl private constructor(
                 }
             }
             socket.send(Frame.Text(hello.toString()))
-            val first = withTimeout(CONNECT_TIMEOUT_MILLIS) { socket.incoming.receive() } as? Frame.Text
+            val first = within(CONNECT_TIMEOUT_MILLIS) { socket.incoming.receive() } as? Frame.Text
                 ?: throw RexDisconnected("The server didn't send a welcome")
             val welcome = Json.parseToJsonElement(first.readText()).jsonObject
             if (welcome.string("type") != "welcome" || welcome.string("protocol") != "rex.control.v1") {
                 throw RexDisconnected("Unexpected first message from the server")
             }
-            return RexControl(socket, welcome).also { scope.launch { it.readLoop() } }
+            return RexControl(socket, welcome).also { it.start(scope) }
         }
 
         private const val CONNECT_TIMEOUT_MILLIS = 10_000L
+
+        /**
+         * How long a server may say nothing before it is asked whether it is there, and how
+         * long it then has to say anything at all. A machine that goes to sleep, or drops off
+         * the network, closes nothing: its connection looks open for as long as nobody writes
+         * to it, and for many minutes after. Together these are about what Rex Rune allows a
+         * silent server (30 seconds), and far less than the server's own nine minutes.
+         */
+        const val QUIET_MILLIS = 10_000L
+        const val PATIENCE_MILLIS = 10_000L
+    }
+
+    /** Counts what has arrived, so that the watch below can tell a quiet server from a silent one. */
+    @Volatile
+    private var heard = 0L
+
+    private fun start(scope: CoroutineScope) {
+        val reading = scope.launch { readLoop() }
+        val watching = scope.launch {
+            awaitSilence(
+                heard = { heard },
+                // Anything it sends back will do, a refusal included. The answer is dropped.
+                ask = { try { request("server.status") } catch (_: RexDisconnected) {} },
+            )
+            val reason = "No answer from the server for ${(QUIET_MILLIS + PATIENCE_MILLIS) / 1000} seconds"
+            reading.cancel(CancellationException(reason))
+            // The other end isn't there to finish a polite close with.
+            socket.cancel(CancellationException(reason))
+        }
+        reading.invokeOnCompletion { watching.cancel() }
     }
 
     private val identity: JsonObject? = welcome["client"] as? JsonObject
@@ -166,6 +201,7 @@ class RexControl private constructor(
         var reason = "Connection closed"
         try {
             for (frame in socket.incoming) {
+                heard++
                 // Skip anything unknown: a newer server may send message types this client predates.
                 val message = (frame as? Frame.Text)?.let { runCatching { Json.parseToJsonElement(it.readText()).jsonObject }.getOrNull() } ?: continue
                 when (message.string("type")) {
@@ -204,6 +240,59 @@ class RexControl private constructor(
 
     /** Closing with a close frame tells the server this client is gone for good. */
     suspend fun close() = runCatching { socket.close(CloseReason(CloseReason.Codes.NORMAL, "")) }
+}
+
+/**
+ * Runs [block], giving up after [millis] with a [RexDisconnected].
+ *
+ * `withTimeout` alone reports running out of time as a cancellation, and everything here that
+ * tries again after a failure passes cancellations on, as it must when the app is closing. So
+ * a server that accepted a connection and then said nothing ended the trying for good, with
+ * the host left "connecting" and never marked as down. A timeout is a failure like any other.
+ */
+internal suspend fun <T> within(millis: Long, block: suspend CoroutineScope.() -> T): T =
+    try {
+        withTimeout(millis, block)
+    } catch (_: TimeoutCancellationException) {
+        throw RexDisconnected("The server didn't answer in time")
+    }
+
+/**
+ * Returns once the other end has gone silent: nothing arrived for [quietMillis], it was then
+ * asked something, and still nothing arrived for [patienceMillis]. Never returns while it
+ * keeps talking.
+ *
+ * Time is counted in steps of waiting, not read off a clock, so a machine that was itself
+ * asleep for an hour counts that as one step and gives the server its full time to answer.
+ *
+ * @param heard how much has arrived so far; any change means the other end is there
+ * @param ask sends something the other end will answer
+ */
+internal suspend fun awaitSilence(
+    heard: () -> Long,
+    ask: suspend () -> Unit,
+    quietMillis: Long = RexControl.QUIET_MILLIS,
+    patienceMillis: Long = RexControl.PATIENCE_MILLIS,
+    stepMillis: Long = 1_000L,
+) {
+    var seen = heard()
+    var quiet = 0L
+    var asked = false
+    while (quiet < quietMillis + patienceMillis) {
+        delay(stepMillis)
+        val now = heard()
+        if (now != seen) {
+            seen = now
+            quiet = 0
+            asked = false
+            continue
+        }
+        quiet += stepMillis
+        if (!asked && quiet >= quietMillis) {
+            asked = true
+            ask()
+        }
+    }
 }
 
 internal val EMPTY = JsonObject(emptyMap())

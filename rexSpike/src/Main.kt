@@ -1,7 +1,10 @@
 package org.example.kotlintest.rexspike
 
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.example.kotlintest.rex.HostConnection
@@ -13,6 +16,8 @@ import java.nio.file.Path
 
 /**
  * `--claim <seconds>`: claims the shown tab's focused terminal and stays connected that long.
+ *
+ * `--watch <seconds>`: stays connected that long, printing each change in a host's connection.
  *
  * `--type <text>`: types the text and Enter into the selected host's focused terminal, the
  * way the app does when you press keys. Unlike everything else here this is not passive:
@@ -86,6 +91,23 @@ private suspend fun kotlinx.coroutines.CoroutineScope.probe(args: Array<String>)
             println("claimed $blockId as ${host.state.value.clientId}; holding for ${seconds}s")
             delay(seconds * 1_000)
         }
+    }
+
+    // `--watch <seconds>`: stays connected that long and says when a host's connection changes,
+    // with the seconds since watching began. For seeing how long a server that has gone away
+    // takes to be noticed, and that it is taken up again when it comes back.
+    args.indexOf("--watch").takeIf { it >= 0 }?.let { args.getOrNull(it + 1)?.toLongOrNull() }?.let { seconds ->
+        val began = System.nanoTime()
+        val watching = client.hosts.value.map { host ->
+            launch {
+                host.state.map { it.connection }.distinctUntilChanged().collect { connection ->
+                    println("%6.1fs  %s  %s".format((System.nanoTime() - began) / 1e9, host.saved.label, connection))
+                    System.out.flush()
+                }
+            }
+        }
+        delay(seconds * 1_000)
+        watching.forEach { it.cancel() }
     }
 
     for (host in client.hosts.value) {

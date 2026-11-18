@@ -8,7 +8,6 @@ import io.ktor.websocket.close
 import io.ktor.websocket.readBytes
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.ReceiveChannel
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -28,12 +27,12 @@ class RexTerminalStream private constructor(
 
         /** Opens the stream that [ticket] (from `data.connect`) was issued for. A ticket works once. */
         suspend fun open(client: HttpClient, endpoint: RexEndpoint, ticket: String): RexTerminalStream {
-            val socket = withTimeout(10_000) { client.rexWebSocket(endpoint, "/api/data", SUBPROTOCOL) }
+            val socket = within(10_000) { client.rexWebSocket(endpoint, "/api/data", SUBPROTOCOL) }
             val ticketBytes = decodeBase64Url(ticket)
             check(ticketBytes.size == 16) { "A ticket is 16 bytes, got ${ticketBytes.size}" }
             socket.send(Frame.Binary(true, byteArrayOf(HELLO) + ticketBytes))
 
-            val answer = (withTimeout(10_000) { socket.incoming.receive() } as? Frame.Binary)?.readBytes()
+            val answer = (within(10_000) { socket.incoming.receive() } as? Frame.Binary)?.readBytes()
                 ?: error("The server didn't answer the data handshake")
             if (answer.isNotEmpty() && answer[0] == REJECT) error("The server refused the terminal stream (reason ${answer.getOrNull(1)})")
             // WELCOME: 0x81, 16-byte reconnect token, 3 zero bytes, u32 resume window (ms), u64 nonce
