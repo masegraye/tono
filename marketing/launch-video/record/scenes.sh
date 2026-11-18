@@ -94,20 +94,28 @@ scene_web() {
   use_window tono
 }
 
-# And narrow, as on a phone: the list of tabs, then the tab. The film crops to the window.
+# And as a phone has it: the page is told it is a phone and is touched, not clicked (phone.mjs).
+# The film crops to the phone, which is the top-left 500 by 1025 of the screen.
 scene_phone() {
   use_window web
-  local w; w=$(tono_window)
-  hyprctl dispatch "hl.dsp.window.float({ window = \"address:$w\" })" >/dev/null; sleep 0.4
-  hyprctl dispatch "hl.dsp.window.resize({ x = 420, y = 840, window = \"address:$w\" })" >/dev/null; sleep 0.4
-  hyprctl dispatch "hl.dsp.window.move({ x = 558, y = 12, window = \"address:$w\" })" >/dev/null; sleep 1.5
-  hyprctl clients -j | jq -c --arg a "$w" '.[] | select(.address == $a) | {at, size, floating}' | tee "$DEMO/phone-geometry.json"
-  key ctrl+shift+slash; sleep 1.2      # the sidebar: in a narrow window it is shown instead of the terminal
-  rec_start phone; sleep 1.2
-  key ctrl+2; sleep 2.0
-  key ctrl+shift+slash; sleep 1.6
-  key ctrl+1; sleep 2.0
+  hyprctl dispatch "hl.dsp.window.fullscreen({ window = \"address:$(tono_window)\" })" >/dev/null; sleep 1.5
+  focus_tono
+  local steps='[
+    {"wait": 900},
+    {"tap": [100, 186], "wait": 1700},
+    {"tap": [200, 320], "wait": 1300},
+    {"type": "ls", "each": 170, "wait": 400},
+    {"type": "\n", "wait": 1900},
+    {"tap": [22, 806], "wait": 1500}
+  ]'
+  DEMO=$DEMO node "$here/phone.mjs" 9347 take "$steps" &
+  while [ ! -e "$DEMO/phone-ready" ]; do sleep 0.2; done
+  rec_start phone; sleep 0.6
+  touch "$DEMO/phone-go"
+  while [ ! -e "$DEMO/phone-done" ]; do sleep 0.2; done
   rec_stop
+  touch "$DEMO/phone-release"; wait
+  hyprctl dispatch "hl.dsp.window.fullscreen({ window = \"address:$(tono_window)\" })" >/dev/null
   use_window tono
 }
 
