@@ -2,9 +2,9 @@
 
 ![Tono in a browser window](images/browser.webp)
 
-`task web` serves Tono as a web page at http://127.0.0.1:8080. It is the desktop app's own code: the sidebar,
-terminals, palette, dialogs and shortcuts are the same. What differs is what a page isn't allowed to do, which a
-small server does for it.
+`task web` serves Tono as a web page at http://127.0.0.1:8080. It's the same code as the desktop app, so the
+sidebar, terminals, palette, dialogs and shortcuts all work the same way. A web page isn't allowed to do everything
+a desktop app can, so a small server handles those parts for it.
 
 ```sh
 task web           # serve it, to this machine only
@@ -13,90 +13,91 @@ task web:tailnet   # beside it: let your other devices in, over your tailnet
 
 ## Who can reach it
 
-**By default, only this machine.**
+By default, only this machine can.
 
-`task web:tailnet` puts it on your tailnet at `https://<this machine>.<your tailnet>.ts.net/`, using
-`tailscale serve`. Tailscale accepts connections from your tailnet alone and passes them to the server on this
-machine's own address. Nothing is opened to the internet.
+`task web:tailnet` makes it available on your tailnet at `https://<this machine>.<your tailnet>.ts.net/` by running
+`tailscale serve`. Tailscale only accepts connections from your tailnet, and it passes them to the server on this
+machine's local address. Nothing is exposed to the internet.
 
-**Being on the tailnet is not enough**, since a tailnet can have other people on it. Like a Rex server, this one lets
-in only the Tailscale user who owns this machine. It asks Tailscale whose device each request came from, and a
-device that is someone else's, or a tagged machine with no owner, gets a 403. Setting `TONO_ALLOW_IDENTIFIED=1` lets
-in everyone Tailscale can put a name to.
+A tailnet can have other people on it, so the server also checks who is asking. Like a Rex server, it only lets in
+the Tailscale user who owns this machine. For each request it asks Tailscale whose device it came from, and it
+answers 403 to devices that belong to someone else and to tagged machines that have no owner. Set
+`TONO_ALLOW_IDENTIFIED=1` if you want to let in everyone Tailscale can identify.
 
-Keep in mind what the page is: whoever can open it is at your terminals, as you.
+Anyone who can open the page can use your terminals as you, so be careful who that is.
 
-Two more things worth knowing:
+Two other things to know:
 
-- **Rex servers see every browser as this machine**, because it is this machine that connects. So that a server's
-  list of clients can tell a phone from a laptop, the page gives the name of the device it is open on
-  (`rex client ls`), and says it is a `web` client.
-- **A page takes a terminal's size only while it is being used**, like every Rex client. A page whose window
-  doesn't have the keyboard leaves sizes alone, and closing a page gives the size back.
+- Rex servers see every browser as this machine, because this machine is what connects to them. To help you tell a
+  phone from a laptop in a server's client list (`rex client ls`), the page reports the name of the device it's
+  open on and identifies itself as a `web` client.
+- Like every Rex client, a page only takes over a terminal's size while you're using it. A page whose window
+  doesn't have keyboard focus leaves sizes alone, and closing a page hands the size back.
 
 ## The keyboard
 
-A browser acts on any key a page lets through, and most of a terminal's keys mean something to a browser. Tono
-keeps them: nothing with Control or Alt, and no function key, is left for the browser. So Control+P is the shell's,
-and Control+Shift+P is the palette, never the print dialog. Copy and paste in a text field, reloading, and the
-developer tools still work.
+Browsers act on any key a page doesn't handle, and most keys a terminal uses also mean something to a browser. Tono
+handles them all itself: it doesn't leave the browser any key combined with Ctrl or Alt, or any function key. That
+means Ctrl+P goes to the shell and Ctrl+Shift+P opens the palette, and neither opens the print dialog. Copy and
+paste in text fields, reloading and the developer tools still work.
 
-Some keys a browser never shows a page in a tab at all: Control with T, N, W or Tab, and their Shift forms. For
-those you have three ways:
+A few keys never reach a page in a normal browser tab: Ctrl with T, N, W or Tab, and the Shift versions of those.
+There are three ways around that:
 
-- **Full screen** (F11, or Toggle Full Screen in the palette) gives the page every key, in Chromium browsers.
-  Escape goes to the terminal; hold it to leave.
-- **Install the page as an app** (the install button in the address bar). It gets a window of its own, and every
-  key too.
-- **In a plain tab**, New Tab and New Session have a second key, Control+Alt+T and Control+Alt+N, and going to a
-  tab by number works as it is. Control+W still closes the browser's tab, and in a shell that key deletes a word,
-  so the page asks before it goes.
+- Go full screen with F11 or Toggle Full Screen in the palette. In Chromium browsers the page then gets every key.
+  Escape goes to the terminal, and holding Escape leaves full screen.
+- Install the page as an app, using the install button in the address bar. It gets its own window, which also
+  receives every key.
+- Stay in a normal tab and use the alternatives. New Tab is also on Ctrl+Alt+T and New Session on Ctrl+Alt+N, and
+  going to a tab by number works as usual. Ctrl+W still closes the browser tab. Because that key deletes a word in
+  a shell, the page asks before it closes.
 
 ## On a phone
 
 <img src="images/phone.webp" width="260" alt="Tono in a phone-sized window, with a row of extra keys">
 
-A window too narrow for the sidebar and a terminal side by side shows one at a time: the sidebar to choose a tab,
-then the tab, with a button in the bottom line to go back. Touching a terminal brings up the keyboard, and a row of
-the keys a phone's keyboard lacks appears over it: Escape, Tab, Control (which goes with the next key you type) and
-the arrows.
+When the window is too narrow to show the sidebar and a terminal side by side, Tono shows one at a time. You pick a
+tab in the sidebar, the tab opens, and a button in the status line takes you back. Touching a terminal brings up
+the on-screen keyboard, with an extra row above it for keys a phone keyboard doesn't have: Escape, Tab, Ctrl and
+the arrows. Ctrl applies to the next key you type.
 
-The picture is a desktop browser's phone mode. No real phone has run it yet.
+The image above was taken in a desktop browser's phone mode. Tono hasn't been run on a real phone yet.
 
-## What has been tried, and what hasn't
+## What's been tested
 
-| | |
+| Browser | What's been tested |
 |---|---|
-| **Chromium** | Terminals, pictures, the palette, tooltips, paste, a program copying to the clipboard, sounds, renaming and dragging tabs, the mouse, reconnecting, and the keys above in a real window (a tab, an app window and full screen). The phone layout and its typing, in Chromium's emulation of a phone. |
-| **Firefox** | Loading, typing, the palette and pictures. |
-| **Not tried** | Safari, and any real phone or tablet. Expect the keyboard to be where it goes wrong first. The sounds are Ogg files, which older Safari versions don't play. |
+| Chromium | Terminals, images, the palette, tooltips, paste, a program copying to the clipboard, sounds, renaming and dragging tabs, the mouse, reconnecting, and the keys described above in a real window (a tab, an app window and full screen). The phone layout and typing on it were tested in Chromium's phone emulation. |
+| Firefox | Loading, typing, the palette and images. |
+| Safari, and any real phone or tablet | Not tested. The keyboard is the most likely thing to go wrong first. The sounds are Ogg files, which older versions of Safari don't play. |
 
 ## What the server does for the page
 
-- **Terminals.** Ghostty's terminal core runs in the page as a WebAssembly module, built from the same pinned
-  source as the desktop's library (`task native:wasm`, half a minute). Calling it one function at a time from
+- Ghostty's terminal core runs in the page as a WebAssembly module, built from the same pinned source as the
+  desktop library (`task native:wasm` builds it in about half a minute). Calling it one function at a time from
   Kotlin is slow in a browser, so [ghostty-glue.js](../webApp/resources/ghostty-glue.js) does the cell-by-cell work
-  beside the library and hands over a whole frame at once. Upstream leaves pictures out of the WebAssembly build;
-  [a small patch](../native/ghostty-vt-wasm.patch) puts them back.
-- **Connections.** A page can't open the local server's socket, and a Rex server refuses a WebSocket that says it
-  comes from another site's page. So the page connects to [a relay](../server/src/TonoRelay.kt) on its own server,
-  which makes the real connection and passes messages both ways, unread. The relay serves only its own page, so
-  another site open in your browser can't use it, and it connects only to this machine's Rex server and to Rex
+  next to the library and returns a whole frame at once. Upstream Ghostty leaves images out of its WebAssembly
+  build, and [a small patch](../native/ghostty-vt-wasm.patch) adds them back.
+- A page can't open the local Rex server's socket, and a Rex server refuses WebSockets that come from another
+  site's page. So the page connects to [a relay](../server/src/TonoRelay.kt) on its own server, which opens the
+  real connection and passes messages in both directions without reading them. The relay only serves its own page,
+  so other sites open in your browser can't use it, and it only connects to this machine's Rex server and to Rex
   servers on your tailnet.
-- **The desktop's look.** The theme follows the desktop live. The server also hands over the desktop's monospace
-  font, so terminals have the same glyphs as on the desktop, and its sounds. A character that font doesn't have
-  (Chinese, say, or an emoji) is drawn in a Noto font that the page fetches from Google's font service the first
-  time one appears. Compose does this for every web app, and it is the one thing the page asks of the internet.
-- **Your settings** (machines folded, the tab you were on) are kept in the browser, so each browser has its own.
-- **Size.** The page is sent compressed, and a browser that already has a file is told so instead of being sent it
-  again. A first visit downloads about 12 MB before anything shows, 10 MB of it the app (8 MB with
-  `task web:release`); later visits, next to nothing.
+- The theme follows the desktop live, as it does in the desktop app. The server also sends the desktop's monospace
+  font, so terminals use the same glyphs, and the desktop's sounds. When a character isn't in that font (a Chinese
+  character or an emoji, for example), the page fetches a Noto font from Google's font service the first time it
+  needs one. Compose does this in every web app, and it's the only request the page makes to the internet.
+- Your settings, such as which machines are collapsed and which tab you were on, are stored in the browser, so each
+  browser has its own.
+- The page is sent compressed, and the server tells a browser when it already has a file instead of sending it
+  again. A first visit downloads about 12 MB before anything appears, 10 MB of which is the app (8 MB with
+  `task web:release`). Later visits download almost nothing.
 
-The access rule is in [TailnetOnly.kt](../server/src/TailnetOnly.kt), and the keyboard handling in
+The access check is in [TailnetOnly.kt](../server/src/TailnetOnly.kt), and the keyboard handling is in
 [page-keys.js](../webApp/resources/page-keys.js).
 
-## Running it for real
+## Running a release build
 
-`task web:release` builds the optimized web app and a self-contained server jar and runs them, with no build tool
-involved at runtime. The server reads `WEB_DIR`, `HOST` (default `127.0.0.1`) and `PORT` (default `8080`) from the
+`task web:release` builds the optimized web app and a self-contained server jar, then runs them without any build
+tool involved. The server reads `WEB_DIR`, `HOST` (default `127.0.0.1`) and `PORT` (default `8080`) from the
 environment.

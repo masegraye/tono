@@ -17,7 +17,7 @@ None of these has been tried. The keyboard on a screen is tested only with made-
 
 ## Builds on
 
-`tono/src/ScreenKeyboard.kt` and `webApp/resources/page-keys.js`. `docs/web.md`'s "What has been tried, and what hasn't".
+`tono/src/ScreenKeyboard.kt` and `webApp/resources/page-keys.js`. `docs/web.md`'s "What's been tested".
 
 ## Promote when
 

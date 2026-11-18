@@ -1,90 +1,94 @@
 # Using Tono
 
-When Tono starts it connects to every Rex server you have, all at once, and puts you back where you were on each.
-It creates and closes things only when you ask.
+When Tono starts, it connects to all your Rex servers at once and puts you back where you were on each one. It only
+creates or closes things when you ask it to.
 
 ## Machines
 
-Your machines are the local Rex server, plus every host in its host list. That list is where Rex itself keeps hosts
-(`rex hosts`), so the two agree: a host you add in Tono is known to the `rex` command, and one you add with
-`rex hosts add` appears in Tono at once.
+Tono shows the local Rex server plus every host in that server's host list. This is the same list the `rex hosts`
+command uses, so a host you add in Tono shows up in `rex hosts`, and a host you add with `rex hosts add` shows up in
+Tono right away.
 
-- **Add Host…** (in the palette, the sidebar's menu, or at the end of the Switch Host list) offers the Rex servers
-  on your tailnet that aren't hosts yet. Pick one, or type any address. A server that is down can be added too.
-- **Remove Host…** takes one off the list.
-- An address is `https://host` for a server reached over the network, or `unix:///path` for a socket. A Rex server
-  with built-in Tailscale is a device on your tailnet, so its `https://` address works from any machine on it.
-- Hosts listed in `~/.config/kotlin-test/workspace.json` are connected to as well. A host goes there only when no
-  local server can keep it.
+- To add a machine, use Add Host… in the palette, in the sidebar's menu, or at the end of the Switch Host list. It
+  lists the Rex servers on your tailnet that you haven't added yet. You can pick one or type an address, and you can
+  add a server even while it's down.
+- To take a machine off the list, use Remove Host….
+- An address is `https://host` for a server on the network, or `unix:///path` for a socket. A Rex server with
+  built-in Tailscale is a device on your tailnet, so its `https://` address works from any machine on that tailnet.
+- Tono also connects to any hosts listed in `~/.config/kotlin-test/workspace.json`. It only saves a host there when
+  there's no local server to keep it.
 
-A machine that can't be reached shows its picture in red and nothing else. Tono tries it again every few seconds
-until it answers; hover it for a button to try now. The reason is in the debug log.
+If Tono can't reach a machine, the machine's icon turns red and nothing is listed under it. Tono retries every few
+seconds until the machine answers. You can hover over the machine for a button that retries immediately, and the
+debug log says why the connection failed.
 
-A machine that goes to sleep or drops off the network doesn't say goodbye. Tono notices anyway: a server that has
-been silent for ten seconds is asked whether it is there, and after ten more with no answer it is marked as down.
-When it comes back, everything is read again.
+A machine that goes to sleep or drops off the network never closes its connection. To catch that, Tono checks on
+any server that has been silent for ten seconds, and marks it as down if it gets no answer within ten more. When
+the machine comes back, Tono reconnects and reloads everything.
 
 ## The sidebar
 
-![The sidebar, with Control held so each tab shows its digit](images/sidebar.webp)
+![The sidebar, with Ctrl held so each tab shows its number](images/sidebar.webp)
 
-The sidebar is three levels of heading:
+The sidebar has three levels:
 
-1. **Machines**: this one first, then the connected ones by name, then the ones that are down. Each has a small
-   picture, a screen for this computer and a rack unit for the others.
-2. **Sessions**, as small quiet headings.
-3. **Tabs** under each session. A tab is what Rex calls a window, and tabs are what you go to, so they are the
-   brightest thing there.
+1. Machines come first. This machine is at the top, followed by the connected ones in name order and then the ones
+   that are down. Each has a small icon: a screen for this computer and a rack unit for the others.
+2. Sessions are listed under their machine, in small, dim text.
+3. Tabs are listed under their session. A tab is what Rex calls a window. Tabs are what you're usually looking for,
+   so they're the brightest items in the sidebar.
 
-What you can do with it:
+In the sidebar you can:
 
-- **Click** a machine or a session to fold it away.
-- **Hover** one and a plus fades in: a new session on that machine, or a new tab in that session.
-- **Drag** a tab to move it within its session, or a session by its heading to move it among its machine's
-  sessions. The new order is the server's, so every client sees it.
-- The **buttons along the top** hide the sidebar, show only the tabs whose programs are active, and open the
-  palette. Rest the pointer on one for its name and key. With the sidebar hidden, a button to bring it back appears
-  when the pointer is in the window's top left corner.
+- Click a machine or a session to collapse it.
+- Hover over a machine or a session to get a plus button. On a machine it creates a session, and on a session it
+  creates a tab.
+- Drag a tab to reorder it within its session, or drag a session by its name to reorder it among that machine's
+  sessions. The server stores the new order, so every client sees it.
+- Use the buttons at the top to hide the sidebar, show only the tabs with active programs, or open the palette.
+  Hover over a button to see its name and shortcut. While the sidebar is hidden, a button to bring it back appears
+  when you move the pointer to the top left corner of the window.
 
 ## Tabs
 
-A tab is called by the program in the foreground of its focused pane, with that program's directory beside it:
-`nvim ~/dev/rex`. The name follows along as commands start and finish.
+Tono names a tab after the program in the foreground of its focused pane and shows that program's directory next to
+it, like `nvim ~/dev/rex`. The name updates as commands start and finish.
 
-To name a tab yourself, double-click it or use **Rename Tab…** in the palette. That name shows in every client and
-stays until you clear it. Save an empty name and the tab goes back to naming itself.
+To name a tab yourself, double-click it or use Rename Tab… in the palette. Your name shows on every client and stays
+until you clear it. If you save an empty name, the tab goes back to being named after its program.
 
-A session is never left with no tabs. Closing its last tab closes the session, as in Rex's Mac app, and Tono shows
-the session next to it.
+A session always has at least one tab. When you close a session's last tab, the session closes too, as it does in
+Rex's Mac app, and Tono switches to the session next to it.
 
 ## Activity and sounds
 
 ![A tab whose program is working shows three dots in the sidebar](images/agents.webp)
 
-Three dots beside a tab show what its program says it is doing:
+Three dots next to a tab show what its program reports it's doing:
 
-- **rippling** while it works,
-- **steady, in the accent color** while it waits for you,
-- **in the error color** after a failure.
+- They ripple while the program is working.
+- They hold steady in the accent color while it's waiting for you.
+- They turn the error color after a failure.
 
-A folded machine or session shows the dots for whatever is inside it. Programs report this themselves, with the
-escape sequence Rex defines for it (OSC 7501).
+A collapsed machine or session shows the dots for the tabs inside it. Programs report their state themselves, using
+an escape sequence that Rex defines (OSC 7501).
 
-A sound plays when a program in a tab you aren't looking at starts waiting for you, fails, or finishes. They are
-your desktop's own sounds, played with `mpv` as Omarchy plays them. The tab on screen stays quiet while the window has focus, and a burst of news makes one
-sound, the most pressing. **Play Activity Sounds** in the palette turns them off and on.
+Tono plays a sound when a program starts waiting for you, fails, or finishes in a tab you aren't looking at. It uses
+your desktop's own sounds and plays them with `mpv`, the way Omarchy does. The tab you're looking at stays silent
+while the window has focus. If several things happen at once you hear one sound, for the most urgent of them. You
+can turn sounds off and on with Play Activity Sounds in the palette.
 
-## The line along the bottom
+## The status line
 
-It says where you are, from the outside in: the machine, the session, the tab, and the size of its terminal. At its
-right end are small buttons to split the pane right or down, and to zoom it.
+The line at the bottom of the window shows where you are: the machine, the session, the tab and the terminal's size.
+On its right are small buttons that split the pane right, split it down, and zoom it.
 
 ## Shortcuts and the command palette
 
 ![The command palette](images/palette.webp)
 
-Everything Tono can do is a command, and the commands, their names and their keys are those of Rex's Mac app, with
-Control in place of Command, and Shift added where Control alone belongs to the terminal.
+Everything Tono can do is a command. Commands have the same names and shortcuts as in Rex's Mac app, with Ctrl in
+place of Cmd, and with Shift added where Ctrl on its own already means something to the terminal.
 
 | Keys | What it does |
 | --- | --- |
@@ -106,37 +110,38 @@ Control in place of Command, and Shift added where Control alone belongs to the 
 | Ctrl+Shift+. | Show only the tabs whose programs are active, or every tab again |
 | Ctrl+` | Show or hide the debug log |
 
-**Tabs are one list**, in sidebar order, across every session and machine. Control and a digit goes to that tab
-whichever session it is in, and next and previous carry on from one session into the next. Hold Control and each tab
-shows its digit. Tabs folded away are left out of the numbering, so folding what you aren't using brings the rest
-within reach.
+Tabs are numbered as one list, in sidebar order, across every session and machine. Ctrl plus a number goes to that
+tab whichever session it's in, and next and previous tab continue from one session into the next. Hold Ctrl to see
+each tab's number. Tabs inside a collapsed session or machine aren't numbered, so collapsing what you aren't using
+brings the other tabs within reach of a number.
 
-**Your own keys.** A bound key does not reach the terminal; every other key does. The keys aren't fixed in the app:
-Tono tells your home server what it can do and what its defaults are, and the server answers with what each key
-does, after applying your Rex configuration. So a key you bind in Rex's `init.lua` works here as it does in the Mac
-app.
+A key that's bound to a command doesn't reach the terminal, and every other key does. The bindings aren't built
+into the app. Tono tells your home server which commands it has and what their default keys are, and the server
+replies with the final bindings after applying your Rex configuration. That's why a key you bind in Rex's
+`init.lua` works in Tono the same way it does in the Mac app.
 
-**The debug log** (Ctrl+`) is a panel along the bottom showing what Tono is doing: connections, what servers
-report, the requests that change something, and the commands run. It never records what you type.
+The debug log (Ctrl+`) is a panel at the bottom of the window that shows what Tono is doing: its connections, the
+events servers send, the requests that change something, and the commands it runs. It never records what you type.
 
 ## Sharing a terminal with other clients
 
-**Size.** A terminal takes its size from one client at a time, and the client someone is using is the one whose
-size should count. So Tono claims the terminals on screen while its window has focus, and when you type, click or
-move the pointer in one. If another client takes a terminal back, Tono leaves it alone until you use it again, so
-two clients never fight over one. Without focus Tono only looks: the terminal is drawn at its owner's size.
+A terminal takes its size from one client at a time, and that should be the client someone is actually using. Tono
+claims the terminals on screen while its window has focus, and also when you type, click or move the pointer in
+one. If another client takes a terminal back, Tono leaves it alone until you use it again, so two clients don't
+keep resizing the same terminal. When Tono doesn't have focus, it draws each terminal at the size its owner set.
 
-**Which tab is showing** is each client's own choice. Two clients on one session share its terminals, so each sees
-what the other types, but going to a tab in Rex's Mac app doesn't move Tono, nor the other way round.
+Each client chooses which tab it shows. Two clients on the same session share its terminals, so each sees what the
+other types. Switching tabs in Rex's Mac app doesn't switch tabs in Tono, though, and switching in Tono doesn't
+affect the Mac app.
 
-## Not there yet
+## What's missing
 
-- Selecting text with the mouse and copying it.
-- SSH hosts.
-- Floating panes drawn as windows.
-- Animated pictures (they show their first frame).
-- Key sequences and modes in the keymap.
-- Keys are named for a US layout. On other layouts some shortcuts may be read as the wrong key; what you type is
-  still right.
+- You can't select text with the mouse or copy it.
+- SSH hosts aren't supported.
+- Floating panes aren't drawn as windows.
+- Animated images show only their first frame.
+- The keymap doesn't support key sequences or modes.
+- Keys are named for a US layout. On other layouts some shortcuts may be read as the wrong key, though what you
+  type is still correct.
 
-The full list of what's planned is [the backlog](../agent-workspace/backlog/readme.md).
+The rest of what's planned is in [the backlog](../agent-workspace/backlog/readme.md).

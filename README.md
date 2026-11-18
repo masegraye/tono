@@ -25,12 +25,12 @@ also suits you if you want your terminal to match your desktop without setting a
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/terminal.webp" alt="A terminal showing a git log and a picture"></td>
+    <td width="50%"><img src="docs/images/terminal.webp" alt="A terminal showing a git log and an image"></td>
     <td width="50%"><img src="docs/images/agents.webp" alt="A tab marked as working in the sidebar"></td>
   </tr>
   <tr>
-    <td>Ghostty's terminal core draws the terminals, so Neovim, btop, the mouse and pictures all work.</td>
-    <td>A tab shows whether its program is working, waiting for you, or done. When a program in a tab you aren't watching needs you, Tono plays a sound. The agent in this picture is a stand-in script.</td>
+    <td>Ghostty's terminal core draws the terminals, so Neovim, btop, the mouse and images all work.</td>
+    <td>A tab shows whether its program is working, waiting for you, or done. When a program in a tab you aren't watching needs you, Tono plays a sound. The agent in this screenshot is a stand-in script.</td>
   </tr>
   <tr>
     <td><img src="docs/images/palette.webp" alt="The command palette, searching for split"></td>
@@ -95,7 +95,7 @@ is in [the backlog](agent-workspace/backlog/readme.md).
 - [Installing](docs/install.md) covers what you need, and how to update or remove it.
 - [Using Tono](docs/using-tono.md) explains machines, the sidebar, tabs and shortcuts.
 - [Tono in a browser](docs/web.md) covers serving it, who can reach it, the keyboard and phones.
-- [How it works](docs/how-it-works.md) describes the protocol, the terminal, pictures and the clipboard.
+- [How it works](docs/how-it-works.md) describes the protocol, the terminal, images and the clipboard.
 - [Working on Tono](docs/development.md) lists the modules, the tasks and the tests.
 - [Omarchy theming](docs/omarchy-theming.md) describes the theme libraries, which other apps can use.
 
