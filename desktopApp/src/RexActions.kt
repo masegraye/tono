@@ -254,8 +254,17 @@ internal fun clientActions(): List<ClientAction> = buildList {
     add(ClientAction("client.font.reset", "Reset Font Size", "View", "default zoom text", keys = listOf("ctrl+0")) {
         fontSize = RexUiState.DEFAULT_FONT_SIZE
     })
-    add(ClientAction("client.sidebar.toggle", "Toggle Sidebar", "View", "hide show hosts sessions", keys = listOf("ctrl+shift+b")) {
+    add(ClientAction("client.sidebar.toggle", "Toggle Sidebar", "View", "hide show collapse hosts sessions tabs", keys = listOf("ctrl+shift+/")) {
         sidebarVisible = !sidebarVisible
+    })
+    add(ClientAction(
+        "client.sidebar.activity.toggle", "Toggle Activity", "View",
+        "activity filter working waiting attention programs status sidebar tabs",
+        keys = listOf("ctrl+shift+."),
+        state = { if (activityOnly) "on" else "off" },
+    ) {
+        activityOnly = !activityOnly
+        if (activityOnly) sidebarVisible = true // it is a way of looking at the sidebar
     })
     add(ClientAction(
         "client.setting.notifications.activity.sounds", "Play Activity Sounds", "Notifications",

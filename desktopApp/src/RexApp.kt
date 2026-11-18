@@ -80,6 +80,7 @@ import org.example.kotlintest.rex.ActivityState
 import org.example.kotlintest.rex.HostConnection
 import androidx.compose.ui.platform.LocalWindowInfo
 import org.example.kotlintest.rex.HostState
+import org.example.kotlintest.rex.Keymap
 import org.example.kotlintest.rex.PaneRect
 import org.example.kotlintest.rex.PaneView
 import org.example.kotlintest.rex.RexHost
@@ -161,11 +162,14 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
                             selected = selected,
                             ui = ui,
                             commands = commands,
-                            paletteShortcut = keymap.shortcutFor("client.palette.toggle")?.display(),
+                            keymap = keymap,
                         )
                         VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
-                    if (selected != null) HostContent(selected, ui, Modifier.weight(1f))
+                    Box(Modifier.weight(1f)) {
+                        if (selected != null) HostContent(selected, ui, Modifier.fillMaxSize())
+                        if (!ui.sidebarVisible) SidebarReveal(commands, keymap.shortcutFor("client.sidebar.toggle")?.display())
+                    }
                 }
                 if (ui.debugLogVisible) {
                     DebugLogPanel(
@@ -208,11 +212,13 @@ private fun Sidebar(
     selected: RexHost?,
     ui: RexUiState,
     commands: RexCommands,
-    paletteShortcut: String?,
+    keymap: Keymap,
 ) {
+    val paletteShortcut = keymap.shortcutFor("client.palette.toggle")?.display()
     // Every host's state, read here so that tabs can be numbered across all of them.
     val ordered = sidebarOrder(hosts.map { host -> host to key(host) { host.state.collectAsState().value } }, ui.client.homeLabel) { it.saved.label }
-    val tabs = linearTabs(ordered.map { (host, state) -> host.saved.label to state }, ui.collapsedHosts, ui.collapsedSessions)
+    val activityOnly = ui.activityOnly
+    val tabs = linearTabs(ordered.map { (host, state) -> host.saved.label to state }, ui.collapsedHosts, ui.collapsedSessions, activityOnly)
     // The digits appear while Control is held, and stay until it is let go, however many
     // tabs are visited in between. The short delay keeps them from flashing on a quick Control+C.
     val digitAlpha by animateFloatAsState(
@@ -224,8 +230,18 @@ private fun Sidebar(
     Column(
         Modifier.width(240.dp).fillMaxHeight().background(MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
-        Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Tono", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        // What the sidebar can do, as buttons: hide itself, show only what is active, and
+        // find anything. The rest is in the menu at the end.
+        Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            ToolbarButton("Hide Sidebar", keymap.shortcutFor("client.sidebar.toggle")?.display(), onClick = { commands.run("client.sidebar.toggle", origin = "toolbar") }) { SidebarIcon(it) }
+            ToolbarButton(
+                if (activityOnly) "Show Every Tab" else "Show Only Active Tabs",
+                keymap.shortcutFor("client.sidebar.activity.toggle")?.display(),
+                onClick = { commands.run("client.sidebar.activity.toggle", origin = "toolbar") },
+                active = activityOnly,
+            ) { ActivityIcon(it) }
+            ToolbarButton("Command Palette", paletteShortcut, onClick = { commands.run("client.palette.toggle", origin = "toolbar") }) { PaletteIcon(it) }
+            Spacer(Modifier.weight(1f))
             var menuOpen by remember { mutableStateOf(false) }
             Box {
                 IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
@@ -241,9 +257,15 @@ private fun Sidebar(
             }
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 12.dp)) {
-            for ((host, state) in ordered) key(host) {
+            // Showing only what is active: hosts and sessions with nothing active drop out, and
+            // folding is set aside, since the point is to see everything that wants attention.
+            val listed = if (!activityOnly) ordered else ordered.filter { (host, state) -> tabs.any { it.host == host.saved.label } && state.connection == HostConnection.Connected }
+            if (activityOnly && listed.isEmpty()) {
+                HintText("Nothing is active: no program is working, waiting for you, failed or just finished.", Modifier.padding(horizontal = 14.dp, vertical = 12.dp))
+            }
+            for ((host, state) in listed) key(host) {
                 val label = host.saved.label
-                val hostCollapsed = label in ui.collapsedHosts
+                val hostCollapsed = !activityOnly && label in ui.collapsedHosts
                 HostHeader(
                     host = host,
                     state = state,
@@ -257,7 +279,7 @@ private fun Sidebar(
                 )
                 // A host's sessions can be dragged into another order, and so can a session's
                 // tabs. Both orders are the server's, so they change for every client.
-                if (!hostCollapsed) HostSessions(host, state, selected, ui, tabs, digitAlpha)
+                if (!hostCollapsed) HostSessions(host, state, selected, ui, tabs, digitAlpha, activityOnly)
             }
         }
     }
@@ -265,12 +287,22 @@ private fun Sidebar(
 
 /** The sessions of one host, each a heading over its tabs. */
 @Composable
-private fun HostSessions(host: RexHost, state: HostState, selected: RexHost?, ui: RexUiState, tabs: List<NavigationStop>, digitAlpha: Float) {
-    val sessionOrder = rememberReorder(state.sessions.map { it.id }) { session, before -> host.moveSession(session, before) }
+private fun HostSessions(
+    host: RexHost,
+    state: HostState,
+    selected: RexHost?,
+    ui: RexUiState,
+    tabs: List<NavigationStop>,
+    digitAlpha: Float,
+    activityOnly: Boolean,
+) {
+    fun windowsOf(sessionId: String) = state.views[sessionId]?.windows.orEmpty().filter { !activityOnly || state.activityOf(it) != ActivityState.Idle }
+    val sessions = if (activityOnly) state.sessions.filter { windowsOf(it.id).isNotEmpty() } else state.sessions
+    val sessionOrder = rememberReorder(sessions.map { it.id }) { session, before -> host.moveSession(session, before) }
     Column {
-        for (session in state.sessions) key(session.id) {
-            val windows = state.views[session.id]?.windows.orEmpty()
-            val collapsed = session.id in ui.collapsedSessions
+        for (session in sessions) key(session.id) {
+            val windows = windowsOf(session.id)
+            val collapsed = !activityOnly && session.id in ui.collapsedSessions
             // A session is dragged by its heading and moves whole, tabs and all.
             Column(Modifier.reorderItem(sessionOrder, session.id).dragOutline(sessionOrder.isDragging(session.id))) {
                 SessionHeader(
@@ -323,6 +355,25 @@ private fun SessionTabs(
                 },
                 modifier = Modifier.reorderItem(tabOrder, tab.id).reorderHandle(tabOrder, tab.id),
             )
+        }
+    }
+}
+
+/**
+ * The way back to a hidden sidebar for a hand on the mouse: a button in the top corner that
+ * appears when the pointer is there. It is out of sight the rest of the time, since with the
+ * sidebar hidden the terminals have the whole window.
+ */
+@Composable
+private fun SidebarReveal(commands: RexCommands, shortcut: String?) {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val alpha by animateFloatAsState(if (hovered) 1f else 0f, hoverFade(hovered), label = "sidebar reveal")
+    Box(Modifier.size(56.dp).hoverable(interaction)) {
+        if (alpha > 0f) {
+            Box(Modifier.padding(6.dp).alpha(alpha).background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.small)) {
+                ToolbarButton("Show Sidebar", shortcut, onClick = { commands.run("client.sidebar.toggle", origin = "toolbar") }) { SidebarIcon(it) }
+            }
         }
     }
 }

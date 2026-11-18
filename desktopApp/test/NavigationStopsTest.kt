@@ -94,6 +94,38 @@ class NavigationStopsTest {
     }
 }
 
+class ActivityFilterTest {
+    private fun tab(id: String) = WindowView(
+        id, id, focusedBlockId = "$id-block", zoomedBlockId = null,
+        panes = listOf(org.example.kotlintest.rex.PaneView("$id-block", org.example.kotlintest.rex.PaneRect.Full, null, null, isTerminal = true, floating = false)),
+    )
+
+    private fun host(activity: Map<String, ActivityState>) = HostState(
+        connection = HostConnection.Connected,
+        sessions = listOf(SessionSummary("work", "work"), SessionSummary("notes", "notes")),
+        views = mapOf(
+            "work" to SessionView("work", "work", 1, "w1", listOf(tab("w1"), tab("w2"), tab("w3"))),
+            "notes" to SessionView("notes", "notes", 1, "n1", listOf(tab("n1"))),
+        ),
+        activity = activity,
+    )
+
+    @Test
+    fun `showing only what is active lists the tabs whose programs report something`() {
+        val state = host(mapOf("w2-block" to ActivityState.Working, "n1-block" to ActivityState.Blocked))
+        val stops = linearTabs(listOf("Local" to state), activityOnly = true)
+        assertEquals(listOf("w2", "n1"), stops.map { it.windowId })
+        assertEquals(emptyList<NavigationStop>(), linearTabs(listOf("Local" to host(emptyMap())), activityOnly = true))
+    }
+
+    @Test
+    fun `an active tab shows even where its session or host is folded away`() {
+        val state = host(mapOf("w2-block" to ActivityState.Done))
+        assertEquals(emptyList<NavigationStop>(), linearTabs(listOf("Local" to state), collapsedSessions = setOf("work", "notes")).filter { it.windowId == "w2" })
+        assertEquals(listOf("w2"), linearTabs(listOf("Local" to state), setOf("Local"), setOf("work"), activityOnly = true).map { it.windowId })
+    }
+}
+
 class ReorderTest {
     private val moves = ArrayList<Pair<String, String?>>()
 

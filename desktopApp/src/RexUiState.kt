@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import org.example.kotlintest.rex.ActivityState
 import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.HostState
 import org.example.kotlintest.rex.RexClient
@@ -48,6 +49,12 @@ class TabRename(val host: RexHost, val sessionId: String, val windowId: String, 
 class RexUiState(val client: RexClient) {
     var palette: PaletteMode? by mutableStateOf(null)
     var sidebarVisible by mutableStateOf(true)
+
+    /**
+     * Whether the sidebar lists only the tabs whose programs have something to say: working,
+     * waiting for you, failed or done. For finding what needs you among many tabs.
+     */
+    var activityOnly by mutableStateOf(false)
     var debugLogVisible by mutableStateOf(false)
     var fontSize by mutableIntStateOf(DEFAULT_FONT_SIZE)
     var confirmation: Confirmation? by mutableStateOf(null)
@@ -163,7 +170,7 @@ class RexUiState(val client: RexClient) {
      * The tabs the sidebar is listing, in its order: every tab of every session on every host,
      * less the ones folded away. A tab's place here is its number.
      */
-    fun tabs(): List<NavigationStop> = linearTabs(hostStates(), collapsedHosts, collapsedSessions)
+    fun tabs(): List<NavigationStop> = linearTabs(hostStates(), collapsedHosts, collapsedSessions, activityOnly)
 
     /** Every tab there is, folded away or not. */
     fun allTabs(): List<NavigationStop> = linearTabs(hostStates())
@@ -243,10 +250,14 @@ internal fun linearTabs(
     hosts: List<Pair<String, HostState>>,
     collapsedHosts: Set<String> = emptySet(),
     collapsedSessions: Set<String> = emptySet(),
+    /** List only the tabs whose programs report something, wherever they are; folding is set aside. */
+    activityOnly: Boolean = false,
 ): List<NavigationStop> =
-    hosts.filter { (label, state) -> state.connection == HostConnection.Connected && label !in collapsedHosts }.flatMap { (label, state) ->
-        state.sessions.filter { it.id !in collapsedSessions }.flatMap { session ->
-            state.views[session.id]?.windows.orEmpty().map { NavigationStop(label, session.id, it.id) }
+    hosts.filter { (label, state) -> state.connection == HostConnection.Connected && (activityOnly || label !in collapsedHosts) }.flatMap { (label, state) ->
+        state.sessions.filter { activityOnly || it.id !in collapsedSessions }.flatMap { session ->
+            state.views[session.id]?.windows.orEmpty()
+                .filter { !activityOnly || state.activityOf(it) != ActivityState.Idle }
+                .map { NavigationStop(label, session.id, it.id) }
         }
     }
 

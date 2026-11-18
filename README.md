@@ -129,6 +129,10 @@ When it starts it connects to every configured server at once and restores where
   nothing else, and is tried again every few seconds until it answers. Hovering it offers a button to try now; the reason is in the debug log.
 - For each server it selects the session you last had (else the first listed) and the tab you last had in it, and
   lays out that tab's terminals where the server says they sit. It creates and closes things only when asked to.
+- Along the top of the sidebar are buttons for what it can do: hide itself, show only the tabs whose programs are
+  active (working, waiting for you, failed or just finished, wherever they are and whatever is folded), and open
+  the command palette. Resting the pointer on one names it and its key. With the sidebar hidden, a button to bring
+  it back appears when the pointer is in the window's top left corner.
 - The sidebar is a set of nested headings: servers, each with the same weight (this machine's first, then the ones
   that are connected by name, then the ones that aren't, so a server that is down takes no room from those in use);
   their sessions, as small quiet headings; and under each session its tabs (a tab is a Rex window), which are what you go
@@ -191,7 +195,8 @@ of Command, and Shift added where Control alone belongs to the terminal.
 | Ctrl+Shift+V | Paste, bracketed when the program asks for that |
 | Shift+PageUp / Shift+PageDown | Scroll through history |
 | Ctrl+= / Ctrl+- / Ctrl+0 | Larger / smaller / default text |
-| Ctrl+Shift+B | Show or hide the sidebar |
+| Ctrl+Shift+/ | Show or hide the sidebar |
+| Ctrl+Shift+. | Show only the tabs whose programs are active, or every tab again |
 | Ctrl+` | Show or hide the debug log |
 
 Tabs are one list, in sidebar order, across every session and server: Control and a digit go to that tab, whichever
