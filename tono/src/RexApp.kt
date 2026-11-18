@@ -143,6 +143,10 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
     val rootFocus = remember { FocusRequester() }
     val shortcutKeysDown = remember { HashSet<Long>() }
     LaunchedEffect(Unit) { rootFocus.requestFocus() }
+    // In a narrow window the sidebar is shown instead of the terminals. The terminal that had
+    // the keyboard is then gone, and the keyboard with it, so it is taken back here, or no
+    // shortcut would work until a tab was chosen with the pointer.
+    LaunchedEffect(ui.narrow, ui.sidebarVisible) { if (ui.narrow && ui.sidebarVisible) rootFocus.requestFocus() }
 
     // Whether Control is down, for the sidebar's shortcut digits. Watched for the whole
     // window rather than through focus, so that it is right whatever has the keyboard, and
