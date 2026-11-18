@@ -30,12 +30,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.awt.awtEventOrNull
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,9 +50,6 @@ import org.example.kotlintest.rex.RexEndpoint
 import org.example.kotlintest.rex.tailnetRexServers
 import org.example.kotlintest.rex.endpointKey
 import org.example.kotlintest.rex.suggestedHostLabel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.awt.event.KeyEvent
 
 /** One thing the palette offers. */
 class PaletteItem(
@@ -268,16 +268,15 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
                         focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
                     ),
                     modifier = Modifier.fillMaxWidth().focusRequester(focus).onPreviewKeyEvent { event ->
-                        val awt = event.awtEventOrNull ?: return@onPreviewKeyEvent false
-                        if (awt.id != KeyEvent.KEY_PRESSED) return@onPreviewKeyEvent false
-                        when (awt.keyCode) {
-                            KeyEvent.VK_ESCAPE -> ui.closePalette()
-                            KeyEvent.VK_DOWN -> if (shown.isNotEmpty()) selected = (selected + 1) % shown.size
-                            KeyEvent.VK_UP -> if (shown.isNotEmpty()) selected = Math.floorMod(selected - 1, shown.size)
-                            KeyEvent.VK_ENTER -> shown.getOrNull(selected)?.let(::choose)
+                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        when (event.key) {
+                            Key.Escape -> ui.closePalette()
+                            Key.DirectionDown -> if (shown.isNotEmpty()) selected = (selected + 1) % shown.size
+                            Key.DirectionUp -> if (shown.isNotEmpty()) selected = (selected - 1).mod(shown.size)
+                            Key.Enter, Key.NumPadEnter -> shown.getOrNull(selected)?.let(::choose)
                             else -> {
                                 // The key that opened the palette closes it again.
-                                val chord = keyChord(awt) ?: return@onPreviewKeyEvent false
+                                val chord = keyChord(event) ?: return@onPreviewKeyEvent false
                                 if (keymap.bindingsFor(chord).firstOrNull()?.action != "client.palette.toggle") return@onPreviewKeyEvent false
                                 ui.closePalette()
                             }

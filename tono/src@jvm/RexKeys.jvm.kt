@@ -2,7 +2,9 @@ package org.example.kotlintest
 
 import org.example.kotlintest.rex.KeyChord
 import org.example.kotlintest.rex.RexKey
+import androidx.compose.ui.awt.awtEventOrNull
 import java.awt.event.KeyEvent
+import androidx.compose.ui.input.key.KeyEvent as ComposeKeyEvent
 
 /**
  * Turns a key event from the window system into the form the Rex server takes.
@@ -16,27 +18,13 @@ import java.awt.event.KeyEvent
  */
 internal fun rexKey(event: KeyEvent, repeat: Boolean): RexKey? {
     val name = keyName(event) ?: return null
-    val shift = event.isShiftDown
-    val control = event.isControlDown
-    val alt = event.isAltDown
-    val meta = event.isMetaDown
-    val mods = listOfNotNull(
-        "shift".takeIf { shift }, "ctrl".takeIf { control }, "alt".takeIf { alt }, "super".takeIf { meta },
-    ).joinToString("+")
-
-    val unshifted = UNSHIFTED[name] ?: 0
-    val char = event.keyChar
-    val printable = char != KeyEvent.CHAR_UNDEFINED && char.code >= 0x20 && char.code != 0x7F
-    // With a modifier held the key is a command, not text; the server encodes it from the key.
-    val text = if (printable && !control && !alt && !meta && event.id == KeyEvent.KEY_PRESSED) char.toString() else ""
-    val consumed = if (shift && text.isNotEmpty() && text[0].code != unshifted) "shift" else ""
-
-    val action = when {
-        event.id == KeyEvent.KEY_RELEASED -> RexKey.Action.Release
-        repeat -> RexKey.Action.Repeat
-        else -> RexKey.Action.Press
-    }
-    return RexKey(name, mods, consumed, text, unshifted, action)
+    return rexKeyNamed(
+        name,
+        typed = event.keyChar.takeIf { it != KeyEvent.CHAR_UNDEFINED },
+        pressed = event.id != KeyEvent.KEY_RELEASED,
+        repeat = repeat,
+        shift = event.isShiftDown, control = event.isControlDown, alt = event.isAltDown, meta = event.isMetaDown,
+    )
 }
 
 /**
@@ -45,23 +33,13 @@ internal fun rexKey(event: KeyEvent, repeat: Boolean): RexKey? {
  */
 internal fun keyChord(event: KeyEvent): KeyChord? {
     val name = keyName(event) ?: return null
-    val key = CHORD_KEYS[name]
-        ?: name.removePrefix("key_").takeIf { name.startsWith("key_") }
-        ?: name.removePrefix("digit_").takeIf { name.startsWith("digit_") }
-        ?: name.takeIf { it.matches(Regex("f\\d+")) }
-        ?: return null
-    return KeyChord(key, ctrl = event.isControlDown, alt = event.isAltDown, shift = event.isShiftDown, cmd = event.isMetaDown)
+    return keyChordNamed(name, shift = event.isShiftDown, control = event.isControlDown, alt = event.isAltDown, meta = event.isMetaDown)
 }
 
-/** How Rex spells the keys whose names differ from the ones the server takes in `client.key`. */
-private val CHORD_KEYS = mapOf(
-    "enter" to "enter", "tab" to "tab", "space" to "space", "escape" to "escape", "backspace" to "backspace",
-    "delete" to "delete", "insert" to "insert", "home" to "home", "end" to "end",
-    "page_up" to "pageup", "page_down" to "pagedown",
-    "arrow_up" to "up", "arrow_down" to "down", "arrow_left" to "left", "arrow_right" to "right",
-    "minus" to "-", "equal" to "=", "bracket_left" to "[", "bracket_right" to "]", "backslash" to "\\",
-    "semicolon" to ";", "quote" to "'", "backquote" to "`", "comma" to ",", "period" to ".", "slash" to "/",
-)
+/** The same, for the events Compose hands over: on the desktop each wraps one from the window toolkit. */
+internal actual fun rexKey(event: ComposeKeyEvent, repeat: Boolean): RexKey? = event.awtEventOrNull?.let { rexKey(it, repeat) }
+
+internal actual fun keyChord(event: ComposeKeyEvent): KeyChord? = event.awtEventOrNull?.let(::keyChord)
 
 private fun keyName(event: KeyEvent): String? {
     val code = event.keyCode
@@ -116,21 +94,3 @@ private val NAMES = mapOf(
     KeyEvent.VK_PAUSE to "pause",
     KeyEvent.VK_CONTEXT_MENU to "context_menu",
 )
-
-/** What each key types without shift, on a US layout. Bindings such as ctrl+n match on it. */
-private val UNSHIFTED: Map<String, Int> = buildMap {
-    for (letter in 'a'..'z') put("key_$letter", letter.code)
-    for (digit in '0'..'9') put("digit_$digit", digit.code)
-    put("space", ' '.code)
-    put("minus", '-'.code)
-    put("equal", '='.code)
-    put("bracket_left", '['.code)
-    put("bracket_right", ']'.code)
-    put("backslash", '\\'.code)
-    put("semicolon", ';'.code)
-    put("quote", '\''.code)
-    put("backquote", '`'.code)
-    put("comma", ','.code)
-    put("period", '.'.code)
-    put("slash", '/'.code)
-}

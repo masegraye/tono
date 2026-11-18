@@ -10,4 +10,5 @@ modules:
   - rexSpike
   - server
   - shared
+  - tono
   - webApp

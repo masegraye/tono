@@ -1,11 +1,10 @@
+# Tono for the desktop: a window around the app in //tono.
 product: jvm/app
 
 dependencies:
-  - //shared
-  - //rex
+  - //tono
   - $compose.material3
   - $compose.foundation
-  - $libs.compose.material.icons.core
   - $compose.desktop.currentOs
   - $compose.preview
   - $libs.kotlinx.coroutines.swing

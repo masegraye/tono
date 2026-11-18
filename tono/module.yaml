@@ -1,0 +1,26 @@
+# Tono's interface: the sidebar, terminals, palette and dialogs, for the desktop and the web.
+#
+# src        the app
+# src@jvm    what the desktop supplies: key codes, the clipboard, tooltips, sound players
+# src@wasmJs the same in a browser
+product:
+  type: kmp/lib
+  platforms: [jvm, wasmJs]
+
+dependencies:
+  - //shared: exported
+  - //rex: exported
+  - $compose.runtime
+  - $compose.foundation
+  - $compose.material3
+  - $compose.ui
+  - $libs.compose.material.icons.core
+
+settings:
+  compose: enabled
+  kotlin:
+    freeCompilerArgs: [-Xexpect-actual-classes]
+
+# Skia, to draw with, for the tests that run on the desktop
+test-dependencies@jvm:
+  - $compose.desktop.currentOs

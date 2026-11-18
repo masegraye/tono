@@ -20,9 +20,14 @@ fun main() {
     require(webDir == null || webDir.isDirectory) { "WEB_DIR is not a directory: $webDir" }
 
     embeddedServer(Netty, port = port, host = host) {
+        // Only this machine and its tailnet, whatever HOST says: see TailnetOnly.kt.
+        tailnetOnly()
         // /api/theme and /api/theme/events: tells the web app how the desktop is themed,
         // and pushes every change. From the omarchy-theme-ktor library.
         omarchyThemeApi()
+        // For Tono in the browser: its connections to Rex servers, and what a page can't fetch itself.
+        tonoRelay()
+        tonoAssets()
         webApp(webDir)
     }.start(wait = true)
 }

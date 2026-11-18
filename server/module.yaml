@@ -1,10 +1,16 @@
-# Serves the web app and tells it, live, how the desktop is themed.
+# Serves the web app and what it can't get for itself: how the desktop is themed, and, for
+# Tono, connections to Rex servers, the terminal library, the desktop's font and sounds.
 product: jvm/app
 
 dependencies:
   - //omarchy-theme-ktor
+  - //rex
   - $ktor.server.core
   - $ktor.server.netty
+  - $ktor.server.websockets
+  - $ktor.client.core
+  - $ktor.client.cio
+  - $ktor.client.websockets
   - $libs.logback.classic
 
 settings:

@@ -11,10 +11,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.awt.awtEventOrNull
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -35,6 +35,9 @@ import org.jetbrains.skia.Image as SkiaImage
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -72,8 +75,6 @@ import org.example.kotlintest.ghostty.TerminalRun
 import org.example.kotlintest.rex.GridSize
 import org.example.kotlintest.rex.RexKey
 import org.example.kotlintest.rex.TerminalSession
-import java.awt.event.KeyEvent
-import java.util.IdentityHashMap
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -101,7 +102,7 @@ fun TerminalView(
     focusRequests: Int = 0,
 ) {
     val frame by terminal.frame.collectAsState()
-    val fontFamily = MaterialTheme.typography.bodyMedium.fontFamily ?: FontFamily.Monospace
+    val fontFamily = LocalTerminalFont.current ?: MaterialTheme.typography.bodyMedium.fontFamily ?: FontFamily.Monospace
     val style = remember(fontFamily, fontSize) { TextStyle(fontFamily = fontFamily, fontSize = fontSize) }
     val measurer = rememberTextMeasurer(cacheSize = 0) // rows are cached below, by identity
     val cell = remember(style, measurer) { measureCell(measurer, style) }
@@ -149,7 +150,7 @@ fun TerminalView(
     val focusRequester = remember { FocusRequester() }
     var hasKeyboard by remember { mutableStateOf(false) }
     LaunchedEffect(focused, focusRequests) { if (focused) focusRequester.requestFocus() }
-    val keysDown = remember { HashSet<Int>() }
+    val keysDown = remember { HashSet<Long>() }
 
     Canvas(
         modifier
@@ -161,13 +162,12 @@ fun TerminalView(
             .focusable()
             // Preview, so that Tab and the arrow keys reach the terminal instead of moving focus.
             .onPreviewKeyEvent { event ->
-                val awt = event.awtEventOrNull ?: return@onPreviewKeyEvent false
-                val repeat = when (awt.id) {
-                    KeyEvent.KEY_PRESSED -> !keysDown.add(awt.keyCode)
-                    KeyEvent.KEY_RELEASED -> { keysDown.remove(awt.keyCode); false }
+                val repeat = when (event.type) {
+                    KeyEventType.KeyDown -> !keysDown.add(event.key.keyCode)
+                    KeyEventType.KeyUp -> { keysDown.remove(event.key.keyCode); false }
                     else -> return@onPreviewKeyEvent false
                 }
-                val key = rexKey(awt, repeat) ?: return@onPreviewKeyEvent false
+                val key = rexKey(event, repeat) ?: return@onPreviewKeyEvent false
                 onKey(key)
                 true
             }
@@ -222,12 +222,12 @@ private fun measureCell(measurer: TextMeasurer, style: TextStyle): CellSize {
 
 /** The laid-out text of each row on screen. A row object is reused while its content is unchanged, so its layout is too. */
 private class RowLayouts {
-    private var cache = IdentityHashMap<TerminalRow, List<TextLayoutResult?>>()
+    private var cache = HashMap<TerminalRow, List<TextLayoutResult?>>()
 
     /** Forgets rows that are no longer on screen. */
     fun retain(rows: List<TerminalRow>) {
         if (cache.size <= rows.size) return
-        val kept = IdentityHashMap<TerminalRow, List<TextLayoutResult?>>()
+        val kept = HashMap<TerminalRow, List<TextLayoutResult?>>()
         for (row in rows) cache[row]?.let { kept[row] = it }
         cache = kept
     }
@@ -284,7 +284,7 @@ private const val SCROLL_ROWS_PER_NOTCH = 3f
  * An image object stands for one version of one image, so it is the key.
  */
 private class Pictures {
-    private var made = IdentityHashMap<TerminalImage, ImageBitmap>()
+    private var made = HashMap<TerminalImage, ImageBitmap>()
 
     fun of(image: TerminalImage): ImageBitmap = made.getOrPut(image) {
         val info = ImageInfo(image.width, image.height, ColorType.RGBA_8888, ColorAlphaType.UNPREMUL)
@@ -294,7 +294,7 @@ private class Pictures {
     /** Forgets the bitmaps of images that are no longer shown. */
     fun retain(shown: List<TerminalImagePlacement>) {
         if (made.isEmpty()) return
-        val kept = IdentityHashMap<TerminalImage, ImageBitmap>()
+        val kept = HashMap<TerminalImage, ImageBitmap>()
         for (placement in shown) made[placement.image]?.let { kept[placement.image] = it }
         made = kept
     }
@@ -329,3 +329,11 @@ private fun mouseButton(button: PointerButton?): MouseButton? = when (button) {
     PointerButton.Tertiary -> MouseButton.Middle
     else -> null
 }
+
+/**
+ * The font terminals are drawn in, when it isn't the theme's. A terminal is a grid, so it
+ * needs a font whose characters are all one width; the desktop's theme has one, and where
+ * the theme can't supply it (a browser with no desktop to ask) the app provides one here.
+ */
+val LocalTerminalFont = staticCompositionLocalOf<FontFamily?> { null }
+

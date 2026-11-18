@@ -54,7 +54,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -64,10 +63,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.awt.awtEventOrNull
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.runtime.rememberCoroutineScope
+import org.example.kotlintest.rex.nowMillis
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -88,11 +91,6 @@ import org.example.kotlintest.rex.SessionView
 import org.example.kotlintest.rex.TerminalSession
 import org.example.kotlintest.rex.TabName
 import org.example.kotlintest.rex.WindowView
-import java.awt.AWTEvent
-import java.awt.Toolkit
-import java.awt.event.AWTEventListener
-import java.awt.event.KeyEvent
-import java.awt.event.WindowEvent
 import kotlin.math.abs
 
 /**
@@ -121,35 +119,27 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
     // Shortcuts are looked up here, above everything, so they work wherever the keyboard is.
     // A key that isn't a shortcut carries on down to the focused terminal.
     val rootFocus = remember { FocusRequester() }
-    val shortcutKeysDown = remember { HashSet<Int>() }
+    val shortcutKeysDown = remember { HashSet<Long>() }
     LaunchedEffect(Unit) { rootFocus.requestFocus() }
 
     // Whether Control is down, for the sidebar's shortcut digits. Watched for the whole
     // window rather than through focus, so that it is right whatever has the keyboard, and
     // dropped when the window loses focus, since the release would then never be seen.
-    DisposableEffect(ui) {
-        val listener = AWTEventListener { event ->
-            when (event) {
-                is KeyEvent -> ui.controlHeld = event.isControlDown
-                is WindowEvent -> if (event.id == WindowEvent.WINDOW_LOST_FOCUS || event.id == WindowEvent.WINDOW_DEACTIVATED) ui.controlHeld = false
-            }
-        }
-        Toolkit.getDefaultToolkit().addAWTEventListener(listener, AWTEvent.KEY_EVENT_MASK or AWTEvent.WINDOW_EVENT_MASK or AWTEvent.WINDOW_FOCUS_EVENT_MASK)
-        onDispose { Toolkit.getDefaultToolkit().removeAWTEventListener(listener) }
-    }
+    WatchControlKey { ui.controlHeld = it }
+    // Things an action starts and doesn't wait for, such as reading the clipboard.
+    ui.scope = rememberCoroutineScope()
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(
             Modifier.fillMaxSize().focusRequester(rootFocus).focusable().onPreviewKeyEvent { event ->
-                val awt = event.awtEventOrNull ?: return@onPreviewKeyEvent false
                 if (ui.palette != null || ui.renaming != null) return@onPreviewKeyEvent false // an overlay has the keyboard
-                when (awt.id) {
-                    KeyEvent.KEY_PRESSED -> {
-                        val chord = keyChord(awt) ?: return@onPreviewKeyEvent false
-                        commands.handleKey(chord).also { if (it) shortcutKeysDown += awt.keyCode }
+                when (event.type) {
+                    KeyEventType.KeyDown -> {
+                        val chord = keyChord(event) ?: return@onPreviewKeyEvent false
+                        commands.handleKey(chord).also { if (it) shortcutKeysDown += event.key.keyCode }
                     }
                     // The release of a key whose press was a shortcut isn't the terminal's either.
-                    KeyEvent.KEY_RELEASED -> shortcutKeysDown.remove(awt.keyCode)
+                    KeyEventType.KeyUp -> shortcutKeysDown.remove(event.key.keyCode)
                     else -> false
                 }
             },
@@ -348,7 +338,7 @@ private fun SessionTabs(
                 // to it at once: waiting to see whether a second follows would make every
                 // switch feel slow.
                 onClick = {
-                    val now = System.currentTimeMillis()
+                    val now = nowMillis()
                     val again = lastClick?.let { (clicked, at) -> clicked == tab.id && now - at < DOUBLE_CLICK_MILLIS } == true
                     lastClick = if (again) null else tab.id to now
                     if (again) ui.renameTab(host, sessionId, tab) else ui.go(stop)

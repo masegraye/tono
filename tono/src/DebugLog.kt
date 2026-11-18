@@ -24,9 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.example.kotlintest.rex.RexLog
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 /**
  * A panel along the bottom of the window showing what the client has been doing: its
@@ -53,7 +50,7 @@ fun DebugLogPanel(log: RexLog, shortcut: String?, onClose: () -> Unit) {
                 items(entries) { entry ->
                     Row {
                         Text(
-                            TIME.format(Instant.ofEpochMilli(entry.timeMillis)),
+                            clockTime(entry.timeMillis),
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                             color = MaterialTheme.colorScheme.outline,
                         )
@@ -74,5 +71,3 @@ fun DebugLogPanel(log: RexLog, shortcut: String?, onClose: () -> Unit) {
         }
     }
 }
-
-private val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS").withZone(ZoneId.systemDefault())

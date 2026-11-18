@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CoroutineScope
 import org.example.kotlintest.rex.ActivityState
 import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.HostState
@@ -66,6 +67,9 @@ class RexUiState(val client: RexClient) {
 
     /** Plays the sounds. Set once the app's window exists. */
     var sounds: Sounds? = null
+
+    /** Where actions start work they don't wait for. Set once the app's window exists. */
+    var scope: CoroutineScope? = null
 
     fun setSounds(enabled: Boolean) {
         soundsEnabled = enabled
@@ -193,7 +197,7 @@ class RexUiState(val client: RexClient) {
         val current = all.indexOfFirst { it.host == here && it.sessionId == hostState?.selectedSessionId && isHere(it) }
         val next = when {
             current < 0 -> if (forward) 0 else all.lastIndex
-            else -> Math.floorMod(current + if (forward) 1 else -1, all.size)
+            else -> (current + if (forward) 1 else -1).mod(all.size)
         }
         go(all[next])
     }

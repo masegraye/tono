@@ -1,9 +1,6 @@
 package org.example.kotlintest
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.TooltipArea
-import androidx.compose.foundation.TooltipPlacement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -27,7 +24,6 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 
 /**
@@ -36,12 +32,11 @@ import androidx.compose.ui.unit.dp
  *
  * @param active true while the thing it switches is on, which tints it
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ToolbarButton(description: String, shortcut: String?, onClick: () -> Unit, active: Boolean = false, icon: @Composable (tint: Color) -> Unit) {
     val colors = MaterialTheme.colorScheme
-    TooltipArea(
-        tooltip = {
+    Tooltip(
+        tip = {
             Surface(color = colors.surfaceContainerHighest, shape = MaterialTheme.shapes.extraSmall, shadowElevation = 4.dp) {
                 Row(Modifier.padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(description, style = MaterialTheme.typography.labelMedium)
@@ -49,8 +44,6 @@ fun ToolbarButton(description: String, shortcut: String?, onClick: () -> Unit, a
                 }
             }
         },
-        delayMillis = 500,
-        tooltipPlacement = TooltipPlacement.CursorPoint(offset = DpOffset(0.dp, 18.dp)),
     ) {
         Box(
             contentAlignment = Alignment.Center,

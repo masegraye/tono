@@ -1,8 +1,16 @@
+# Tono in a browser: the app in //tono, on a page. The server module serves it, with the
+# connections and files a page can't get for itself.
 product: wasm-js/app
 
 dependencies:
-  - //shared
+  - //tono
+  - $compose.runtime
+  - $compose.foundation
+  - $compose.material3
   - $compose.ui
+  - $ktor.client.core
+  - $libs.ktor.client.js
 
 settings:
   compose: enabled
+  ktor: enabled

@@ -6,12 +6,11 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.example.kotlintest.rex.ActivityState
+import kotlinx.coroutines.launch
 import org.example.kotlintest.rex.KeyBinding
 import org.example.kotlintest.rex.KeyChord
 import org.example.kotlintest.rex.RexAction
 import org.example.kotlintest.rex.SplitDirection
-import java.awt.Toolkit
-import java.awt.datatransfer.DataFlavor
 
 /**
  * Something this app can do by name. Names, titles and categories are the ones Rex.app
@@ -235,7 +234,9 @@ internal fun clientActions(): List<ClientAction> = buildList {
     })
     add(ClientAction("pane.paste", "Paste into Pane", "Pane", "clipboard insert", keys = listOf("ctrl+shift+v"), available = hasTerminal) {
         val blockId = focusedBlockId ?: return@ClientAction
-        clipboardText()?.let { host?.paste(blockId, it) }
+        val owner = host ?: return@ClientAction
+        // A browser hands the clipboard over only when it is ready to, so this doesn't wait.
+        scope?.launch { clipboardText()?.takeIf { it.isNotEmpty() }?.let { owner.paste(blockId, it) } }
     })
     add(ClientAction("client.scroll.page_up", "Scroll Page Up", "Pane", "history scrollback", keys = listOf("shift+pageup"), available = hasTerminal) {
         focusedTerminal?.let { terminal -> terminal.scroll(-((terminal.grid.value?.rows ?: 24) - 1)) }
@@ -281,7 +282,3 @@ internal fun clientActions(): List<ClientAction> = buildList {
         debugLogVisible = !debugLogVisible
     })
 }
-
-private fun clipboardText(): String? = runCatching {
-    Toolkit.getDefaultToolkit().systemClipboard.getData(DataFlavor.stringFlavor) as? String
-}.getOrNull()?.takeIf { it.isNotEmpty() }
