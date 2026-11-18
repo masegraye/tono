@@ -149,8 +149,8 @@ When it starts it connects to every configured server at once and restores where
   while it works, steady in the accent color while it waits for you, and in the error color after a failure. A
   folded server or session shows the dots for whatever is inside it.
 - A sound plays when a program in a tab you aren't looking at starts waiting for you, fails, or finishes: the
-  desktop's own warning, error and completion sounds, through `canberra-gtk-play`, `pw-play` or `paplay`, whichever
-  is installed. The tab on screen stays quiet while the window has focus. A burst of news makes one sound, the most
+  desktop's own warning, error and completion sounds, played with `mpv` as Omarchy plays its own, or failing that
+  `canberra-gtk-play`, `pw-play` or `paplay`. They come out of whatever the desktop's current audio output is. The tab on screen stays quiet while the window has focus. A burst of news makes one sound, the most
   pressing. Play Activity Sounds in the palette turns them off and on; the setting is remembered.
 - A dropped connection is retried, and everything is read again when it comes back.
 

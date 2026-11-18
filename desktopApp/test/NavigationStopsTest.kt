@@ -184,7 +184,13 @@ class SoundsTest {
     fun `the sound is played by whichever player is installed`() {
         val file = java.nio.file.Path.of("/usr/share/sounds/freedesktop/stereo/complete.oga")
         fun programs(vararg installed: String) = { name: String -> if (name in installed) java.nio.file.Path.of("/usr/bin/$name") else null }
+        assertEquals(
+            listOf("/usr/bin/mpv", "--no-video", "--no-terminal", "--really-quiet", file.toString()),
+            soundCommand("complete", programs("mpv", "canberra-gtk-play", "pw-play")) { file },
+            "mpv first, as Omarchy plays its own sounds",
+        )
         assertEquals(listOf("/usr/bin/canberra-gtk-play", "-i", "complete"), soundCommand("complete", programs("canberra-gtk-play", "pw-play")) { file })
+        assertEquals(listOf("/usr/bin/canberra-gtk-play", "-i", "complete"), soundCommand("complete", programs("mpv", "canberra-gtk-play")) { null }, "it finds the theme itself")
         assertEquals(listOf("/usr/bin/pw-play", file.toString()), soundCommand("complete", programs("pw-play", "paplay")) { file })
         assertEquals(listOf("/usr/bin/paplay", file.toString()), soundCommand("complete", programs("paplay")) { file })
         assertEquals(null, soundCommand("complete", programs("paplay")) { null }, "a player that needs a file, and no file")

@@ -51,14 +51,17 @@ internal class SoundGate(private val gatherMillis: Long = 100, private val quiet
 
 /**
  * The command that plays a sound from the desktop's sound theme, using whichever player is
- * installed: libcanberra's, which knows the theme by name, or PipeWire's or PulseAudio's,
- * which are given the theme's file. Null if there is no player, or no such sound for it.
+ * installed. mpv comes first: it is what Omarchy itself plays its sounds with (see its
+ * low-battery hook), so it is there on every Omarchy desktop and is treated by the sound
+ * server as any other program. Then libcanberra's player, which knows the theme by name,
+ * then PipeWire's and PulseAudio's. Null if there is no player, or no such sound for it.
  */
 internal fun soundCommand(id: String, program: (String) -> Path?, soundFile: (String) -> Path?): List<String>? {
+    val file = soundFile(id)
+    if (file != null) program("mpv")?.let { return listOf(it.toString(), "--no-video", "--no-terminal", "--really-quiet", file.toString()) }
     program("canberra-gtk-play")?.let { return listOf(it.toString(), "-i", id) }
-    val file = soundFile(id) ?: return null
     val player = program("pw-play") ?: program("paplay") ?: return null
-    return listOf(player.toString(), file.toString())
+    return file?.let { listOf(player.toString(), it.toString()) }
 }
 
 /** Plays a sound when a program in a tab you aren't looking at wants you, fails, or finishes. */
@@ -77,7 +80,7 @@ class Sounds(private val scope: CoroutineScope, private val log: (message: Strin
     private fun play(id: String) {
         val command = soundCommand(id, ::findProgram, ::findSound)
         if (command == null) {
-            log("no way to play $id: install libcanberra, or the freedesktop sound theme with PipeWire or PulseAudio", true)
+            log("no way to play $id: it needs mpv, libcanberra, PipeWire or PulseAudio, and the freedesktop sound theme", true)
             return
         }
         runCatching {
