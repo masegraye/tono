@@ -21,3 +21,9 @@ signal: do NOT tail/grep the run log or write sleep loops. If startup fails, che
 `get_logs` tool.
 
 Once connected, edit the UI and apply changes with MCP `reload` (or `await_reload` if `buildContinuous: true`).
+
+## Tracking work
+
+[agent-workspace](./agent-workspace/readme.md) is where work on Tono is tracked: the backlog of what it could do and
+doesn't yet, investigations, specs and decisions. Read its readme, and its rules for agents, before starting.
+
