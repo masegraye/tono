@@ -62,3 +62,4 @@ The order proposed in inv-001, not yet agreed:
 | 032 | [A tab in a window of its own](backlog-032-pop-out-tab-windows.md) | Shipping | medium | captured (on hold: not wanted yet) |
 | 033 | [Publish the Omarchy theme libraries](backlog-033-publish-the-theme-libraries.md) | Shipping | medium | captured (on hold: shelved) |
 | 034 | [The web app may not notice that it lost focus](backlog-034-the-web-app-may-not-notice-losing-focus.md) | The web app | small | captured |
+| 035 | [Going back to a tab shouldn't wait for it to load again](backlog-035-keep-recent-terminals-open.md) | Reading a terminal | medium | captured |
