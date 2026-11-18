@@ -49,6 +49,8 @@ internal actual suspend fun setClipboardText(text: String): String? = runCatchin
     Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
 }.exceptionOrNull()?.let { it.message ?: it::class.simpleName ?: "the clipboard refused" }
 
+internal actual fun pageHasFocus(): Boolean = true
+
 internal actual fun clockTime(millis: Long): String = TIME.format(Instant.ofEpochMilli(millis))
 
 private val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS").withZone(ZoneId.systemDefault())

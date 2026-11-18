@@ -124,11 +124,12 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
 
     // What a program copies in the terminal in use goes on this machine's clipboard. Only the
     // newest counts: one that arrives while the last is still being written takes its place.
+    // Whether the terminal is in use is asked here, at the last moment; see takesCopy.
     val focusedNow by rememberUpdatedState(windowFocused)
     LaunchedEffect(ui) {
         ui.client.programCopies.collectLatest { copy ->
-            if (!ui.takes(copy, focusedNow)) {
-                ui.client.log.add("clipboard", "ignored a copy: its terminal is no longer the one in use")
+            if (!ui.takes(copy, focusedNow && pageHasFocus())) {
+                ui.client.log.add("clipboard", "ignored a program's copy: its terminal isn't the one in use")
                 return@collectLatest
             }
             val refusal = setClipboardText(copy.text)

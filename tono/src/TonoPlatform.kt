@@ -41,6 +41,14 @@ internal expect suspend fun clipboardText(): String?
  */
 internal expect suspend fun setClipboardText(text: String): String?
 
+/**
+ * Whether the page the app runs in has the browser's focus. In Chromium the app was seen to
+ * go on being told its window was focused after another page had come in front of it, so
+ * the page itself is asked. True on the desktop, where there is no page and the window's
+ * own focus is the whole answer.
+ */
+internal expect fun pageHasFocus(): Boolean
+
 /** A moment as the time of day, to the millisecond, for the debug log. */
 internal expect fun clockTime(millis: Long): String
 

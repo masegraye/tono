@@ -164,6 +164,8 @@ private fun writeClipboard(text: String): Promise<JsAny?> = js(
 internal actual suspend fun setClipboardText(text: String): String? =
     runCatching { (writeClipboard(text).await<JsAny?>() as? JsString)?.toString() }.getOrElse { "the browser refused" }
 
+internal actual fun pageHasFocus(): Boolean = js("document.hasFocus()")
+
 private fun timeOfDay(millis: Double): String =
     js("(() => { const d = new Date(millis); return d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0'); })()")
 

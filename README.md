@@ -165,11 +165,12 @@ a phone's keyboard lacks appears over it: Escape, Tab, Control (which goes with 
 
 #### What has been tried, and what hasn't
 
-Tried in Chromium on this machine: terminals, images, the palette, tooltips, paste, sounds, renaming and dragging
-tabs, the mouse in programs that track it, reconnecting, the keys above in a real window (a tab, an app window and
-full screen), and the phone layout and its typing in Chromium's emulation of a phone. In Firefox: loading, typing,
-the palette and images. Not tried: Safari, which the tools here couldn't run, and any real phone or tablet. On those,
-expect the keyboard to be where it goes wrong first. The sounds are Ogg files, which older Safari versions don't play.
+Tried in Chromium on this machine: terminals, images, the palette, tooltips, paste, a program copying to the
+clipboard, sounds, renaming and dragging tabs, the mouse in programs that track it, reconnecting, the keys above in
+a real window (a tab, an app window and full screen), and the phone layout and its typing in Chromium's emulation
+of a phone. In Firefox: loading, typing, the palette and images. Not tried: Safari, which the tools here couldn't
+run, and any real phone or tablet. On those, expect the keyboard to be where it goes wrong first. The sounds are
+Ogg files, which older Safari versions don't play.
 
 ### Tono, the Rex client
 
@@ -321,11 +322,20 @@ How it is put together:
   libghostty-vt keeps; its mouse encoder turns each click, drag, movement and wheel notch into the report the
   program asked for, by cell, or into nothing if it didn't ask. Over a program that isn't tracking, the wheel scrolls
   the terminal's own history. A click claims the terminal as a key press does; passing over it doesn't.
+- **Copying.** A program can put text on this machine's clipboard by writing OSC 52, as Neovim does when it yanks
+  to the clipboard, and tmux, and the copy button of an agent. The server passes the text on (`clipboard_written`)
+  and the app puts it on the clipboard, on the desktop and in a browser. Only the terminal in use may do this: the
+  pane with the keyboard, in the tab on screen, while the window has focus and neither the palette nor a dialog is
+  open. A copy from anywhere else is dropped, so a program out of sight can't replace what you were about to paste.
+  Text over 8 MiB is refused, and of several copies at once the last is the one kept. A program's request to read
+  the clipboard is never answered, so nothing a program prints can get at what you have copied. A browser lets a
+  page write to the clipboard only when it is served securely (localhost counts) and has focus, and some browsers
+  only just after a key press or a click; when one refuses, the debug log says so.
 - **Actions.** [RexActions.kt](./desktopApp/src/RexActions.kt) is the table of what the app can do and its default keys.
 
-Not there yet: text selection and copy, SSH hosts, resuming a terminal's stream after a drop (it is
-reopened from a new snapshot instead), floating layers drawn as windows, animated images, key sequences and modes in the
-keymap, and performing actions for other clients (`rex -C … do`). Keys are named for a US layout, so on other layouts
+Not there yet: selecting text with the mouse and copying it, SSH hosts, resuming a terminal's stream after a drop
+(it is reopened from a new snapshot instead), floating layers drawn as windows, animated images, key sequences and
+modes in the keymap, and performing actions for other clients (`rex -C … do`). Keys are named for a US layout, so on other layouts
 some shortcuts may be read as the wrong key; the text typed is still right.
 
 ### Testing
