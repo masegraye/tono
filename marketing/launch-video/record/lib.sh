@@ -75,10 +75,15 @@ shell_run() { rex send -s launch-day -b "$(block_of "$1")" "$2" >/dev/null; shel
 # The pane that has the keyboard in a tab, which after a split is the new one.
 focused_of() { rex window ls -s launch-day --json | jq -r --arg w "$(cat "$DEMO/win-$1")" '.windows[] | select(.window_id == $w) | .focused_block_id'; }
 
+# No notification may land on a take, the recorder's own "saved" included, so they are held
+# for as long as a script that records is running.
+quiet_on() { makoctl mode -a do-not-disturb >/dev/null 2>&1; }
+quiet_off() { makoctl mode -r do-not-disturb >/dev/null 2>&1; makoctl dismiss -a >/dev/null 2>&1; }
+
 # rec_start NAME ... rec_stop: one take, saved as $TAKES/NAME.mp4.
 rec_start() {
   TAKE=$1
-  makoctl mode -a do-not-disturb >/dev/null 2>&1   # no notification over the picture
+  makoctl dismiss -a >/dev/null 2>&1               # nothing left over the picture
   focus_tono
   cursor_away
   OMARCHY_SCREENRECORD_DIR=$TAKES omarchy screenrecord --fullscreen >/dev/null 2>&1 &
@@ -89,7 +94,6 @@ rec_stop() {
   local saved
   saved=$(OMARCHY_SCREENRECORD_DIR=$TAKES omarchy screenrecord --stop-recording 2>/dev/null | tail -1)
   sleep 0.5
-  makoctl mode -r do-not-disturb >/dev/null 2>&1
   # The recorder names its file by the time; the newest one is this take.
   local newest
   newest=$(find "$TAKES" -maxdepth 1 -name 'screenrecording-*.mp4' -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-)

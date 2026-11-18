@@ -9,7 +9,13 @@ sid=$(rex ls --json | jq -r '.sessions[] | select(.label == "launch-day") | .ses
 scene_tabs() {
   key ctrl+1; sleep 1
   rec_start tabs; sleep 0.9
-  tabs_by_number 1.0 2 5 6 3
+  # A tab on another machine takes a moment to open its terminal; the film cuts past that.
+  key_state "" Control_L down; sleep 0.8
+  for step in "2 1.1" "5 2.8" "6 2.8" "3 1.1"; do
+    set -- $step
+    key_state CTRL "$1" down; sleep 0.05; key_state CTRL "$1" up; sleep "$2"
+  done
+  key_state "" Control_L up
   sleep 0.9
   rec_stop
 }
@@ -34,7 +40,7 @@ scene_palette() {
   type_text split 0.1; sleep 1.0
   key Return; sleep 1.3
   local right; right=$(focused_of shell)
-  shell_type "$right" btop 0.07; shell_enter "$right"; sleep 1.5
+  shell_type "$right" lazygit 0.07; shell_enter "$right"; sleep 1.6
   key ctrl+alt+d; sleep 1.2
   local below; below=$(focused_of shell)
   shell_type "$below" fastfetch 0.06; shell_enter "$below"; sleep 1.8
@@ -70,6 +76,8 @@ scene_theme() {
   rec_stop
 }
 
+quiet_on
+trap quiet_off EXIT
 for scene in "$@"; do
   echo "== $scene"
   "scene_$scene"
