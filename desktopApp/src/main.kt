@@ -54,7 +54,7 @@ fun main(args: Array<String>) {
                 connections.cancel()
                 exitApplication()
             },
-            title = "Rex",
+            title = "Omre",
             state = rememberWindowState(size = DpSize(1280.dp, 820.dp)),
         ) {
             // Renders at the Hyprland monitor's scale, which the JVM doesn't see under XWayland.
@@ -84,7 +84,7 @@ private fun Showcase(onBack: () -> Unit) {
         App()
         OmarchyTheme {
             FilledTonalButton(onClick = onBack, modifier = Modifier.align(Alignment.BottomStart).padding(16.dp)) {
-                Text("Back to Rex")
+                Text("Back to Omre")
             }
         }
     }

@@ -17,16 +17,16 @@ tasks:
     cmds:
       - '{{.TASK_EXE}} --list'
 
-  # --- The Rex client ---
+  # --- Omre, the desktop app ---
 
   desktop:
-    desc: Run the Rex client with Compose Hot Reload (options go after --, such as -- --workspace FILE)
+    desc: Run Omre with Compose Hot Reload (options go after --, such as -- --workspace FILE)
     deps: [native]
     cmds:
       - ./kotlin run -m desktopApp {{.NATIVE_ACCESS}} -- {{.CLI_ARGS}}
 
   desktop:steady:
-    desc: Run the Rex client without Hot Reload, so that building doesn't change the app you are using
+    desc: Run Omre without Hot Reload, so that building doesn't change the app you are using
     deps: [native]
     cmds:
       - ./kotlin run -m desktopApp --no-compose-hot-reload {{.NATIVE_ACCESS}} -- {{.CLI_ARGS}}

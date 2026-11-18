@@ -40,7 +40,7 @@ A fresh clone builds as it is: every module it depends on is in this repository.
 Run each module from the command line:
 
 - Android app: `./kotlin run -m androidApp`
-- Desktop app: `task desktop` (it needs the native library; see [Rex client](#rex-client))
+- Desktop app: `task desktop` (it needs the native library; see [Omre](#omre-the-rex-client))
 - iOS app: `./kotlin run -m iosApp`
 - Web app: `./kotlin run -m webApp` (static files only), or `task web` to serve it from the server module with
   live theming
@@ -89,7 +89,7 @@ The tasks are in [Taskfile.yml](./Taskfile.yml) (`task` lists them):
   involved at runtime. The server reads `WEB_DIR`, `HOST` (default `127.0.0.1`) and `PORT` (default `8080`) from the
   environment.
 
-### Rex client
+### Omre, the Rex client
 
 The desktop app is a Linux client for [Rex](https://www.superlogical.com/rex), which keeps terminals running on a server
 and lets clients attach to them. It is desktop-only; the other targets still show the UI showcase, which the desktop
