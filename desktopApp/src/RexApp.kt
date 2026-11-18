@@ -104,6 +104,13 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
     val windowFocused = LocalWindowInfo.current.isWindowFocused
     LaunchedEffect(windowFocused) { ui.client.setWindowFocused(windowFocused) }
 
+    // A sound for what programs in tabs out of view have just done, if sounds are on.
+    LaunchedEffect(ui) {
+        val player = Sounds(this) { message, isError -> ui.client.log.add("sound", message, isError = isError) }
+        ui.sounds = player
+        ui.client.activityNews.collect { if (ui.soundsEnabled) player.request(it) }
+    }
+
     // Shortcuts are looked up here, above everything, so they work wherever the keyboard is.
     // A key that isn't a shortcut carries on down to the focused terminal.
     val rootFocus = remember { FocusRequester() }

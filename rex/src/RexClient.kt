@@ -11,7 +11,10 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
@@ -71,6 +74,14 @@ class RexClient(
 
     /** What each key does. Starts as the app's defaults, then follows the home server's configuration. */
     val keymap: StateFlow<Keymap> get() = mutableKeymap
+
+    private val mutableActivityNews = MutableSharedFlow<ActivityState>(extraBufferCapacity = 16, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /**
+     * What programs in tabs nobody is looking at have just done that someone would want to
+     * know: started waiting for them, failed, or finished. On any host.
+     */
+    val activityNews: SharedFlow<ActivityState> get() = mutableActivityNews
 
     val hosts: StateFlow<List<RexHost>> get() = mutableHosts
     /** The label of the host being shown. */
@@ -266,6 +277,7 @@ class RexClient(
             workspace.sessions[saved.label] = sessionId
             workspace.save()
         },
+        onActivityNews = { _, state -> mutableActivityNews.tryEmit(state) },
         rememberedTabs = workspace.tabs.toMap(),
         onTabShown = { sessionId, windowId ->
             val before = workspace.tabs[sessionId]

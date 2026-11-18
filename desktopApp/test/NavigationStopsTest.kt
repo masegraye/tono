@@ -1,5 +1,6 @@
 package org.example.kotlintest
 
+import org.example.kotlintest.rex.ActivityState
 import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.HostState
 import org.example.kotlintest.rex.SessionSummary
@@ -148,3 +149,46 @@ class ReorderTest {
         assertEquals(emptyList<Pair<String, String?>>(), moves)
     }
 }
+
+class SoundsTest {
+    @Test
+    fun `a burst of news makes one sound, the most pressing`() {
+        val gate = SoundGate(gatherMillis = 100, quietMillis = 1_000)
+        assertEquals(true, gate.offer(ActivityState.Done, 0), "the first starts a burst")
+        assertEquals(false, gate.offer(ActivityState.Blocked, 40), "the rest join it")
+        assertEquals(false, gate.offer(ActivityState.Error, 80))
+        assertEquals(ActivityState.Blocked, gate.take(), "waiting for you outranks an error, which outranks done")
+        assertEquals(null, gate.take())
+    }
+
+    @Test
+    fun `news that arrives while a sound is playing is dropped, not played late`() {
+        val gate = SoundGate(gatherMillis = 100, quietMillis = 1_000)
+        gate.offer(ActivityState.Done, 0)
+        assertEquals(ActivityState.Done, gate.take())
+        assertEquals(false, gate.offer(ActivityState.Error, 500))
+        assertEquals(null, gate.take())
+        assertEquals(true, gate.offer(ActivityState.Done, 1_000), "after a second, the next one is heard")
+    }
+
+    @Test
+    fun `only waiting, failing and finishing have a sound`() {
+        assertEquals("dialog-warning", soundFor(ActivityState.Blocked))
+        assertEquals("dialog-error", soundFor(ActivityState.Error))
+        assertEquals("complete", soundFor(ActivityState.Done))
+        assertEquals(null, soundFor(ActivityState.Working))
+        assertEquals(null, soundFor(ActivityState.Idle))
+    }
+
+    @Test
+    fun `the sound is played by whichever player is installed`() {
+        val file = java.nio.file.Path.of("/usr/share/sounds/freedesktop/stereo/complete.oga")
+        fun programs(vararg installed: String) = { name: String -> if (name in installed) java.nio.file.Path.of("/usr/bin/$name") else null }
+        assertEquals(listOf("/usr/bin/canberra-gtk-play", "-i", "complete"), soundCommand("complete", programs("canberra-gtk-play", "pw-play")) { file })
+        assertEquals(listOf("/usr/bin/pw-play", file.toString()), soundCommand("complete", programs("pw-play", "paplay")) { file })
+        assertEquals(listOf("/usr/bin/paplay", file.toString()), soundCommand("complete", programs("paplay")) { file })
+        assertEquals(null, soundCommand("complete", programs("paplay")) { null }, "a player that needs a file, and no file")
+        assertEquals(null, soundCommand("complete", programs()) { file })
+    }
+}
+

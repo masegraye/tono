@@ -142,9 +142,16 @@ When it starts it connects to every configured server at once and restores where
   placeholder is each client's choice, made here from the process the server reports for the terminal. Naming a tab
   (Rename Tab… in the palette, or a double click on it) sets that label, so the name shows in every client and stays
   until it is cleared. Saving an empty name clears it, and the tab is called by its program again.
+- A session isn't left with no tabs. Closing its last tab closes the session, as in Rex.app, and so does a shell
+  exiting in its last pane when that was typed here; Tono then shows the session next to it. Close Session in the
+  palette closes one outright.
 - Three dots beside a tab show what its program says it is doing (programs report this with OSC 7501): rippling
   while it works, steady in the accent color while it waits for you, and in the error color after a failure. A
   folded server or session shows the dots for whatever is inside it.
+- A sound plays when a program in a tab you aren't looking at starts waiting for you, fails, or finishes: the
+  desktop's own warning, error and completion sounds, through `canberra-gtk-play`, `pw-play` or `paplay`, whichever
+  is installed. The tab on screen stays quiet while the window has focus. A burst of news makes one sound, the most
+  pressing. Play Activity Sounds in the palette turns them off and on; the setting is remembered.
 - A dropped connection is retried, and everything is read again when it comes back.
 
 A terminal takes its size from one client at a time, its owner, and the client someone is using is the one whose

@@ -33,6 +33,8 @@ class Workspace(
     var collapsedSessions: Set<String> = emptySet(),
     /** For each session id, the tab this app was showing in it. */
     tabs: Map<String, String> = emptyMap(),
+    /** Whether to play a sound when a program in a tab out of view wants the user, fails, or finishes. */
+    var sounds: Boolean = true,
 ) {
     val tabs: MutableMap<String, String> = tabs.toMutableMap()
     var hosts: List<SavedHost> = hosts
@@ -51,6 +53,7 @@ class Workspace(
             })
             lastHost?.let { put("last_host", it) }
             putJsonObject("sessions") { for ((host, session) in sessions) put(host, session) }
+            if (!sounds) put("sounds", false)
             if (tabs.isNotEmpty()) putJsonObject("tabs") { for ((session, tab) in tabs.toSortedMap()) put(session, tab) }
             if (collapsedHosts.isNotEmpty()) put("collapsed_hosts", buildJsonArray { collapsedHosts.sorted().forEach { add(JsonPrimitive(it)) } })
             if (collapsedSessions.isNotEmpty()) put("collapsed_sessions", buildJsonArray { collapsedSessions.sorted().forEach { add(JsonPrimitive(it)) } })
@@ -86,7 +89,9 @@ class Workspace(
             }?.toMap().orEmpty()
             val sessions = map("sessions")
             fun strings(key: String) = (root[key] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.takeIf { value -> value.isString }?.content }.toSet()
-            return Workspace(file, hosts, root.string("last_host"), sessions, strings("collapsed_hosts"), strings("collapsed_sessions"), map("tabs"))
+            return Workspace(file, hosts, root.string("last_host"), sessions, strings("collapsed_hosts"), strings("collapsed_sessions"), map("tabs"),
+                sounds = (root["sounds"] as? JsonPrimitive)?.content != "false",
+            )
         }
     }
 }

@@ -392,3 +392,17 @@ class ShownTabTest {
         assertEquals("w1", HostState(selectedSessionId = "s", views = mapOf("s" to session(active = "w1")), shownWindows = mapOf("s" to "gone")).window?.id)
     }
 }
+
+class NeighbourTest {
+    @Test
+    fun `when what is showing goes away, the one after it is shown, or the one before if it was last`() {
+        val all = listOf("a", "b", "c", "d")
+        assertEquals("c", neighbourOf(all, 1, listOf("a", "c", "d")))
+        assertEquals("c", neighbourOf(all, 3, listOf("a", "b", "c")), "the last one's neighbour is the one before")
+        assertEquals("d", neighbourOf(all, 1, listOf("a", "d")), "the next one that is still there")
+        assertEquals("a", neighbourOf(all, 1, listOf("a")))
+        assertNull(neighbourOf(all, 1, emptyList()))
+        assertNull(neighbourOf(all, -1, all))
+    }
+}
+

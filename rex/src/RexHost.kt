@@ -149,6 +149,11 @@ class RexHost(
     rememberedTabs: Map<String, String> = emptyMap(),
     /** Called when the tab shown in a session changes, with null when there is no longer one to remember. */
     private val onTabShown: (sessionId: String, windowId: String?) -> Unit = { _, _ -> },
+    /**
+     * Called when a program in a terminal nobody is looking at starts waiting for the user,
+     * fails, or finishes, with [ActivityState.Blocked], [ActivityState.Error] or [ActivityState.Done].
+     */
+    private val onActivityNews: (blockId: String, state: ActivityState) -> Unit = { _, _ -> },
     /** Called for the server's own events, such as `keymap_changed`, and with `connected` after each connect. */
     private val onServerEvent: (type: String) -> Unit = {},
 ) {
@@ -165,6 +170,8 @@ class RexHost(
 
     /** Whether this host's terminals are what the user is looking at: it is the host showing, in a window that has focus. */
     @Volatile private var inFront = false
+    /** For each session, when a terminal this client owned last closed in it. */
+    private val ownClosures = ConcurrentHashMap<String, Long>()
     /** Terminals a claim is already on its way for, so a moving pointer asks once. */
     private val claiming = ConcurrentHashMap.newKeySet<String>()
     /** The terminals claimed for being in front, since this host last came to the front. */
@@ -319,7 +326,13 @@ class RexHost(
 
     /** Closes a pane and ends the program in it. */
     fun closeBlock(blockId: String) = act("close pane") { control ->
-        control.call("block.close", sessionPayload { put("block_id", blockId) })
+        val view = state.value.view
+        // The only pane of the only tab is the last of the session, and the session goes with it.
+        if (view != null && view.windows.size == 1 && view.windows.single().panes.let { it.size == 1 && it.single().blockId == blockId }) {
+            destroy(control, view.sessionId, "its last pane was closed")
+        } else {
+            control.call("block.close", sessionPayload { put("block_id", blockId) })
+        }
     }
 
     /**
@@ -357,7 +370,27 @@ class RexHost(
 
     /** Closes a tab and every pane in it. */
     fun closeWindow(windowId: String) = act("close tab") { control ->
-        control.call("session.close_window", sessionPayload { put("window_id", windowId) })
+        val view = state.value.view
+        if (view != null && view.windows.singleOrNull()?.id == windowId) {
+            destroy(control, view.sessionId, "its last tab was closed")
+        } else {
+            control.call("session.close_window", sessionPayload { put("window_id", windowId) })
+        }
+    }
+
+    /** Closes a session and everything in it. */
+    fun closeSession(sessionId: String) = act("close session") { control -> destroy(control, sessionId, "it was closed here") }
+
+    /**
+     * Whether closing a tab would close its session, because it is the session's last. A
+     * session with no tabs is no use to anyone, so, as in Rex.app, it isn't left behind.
+     */
+    fun isLastTab(windowId: String): Boolean = state.value.view?.windows?.singleOrNull()?.id == windowId
+
+    private suspend fun destroy(control: RexControl, sessionId: String, why: String) {
+        val label = state.value.sessions.firstOrNull { it.id == sessionId }?.label ?: short(sessionId)
+        control.call("session.destroy", buildJsonObject { put("session_id", sessionId) })
+        log.add(saved.label, "closed session $label: $why")
     }
 
     /** Zooms a pane to fill its tab, or restores the layout if it already does. */
@@ -671,7 +704,7 @@ class RexHost(
                 connection.callBlock("$TERMINAL_CREATOR.program_status", view.sessionId, pane.blockId)["records"] as? JsonArray
             }.getOrNull().orEmpty()
             for (record in records.mapNotNull { it as? JsonObject }) {
-                setStatus(pane.blockId, record.string("id").orEmpty(), ActivityState.parse(record.string("state")))
+                setStatus(pane.blockId, record.string("id").orEmpty(), ActivityState.parse(record.string("state")), isNews = false)
             }
             setProgram(pane.blockId, runCatching { connection.callBlock("$TERMINAL_CREATOR.process", view.sessionId, pane.blockId) }.getOrNull())
         }
@@ -688,19 +721,36 @@ class RexHost(
     }
 
     /** Records one status report, and updates what the block as a whole is doing. Null removes the record. */
-    private fun setStatus(blockId: String, recordId: String, state: ActivityState?) {
+    private fun setStatus(blockId: String, recordId: String, state: ActivityState?, isNews: Boolean = true) {
         val records = statusRecords.getOrPut(blockId) { ConcurrentHashMap() }
         if (state == null || state == ActivityState.Idle) records.remove(recordId) else records[recordId] = state
-        publishActivity(blockId)
+        publishActivity(blockId, isNews)
     }
 
-    private fun publishActivity(blockId: String) {
+    /**
+     * @param isNews false for what is only being read back, as when connecting: a program that
+     *   has been waiting for an hour is not something that just happened
+     */
+    private fun publishActivity(blockId: String, isNews: Boolean = true) {
         val now = statusRecords[blockId]?.values?.maxOrNull() ?: ActivityState.Idle
         val before = state.value.activity[blockId] ?: ActivityState.Idle
         if (now == before) return
         mutableState.update { it.copy(activity = if (now == ActivityState.Idle) it.activity - blockId else it.activity + (blockId to now)) }
         log.add(saved.label, "${short(blockId)} is ${now.name.lowercase()}")
+
+        // What is worth telling someone who isn't looking: a program now waiting for them,
+        // one that failed, or one that finished, which includes a working program that
+        // simply stopped saying so.
+        val news = when {
+            now == ActivityState.Blocked || now == ActivityState.Error || now == ActivityState.Done -> now
+            before == ActivityState.Working && now == ActivityState.Idle -> ActivityState.Done
+            else -> null
+        }
+        if (isNews && news != null && !isBeingWatched(blockId)) onActivityNews(blockId, news)
     }
+
+    /** Whether a terminal is in the tab on screen while the app's window has focus. */
+    private fun isBeingWatched(blockId: String): Boolean = inFront && state.value.window?.panes?.any { it.blockId == blockId } == true
 
     /** Takes a session's new layout. For the selected session, also makes the open terminals match the blocks it shows. */
     private suspend fun showView(connection: RexControl, view: SessionView) {
@@ -771,8 +821,16 @@ class RexHost(
                 }
             }
             "block_closed" -> event.payload.string("block_id")?.let { blockId ->
+                // A terminal this client had, such as a shell someone just typed `exit` into
+                // here. If that turns out to have been the session's last, the session goes too.
+                if (owns(blockId)) event.sessionId?.let { sessionId ->
+                    // Usually the layout follows this event; if it came first, the session is already known to be empty.
+                    if (state.value.views[sessionId]?.windows?.isEmpty() == true) destroy(connection, sessionId, "its last tab closed")
+                    else ownClosures[sessionId] = System.currentTimeMillis()
+                }
+                claimed.remove(blockId)
                 statusRecords.remove(blockId)
-                publishActivity(blockId)
+                publishActivity(blockId, isNews = false)
                 mutableState.update { it.copy(programs = it.programs - blockId) }
             }
             // Says only that a session's layout changed, so fetch it, unless this one is already known.
@@ -782,9 +840,13 @@ class RexHost(
                     val view = parseSessionView(connection.call("session.view", buildJsonObject { put("session_id", sessionId) }))
                     showView(connection, view)
                     readStatuses(connection, view) // for terminals that are new
+                    // Its last tab just closed, by something done in this client (see block_closed).
+                    val closedHere = ownClosures.remove(sessionId)?.let { System.currentTimeMillis() - it < OWN_CLOSURE_MILLIS } == true
+                    if (view.windows.isEmpty() && closedHere) destroy(connection, sessionId, "its last tab closed")
                 }
             }
             "session_created", "session_destroyed", "session_label_changed", "session_moved" -> {
+                val before = current.sessions
                 val sessions = parseSessions(connection.call("session.list")["sessions"] as? JsonArray)
                 // Forget the layouts of sessions that are gone, and read those of new ones.
                 val gone = state.value.shownWindows.keys.filter { id -> sessions.none { it.id == id } }
@@ -793,10 +855,13 @@ class RexHost(
                 }
                 gone.forEach { onTabShown(it, null) }
                 if (sessions.none { it.id == state.value.selectedSessionId }) {
-                    // The session being shown is gone. Show another rather than nothing.
+                    // The session being shown is gone. Show its neighbour rather than nothing:
+                    // the one that came after it in the list, or the one before if it was last.
+                    val was = before.indexOfFirst { it.id == current.selectedSessionId }
+                    val neighbour = neighbourOf(before.map { it.id }, was, sessions.map { it.id })
                     state.value.terminals.values.forEach { it.close() }
                     mutableState.update { it.copy(selectedSessionId = null, terminals = emptyMap()) }
-                    sessions.firstOrNull()?.let { attach(connection, it.id) }
+                    (neighbour ?: sessions.firstOrNull()?.id)?.let { attach(connection, it) }
                 }
                 for (session in sessions) readView(connection, session.id)
             }
@@ -834,6 +899,8 @@ class RexHost(
 
     private companion object {
         const val BOOTSTRAP_TIMEOUT_MILLIS = 8_000L
+        /** How soon a session must be found empty after this client's terminal closed in it, to be closed for that. */
+        const val OWN_CLOSURE_MILLIS = 5_000L
         val RETRY_DELAYS_MILLIS = longArrayOf(500, 1_000, 2_000, 5_000, 10_000)
         val QUIET_EVENTS = setOf("client_joined", "client_left", "client_connected", "client_disconnected", "client_changed")
         val QUIET_BLOCK_EVENTS = setOf("program_status_changed", "progress_report", "title_changed", "process_changed", "pwd_changed")
@@ -843,3 +910,14 @@ class RexHost(
         fun short(id: String): String = id.substringBefore(':') + ":…" + id.takeLast(6)
     }
 }
+
+/**
+ * What to show when the thing at [index] of [before] is gone: the nearest of what came after
+ * it that is still in [remaining], or failing that the nearest of what came before.
+ */
+internal fun neighbourOf(before: List<String>, index: Int, remaining: List<String>): String? {
+    if (index !in before.indices) return null
+    val left = remaining.toSet()
+    return before.drop(index + 1).firstOrNull { it in left } ?: before.take(index).lastOrNull { it in left }
+}
+

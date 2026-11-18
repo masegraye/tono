@@ -5,6 +5,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import org.example.kotlintest.rex.ActivityState
 import org.example.kotlintest.rex.KeyBinding
 import org.example.kotlintest.rex.KeyChord
 import org.example.kotlintest.rex.RexAction
@@ -31,6 +32,8 @@ class ClientAction(
     val argKeys: List<Pair<String, JsonObject>> = emptyList(),
     val inPalette: Boolean = true,
     val available: RexUiState.() -> Boolean = { true },
+    /** For an action that switches something: how it stands now, shown beside it in the palette. */
+    val state: (RexUiState.() -> String)? = null,
     val perform: RexUiState.(args: JsonObject?) -> Unit,
 )
 
@@ -105,6 +108,17 @@ internal fun clientActions(): List<ClientAction> = buildList {
     add(ClientAction("session.new", "New Session", "Session", "create", keys = listOf("ctrl+shift+n"), available = hasHost) {
         host?.newSession()
     })
+    add(ClientAction("session.close", "Close Session", "Session", "kill destroy delete end", available = hasSession) {
+        val session = view ?: return@ClientAction
+        val owner = host ?: return@ClientAction
+        val tabs = session.windows.size
+        confirmation = Confirmation(
+            title = "Close session “${session.label}”?",
+            text = if (tabs == 0) "It has no tabs." else "Its $tabs tab${if (tabs == 1) "" else "s"} will close, and the programs running in them will end.",
+            confirmLabel = "Close Session",
+            onConfirm = { owner.closeSession(session.sessionId) },
+        )
+    })
     add(ClientAction("session.switch", "Change Session…", "Session", "go to switch find", keys = listOf("ctrl+k")) {
         palette = PaletteMode.Sessions
     })
@@ -147,8 +161,9 @@ internal fun clientActions(): List<ClientAction> = buildList {
         val owner = host ?: return@ClientAction
         confirmation = Confirmation(
             title = "Close tab “${owner.state.value.nameOf(tab).text}”?",
-            text = if (tab.panes.size > 1) "Its ${tab.panes.size} panes will close, and the programs running in them will end."
-            else "The program running in it will end.",
+            text = (if (tab.panes.size > 1) "Its ${tab.panes.size} panes will close, and the programs running in them will end."
+            else "The program running in it will end.") +
+                if (owner.isLastTab(tab.id)) " It is the last tab of ${view?.label ?: "its session"}, so the session closes too." else "",
             confirmLabel = "Close Tab",
             onConfirm = { owner.closeWindow(tab.id) },
         )
@@ -212,7 +227,8 @@ internal fun clientActions(): List<ClientAction> = buildList {
         val owner = host ?: return@ClientAction
         confirmation = Confirmation(
             title = "Close this pane?",
-            text = "The program running in it will end.",
+            text = "The program running in it will end." +
+                if (window?.panes?.size == 1 && window?.let { owner.isLastTab(it.id) } == true) " It is the last of ${view?.label ?: "its session"}, so the session closes too." else "",
             confirmLabel = "Close Pane",
             onConfirm = { owner.closeBlock(blockId) },
         )
@@ -240,6 +256,16 @@ internal fun clientActions(): List<ClientAction> = buildList {
     })
     add(ClientAction("client.sidebar.toggle", "Toggle Sidebar", "View", "hide show hosts sessions", keys = listOf("ctrl+shift+b")) {
         sidebarVisible = !sidebarVisible
+    })
+    add(ClientAction(
+        "client.setting.notifications.activity.sounds", "Play Activity Sounds", "Notifications",
+        "sound audio chime alert beep bell mute silence program finished blocked error",
+        state = { if (soundsEnabled) "on" else "off" },
+    ) {
+        setSounds(!soundsEnabled)
+        client.log.add("sound", "activity sounds ${if (soundsEnabled) "on" else "off"}")
+        // Turning them on plays one, so you know what to listen for and that it works here.
+        if (soundsEnabled) sounds?.request(ActivityState.Done)
     })
     // Not in Rex.app: this app's log of what it and the servers are doing.
     add(ClientAction("client.debug_log.toggle", "Toggle Debug Log", "View", "events console diagnostics", keys = listOf("ctrl+`")) {

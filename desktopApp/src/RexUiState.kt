@@ -48,6 +48,19 @@ class RexUiState(val client: RexClient) {
     var confirmation: Confirmation? by mutableStateOf(null)
     var renaming: TabRename? by mutableStateOf(null)
 
+    /** Whether a program in a tab out of view makes a sound when it wants you, fails, or finishes. Remembered between runs. */
+    var soundsEnabled by mutableStateOf(client.workspace.sounds)
+        private set
+
+    /** Plays the sounds. Set once the app's window exists. */
+    var sounds: Sounds? = null
+
+    fun setSounds(enabled: Boolean) {
+        soundsEnabled = enabled
+        client.workspace.sounds = enabled
+        client.workspace.save()
+    }
+
     /** The Rex servers found on the tailnet, for the host picker. Null until they have been looked for. */
     var tailnetServers: List<TailnetServer>? by mutableStateOf(null)
     var showcase by mutableStateOf(false)

@@ -70,7 +70,8 @@ internal fun paletteItems(ui: RexUiState, commands: RexCommands, keymap: Keymap,
     if (mode == PaletteMode.Commands) {
         for (action in commands.actions) {
             if (!action.inPalette || !commands.isAvailable(action)) continue
-            add(PaletteItem(action.title, action.category, keymap.shortcutFor(action.name)?.display(), action.keywords) {
+            val detail = action.state?.invoke(ui)?.let { "${action.category} · $it" } ?: action.category
+            add(PaletteItem(action.title, detail, keymap.shortcutFor(action.name)?.display(), action.keywords) {
                 commands.run(action.name, origin = "palette")
             })
         }
