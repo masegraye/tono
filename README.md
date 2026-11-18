@@ -123,8 +123,10 @@ When it starts it connects to every configured server at once and restores where
   server names its own tailnet device. Pick one, or type any address. A server that is down can be added too. **Remove
   Host…** takes one off the list. Hosts saved in `~/.config/kotlin-test/workspace.json` are connected to as well; a
   host goes there only when no local server can keep it.
-- A host that can't be reached shows a red dot and nothing else, and is tried again every few seconds until it
-  answers. Hovering it offers a button to try now; the reason is in the debug log.
+- A host's heading has a small picture of a machine (a screen for this computer, a rack unit for the others) and its
+  name in quieter text than a tab's: the picture makes where one computer ends and the next begins easy to see, and
+  the quiet name leaves the tabs as what the eye lands on. A host that can't be reached has its picture in red and
+  nothing else, and is tried again every few seconds until it answers. Hovering it offers a button to try now; the reason is in the debug log.
 - For each server it selects the session you last had (else the first listed) and the tab you last had in it, and
   lays out that tab's terminals where the server says they sit. It creates and closes things only when asked to.
 - The sidebar is a set of nested headings: servers, each with the same weight (this machine's first, then the ones

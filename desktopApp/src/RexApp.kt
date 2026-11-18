@@ -37,6 +37,12 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.foundation.Canvas
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -241,6 +247,7 @@ private fun Sidebar(
                 HostHeader(
                     host = host,
                     state = state,
+                    isHome = label == ui.client.homeLabel,
                     collapsed = hostCollapsed,
                     // Folded away, a heading still shows that something under it is busy.
                     activity = if (hostCollapsed) state.activity.values.maxOrNull() ?: ActivityState.Idle else ActivityState.Idle,
@@ -338,6 +345,8 @@ private fun Modifier.dragOutline(dragging: Boolean): Modifier =
 private fun HostHeader(
     host: RexHost,
     state: HostState,
+    /** Whether this is the machine the app is running on. */
+    isHome: Boolean,
     collapsed: Boolean,
     activity: ActivityState,
     onClick: () -> Unit,
@@ -356,27 +365,32 @@ private fun HostHeader(
         HostConnection.Connecting -> {}
     }
     val connected = connection == HostConnection.Connected
-    // The dot is all a host says about its connection; why one can't be reached is in the
-    // debug log. A host that isn't connected has nothing under it to fold away.
+    // A host is a machine, and its heading has a picture of one: that is what makes where one
+    // computer ends and the next begins show at a glance. Its name is quieter than a tab's,
+    // because tabs are what you are looking for and the heading only says where you are. The
+    // picture is also all a host says about its connection (why one can't be reached is in
+    // the debug log). A host that isn't connected has nothing under it to fold away.
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val faded = muted.copy(alpha = 0.55f)
     Column(
         Modifier.fillMaxWidth().hoverable(interaction)
             .clickable(enabled = connected, onClick = onClick)
             .padding(start = 12.dp, end = 6.dp, top = 12.dp, bottom = 2.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(7.dp).background(
-                    when {
-                        connection == HostConnection.Connected -> MaterialTheme.colorScheme.tertiaryContainer
-                        failed -> MaterialTheme.colorScheme.error
-                        else -> MaterialTheme.colorScheme.outline
-                    },
-                    CircleShape,
-                ),
-            )
+            when {
+                connected -> MachineIcon(remote = !isHome, tint = muted)
+                // Down, and being tried again every few seconds: the same picture, in the
+                // error color. A warning sign would shout from the bottom of the list about
+                // a machine that is merely switched off.
+                failed -> MachineIcon(remote = !isHome, tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f))
+                else -> MachineIcon(remote = !isHome, tint = faded)
+            }
             Text(
                 host.saved.label,
                 style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                color = if (connected) muted else faded,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(start = 8.dp).weight(1f),
@@ -433,6 +447,31 @@ private fun SessionHeader(
         }
         HeaderButton(Icons.Filled.Add, "New tab in $label", visible = hovered, onClick = onNewTab)
         FoldMark(collapsed, visible = collapsed || hovered)
+    }
+}
+
+/**
+ * A small picture of a machine, for a host's heading: a screen on its stand for this
+ * computer, and a pair of stacked units, as in a rack, for one reached over the network.
+ * Drawn here, in lines the weight of the text beside it, so it needs no icon font and takes
+ * whatever color the theme gives it.
+ */
+@Composable
+private fun MachineIcon(remote: Boolean, tint: Color) {
+    Canvas(Modifier.size(16.dp)) {
+        val unit = size.width / 16f
+        val line = Stroke(width = 1.5f * unit)
+        val corner = CornerRadius(1.6f * unit)
+        if (remote) {
+            for (top in listOf(2.5f, 9f)) {
+                drawRoundRect(tint, Offset(1.5f * unit, top * unit), Size(13f * unit, 4.5f * unit), corner, line)
+                drawCircle(tint, 0.9f * unit, Offset(4.4f * unit, (top + 2.25f) * unit))
+            }
+        } else {
+            drawRoundRect(tint, Offset(1.5f * unit, 2.5f * unit), Size(13f * unit, 8.5f * unit), corner, line)
+            drawLine(tint, Offset(8f * unit, 11f * unit), Offset(8f * unit, 13.5f * unit), line.width)
+            drawLine(tint, Offset(4.5f * unit, 13.75f * unit), Offset(11.5f * unit, 13.75f * unit), line.width, StrokeCap.Round)
+        }
     }
 }
 
