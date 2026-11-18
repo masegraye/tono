@@ -18,6 +18,16 @@ focus_tono() {
   cursor_away
   [ "$(hyprctl activewindow -j | jq -r .address)" = "$(tono_window)" ]
 }
+# Full screen on or off for the window the keys go to. The compositor only has a toggle,
+# so the window is asked which it is first.
+is_fullscreen() { [ "$(hyprctl clients -j | jq -r --arg a "$(tono_window)" '.[] | select(.address == $a) | .fullscreen')" != 0 ]; }
+fullscreen() { # on | off
+  if { [ "$1" = on ] && ! is_fullscreen; } || { [ "$1" = off ] && is_fullscreen; }; then
+    focus_tono
+    hyprctl dispatch "hl.dsp.window.fullscreen({ window = \"address:$(tono_window)\" })" >/dev/null
+    sleep 1.2
+  fi
+}
 # Out of the picture: the bottom-right corner.
 cursor_away() { hyprctl dispatch "hl.dsp.cursor.move({ x = 1535, y = 863 })" >/dev/null 2>&1; }
 

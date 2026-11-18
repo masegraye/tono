@@ -81,7 +81,7 @@ scene_theme() {
 # The same app in a browser, as a window with no browser around it. web.sh opens it.
 scene_web() {
   use_window web
-  hyprctl dispatch "hl.dsp.window.fullscreen({ window = \"address:$(tono_window)\" })" >/dev/null; sleep 1.5
+  fullscreen on
   key ctrl+1; sleep 1
   rec_start web; sleep 1.0
   key ctrl+2; sleep 1.6
@@ -90,7 +90,7 @@ scene_web() {
   type_text new 0.1; sleep 1.2
   key Escape; sleep 0.8
   rec_stop
-  hyprctl dispatch "hl.dsp.window.fullscreen({ window = \"address:$(tono_window)\" })" >/dev/null
+  fullscreen off
   use_window tono
 }
 
@@ -98,7 +98,7 @@ scene_web() {
 # The film crops to the phone, which is the top-left 500 by 1025 of the screen.
 scene_phone() {
   use_window web
-  hyprctl dispatch "hl.dsp.window.fullscreen({ window = \"address:$(tono_window)\" })" >/dev/null; sleep 1.5
+  fullscreen on
   focus_tono
   local steps='[
     {"wait": 900},
@@ -116,7 +116,7 @@ scene_phone() {
   while [ ! -e "$DEMO/phone-done" ]; do sleep 0.2; done
   rec_stop
   touch "$DEMO/phone-release"; wait
-  hyprctl dispatch "hl.dsp.window.fullscreen({ window = \"address:$(tono_window)\" })" >/dev/null
+  fullscreen off
   use_window tono
 }
 

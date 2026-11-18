@@ -56,6 +56,5 @@ done
 [ -n "${new:-}" ] || { echo "the demo Tono did not open"; exit 1; }
 echo "$new" > "$DEMO/window"
 sleep 6
-focus_tono && hyprctl dispatch "hl.dsp.window.fullscreen({ window = \"address:$new\" })" >/dev/null
-sleep 1
+fullscreen on
 echo "session $sid, window $new"
