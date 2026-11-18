@@ -28,3 +28,9 @@ hs_err_pid*.log
 
 # Task's record of what it has built
 .task/
+
+# The launch film: its dependencies, renders and footage (see marketing/launch-video)
+/marketing/launch-video/node_modules/
+/marketing/launch-video/renders/
+/marketing/launch-video/assets/footage/
+/marketing/launch-video/.hyperframes/
