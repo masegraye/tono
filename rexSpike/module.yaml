@@ -1,5 +1,5 @@
 # A command-line check of the Rex client core, with no UI: it connects to every configured
-# server the way the app does, and prints what it restored. Run it with `mise run probe`.
+# server the way the app does, and prints what it restored. Run it with `task probe`.
 product: jvm/app
 
 dependencies:

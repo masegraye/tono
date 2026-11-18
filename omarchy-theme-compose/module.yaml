@@ -1,0 +1,14 @@
+description: A Compose Multiplatform Material 3 theme that follows the Omarchy desktop
+product:
+  type: kmp/lib
+  platforms: [android, iosArm64, iosSimulatorArm64, jvm, wasmJs]
+
+dependencies:
+  - //omarchy-theme: exported
+  - $compose.runtime: exported
+  - $compose.ui: exported
+  - $compose.material3: exported
+  - $compose.foundation
+
+settings:
+  compose: enabled

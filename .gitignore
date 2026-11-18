@@ -24,3 +24,6 @@ creds.properties
 
 # JVM crash logs
 hs_err_pid*.log
+
+# Task's record of what it has built
+.task/

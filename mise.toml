@@ -1,64 +1,6 @@
+# The tools this project needs beyond the Kotlin Toolchain, which ./kotlin provisions itself.
+# `mise install` gets them; the tasks are in Taskfile.yml.
 [tools]
-java = "temurin-25.0.5+8.0.LTS"
-watchexec = "latest"   # used by `mise watch`
-zig = "0.17.1"         # builds libghostty-vt (see native/)
-
-[tasks.native]
-description = "Build libghostty-vt, the terminal emulation library, into native/out"
-run = "native/build-libghostty-vt.sh"
-
-[tasks.bindings]
-description = "Regenerate the libghostty-vt bindings in ghostty/src/ffi from native/ghostty-vt.symbols"
-depends = ["native"]
-run = "native/generate-bindings.sh"
-
-[tasks.probe]
-description = "Connect to every configured Rex server without a UI and print what was restored"
-depends = ["native"]
-run = "./kotlin run -m rexSpike --jvm-args=--enable-native-access=ALL-UNNAMED --"
-
-[tasks.desktop]
-description = "Run the Rex client (desktop app) with Compose Hot Reload"
-depends = ["native"]
-run = "./kotlin run -m desktopApp --jvm-args=--enable-native-access=ALL-UNNAMED --"
-
-[tasks.web]
-description = "Serve the web app with live Omarchy theming at http://127.0.0.1:8080"
-# The server module serves the built web app and pushes desktop theme changes to it.
-run = '''
-./kotlin build -m webApp &&
-WEB_DIR="$PWD/$(dirname "$(find build/tasks -name webApp.wasm -path '*_webApp_build*Debug*' | head -n 1)")" \
-  ./kotlin run -m server
-'''
-
-[tasks."web:build"]
-description = "Build the web app, then tell open browser tabs to reload"
-sources = [
-  "shared/src*/**/*",
-  "shared/composeResources/**/*",
-  "webApp/src/**/*",
-  "webApp/resources/**/*",
-  "**/module.yaml",
-  "project.yaml",
-  "libs.versions.toml",
-]
-# The build id is written only after a successful build, into the directory the dev
-# server serves; webApp/resources/dev-reload.js polls it.
-run = '''
-./kotlin build -m webApp &&
-served=$(dirname "$(find build/tasks -name webApp.wasm -path '*_webApp_build*Debug*' | head -n 1)") &&
-date +%s%N > "$served/dev-build-id.txt"
-'''
-
-[tasks."web:watch"]
-description = "Rebuild the web app on every source change (run next to `mise run web`)"
-run = "mise watch web:build"
-
-[tasks."web:release"]
-description = "Run the optimized web app from the packaged server jar (set PORT to change the port)"
-run = '''
-./kotlin build -m webApp -v release &&
-./kotlin package -m server -f executable-jar &&
-WEB_DIR="$PWD/build/tasks/_webApp_buildWasmJsAppWasmJsRelease" \
-  java -jar build/tasks/_server_executableJarJvm/server-jvm-executable.jar
-'''
+task = "3.53.1"                   # runs the tasks: `task` lists them
+java = "temurin-25.0.5+8.0.LTS"   # runs the packaged server jar, and jextract
+zig = "0.17.1"                    # builds libghostty-vt (see native/)

@@ -1,7 +1,9 @@
-# Kotlin Multiplatform project
+# omre
 
-This project is targeting Android, iOS, Desktop (fast UI development with Compose Hot Reload), Web (Wasm), built with
-the [Kotlin Toolchain](https://kotlin-toolchain.org/latest/).
+Omarchy + Rex: a Linux client for [Rex](https://www.superlogical.com/rex) that takes its colors and font from the
+[Omarchy](https://omarchy.org/) desktop. It is a Kotlin Multiplatform project targeting Android, iOS, Desktop (fast UI
+development with Compose Hot Reload) and Web (Wasm), built with the
+[Kotlin Toolchain](https://kotlin-toolchain.org/latest/).
 
 - [/androidApp](./androidApp) contains the Android application.
 - [/desktopApp](./desktopApp) contains the desktop (JVM) application: a client for [Rex](https://www.superlogical.com/rex).
@@ -14,20 +16,33 @@ the [Kotlin Toolchain](https://kotlin-toolchain.org/latest/).
   sibling `src@<platform>` folders (for example `src@android`) hold code compiled only for the platform named in the
   folder.
 - [/server](./server) is a Ktor server that serves the web application and tells it how the desktop is themed.
+- [/omarchy-theme](./omarchy-theme), [/omarchy-theme-compose](./omarchy-theme-compose) and
+  [/omarchy-theme-ktor](./omarchy-theme-ktor) are the libraries that read the Omarchy theme, turn it into a Compose
+  Material theme, and serve it to web pages.
 - [/webApp](./webApp) contains the web application, compiled to WebAssembly with Kotlin/Wasm.
 
 The `kotlin` (macOS/Linux) and `kotlin.bat` (Windows) scripts in the project root are self-bootstrapping wrappers for
 the Kotlin Toolchain: they download the pinned toolchain version on first use, so no separate installation is required.
 Build the whole project with `./kotlin build`.
 
+Everything else needed comes from [mise](https://mise.jdx.dev/), and what you run day to day is a
+[Task](https://taskfile.dev/) task:
+
+```sh
+mise install   # once: Task, and the Java and Zig that some tasks use
+task           # lists the tasks in Taskfile.yml
+```
+
+A fresh clone builds as it is: every module it depends on is in this repository.
+
 ### Running
 
 Run each module from the command line:
 
 - Android app: `./kotlin run -m androidApp`
-- Desktop app: `mise run desktop` (it needs the native library; see [Rex client](#rex-client))
+- Desktop app: `task desktop` (it needs the native library; see [Rex client](#rex-client))
 - iOS app: `./kotlin run -m iosApp`
-- Web app: `./kotlin run -m webApp` (static files only), or `mise run web` to serve it from the server module with
+- Web app: `./kotlin run -m webApp` (static files only), or `task web` to serve it from the server module with
   live theming
 
 ### UI showcase and Omarchy theming
@@ -40,15 +55,9 @@ The app takes its colors, and on desktop its font, from the [Omarchy](https://om
 whichever theme is applied, including themes installed later, and restyles itself at runtime when the theme changes:
 nothing is rebuilt or reloaded.
 
-That behaviour comes from the `omarchy-theme` libraries, which live in their own repository (`../omarchy-theme-kmp`)
-so other apps can use them. They are resolved from the local Maven repository, so **install them before building this
-project**, and again after changing them:
-
-```sh
-cd ../omarchy-theme-kmp && ./kotlin publish mavenLocal
-```
-
-What this project does with them:
+That behaviour comes from the three `omarchy-theme` modules, described in
+[omarchy-theme/README.md](./omarchy-theme/README.md). They know nothing about this app, so another app could use them
+as they are. What this project does with them:
 
 - [App.kt](./shared/src/App.kt) wraps the UI in `OmarchyTheme`. On desktop that reads the files Omarchy writes and
   watches them; it also sets all text in the Omarchy font.
@@ -65,15 +74,18 @@ What this project does with them:
 
 ### Development loop
 
-[mise](https://mise.jdx.dev/) pins the JDK and provides a few tasks (`mise tasks` lists them):
+The tasks are in [Taskfile.yml](./Taskfile.yml) (`task` lists them):
 
-- `mise run desktop` runs the desktop app with Compose Hot Reload: saved UI changes appear in the running window within
+- `task desktop` runs the desktop app with Compose Hot Reload: saved UI changes appear in the running window within
   a second or two and keep its state. Changing dependencies or `desktopApp/src/main.kt` needs a restart.
-- `mise run web` builds the web app and serves it from the server module at http://127.0.0.1:8080. `mise run web:watch`
+  `task desktop:steady` runs it without Hot Reload, for when you are using the app while changing it: a build then
+  leaves the running app alone.
+- `task test` runs the tests that can run on this machine.
+- `task web` builds the web app and serves it from the server module at http://127.0.0.1:8080. `task web:watch`
   in a second terminal rebuilds it whenever a source file changes and reloads open browser tabs. Hot Reload is JVM-only,
   so on web a code change is a full rebuild and page reload (about 15 seconds) and the page state is lost. The reload is
   driven by [dev-reload.js](./webApp/resources/dev-reload.js), which only runs on localhost.
-- `mise run web:release` builds the optimized web app and a self-contained server jar and runs them, with no build tool
+- `task web:release` builds the optimized web app and a self-contained server jar and runs them, with no build tool
   involved at runtime. The server reads `WEB_DIR`, `HOST` (default `127.0.0.1`) and `PORT` (default `8080`) from the
   environment.
 
@@ -84,9 +96,9 @@ and lets clients attach to them. It is desktop-only; the other targets still sho
 app keeps under its menu.
 
 ```sh
-mise run native    # once: download and build libghostty-vt into native/out (about two minutes)
-mise run desktop   # the client
-mise run probe     # the same connections with no window: prints what was restored
+task native    # once: download and build libghostty-vt into native/out (about two minutes)
+task desktop   # the client
+task probe     # the same connections with no window: prints what was restored
 ```
 
 When it starts it connects to every configured server at once and restores where you were:
@@ -180,7 +192,7 @@ How it is put together:
 - **Terminal emulation.** A terminal's stream opens with a snapshot in Ghostty's format, so the client uses
   libghostty-vt to restore it and to interpret the output that follows. [native/](./native) builds that library from the
   Ghostty source pinned in [GHOSTTY.lock](./native/GHOSTTY.lock). [ghostty](./ghostty/src) calls it through Java's
-  foreign function API, using bindings generated from its headers (`mise run bindings` regenerates them from
+  foreign function API, using bindings generated from its headers (`task bindings` regenerates them from
   [ghostty-vt.symbols](./native/ghostty-vt.symbols)).
 - **Drawing.** libghostty-vt reports which rows changed; [TerminalView.kt](./desktopApp/src/TerminalView.kt) draws the
   cells on a Compose canvas, in the Omarchy font and colors, and recolors when the desktop's theme changes.

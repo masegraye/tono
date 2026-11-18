@@ -1,11 +1,8 @@
 # Serves the web app and tells it, live, how the desktop is themed.
 product: jvm/app
 
-repositories:
-  - mavenLocal # for the omarchy-theme libraries
-
 dependencies:
-  - $libs.omarchy.theme.ktor
+  - //omarchy-theme-ktor
   - $ktor.server.core
   - $ktor.server.netty
   - $libs.logback.classic

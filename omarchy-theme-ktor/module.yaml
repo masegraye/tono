@@ -1,0 +1,14 @@
+description: Ktor routes that serve the Omarchy desktop's theme to web clients, live
+product: jvm/lib
+
+dependencies:
+  - //omarchy-theme: exported
+  - $ktor.server.core: exported
+  - $ktor.server.sse
+
+settings:
+  ktor: enabled
+
+test-dependencies:
+  - $ktor.server.testHost
+  - $ktor.server.netty

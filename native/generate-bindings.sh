@@ -3,7 +3,7 @@
 #
 # The bindings are committed, so this only needs running after ghostty-vt.symbols or the
 # pinned Ghostty version changes. It uses jextract, the JDK's binding generator, which it
-# downloads (checksum-pinned) into native/work. Run it through `mise run bindings`.
+# downloads (checksum-pinned) into native/work. Run it through `task bindings`.
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -13,7 +13,7 @@ package=org.example.kotlintest.ghostty.ffi
 output="$here/../ghostty/src/ffi"
 headers="$here/out/include"
 
-[[ -f $headers/ghostty/vt.h ]] || { echo "Build libghostty-vt first: mise run native" >&2; exit 1; }
+[[ -f $headers/ghostty/vt.h ]] || { echo "Build libghostty-vt first: task native" >&2; exit 1; }
 
 jextract="$here/work/jextract/bin/jextract"
 if [[ ! -x $jextract ]]; then

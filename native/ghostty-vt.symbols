@@ -1,6 +1,6 @@
 # The parts of libghostty-vt's C API that the app binds, one regular expression per line.
 # generate-bindings.sh asks jextract for every symbol in ghostty/vt.h and keeps the ones
-# that match. Add a pattern here, then run `mise run bindings`.
+# that match. Add a pattern here, then run `task bindings`.
 
 # Lifecycle and I/O
 ghostty_terminal_(new|free|vt_write|resize|get|set|scroll_viewport)

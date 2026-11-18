@@ -3,6 +3,9 @@ modules:
   - desktopApp
   - ghostty
   - iosApp
+  - omarchy-theme
+  - omarchy-theme-compose
+  - omarchy-theme-ktor
   - rex
   - rexSpike
   - server

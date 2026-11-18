@@ -1,0 +1,95 @@
+# Everything you run in this project. `task` lists the tasks; `task <name>` runs one.
+#
+# Task itself comes from mise (see mise.toml), and so do the Java and Zig a few tasks need.
+# Those tasks run their commands through `mise exec`, so they get the pinned versions
+# whether or not your shell has mise activated.
+# https://taskfile.dev
+version: '3'
+
+vars:
+  # The terminal emulator is a native library, called through Java's foreign function API.
+  NATIVE_ACCESS: --jvm-args=--enable-native-access=ALL-UNNAMED
+
+tasks:
+  default:
+    desc: List the tasks
+    silent: true
+    cmds:
+      - '{{.TASK_EXE}} --list'
+
+  # --- The Rex client ---
+
+  desktop:
+    desc: Run the Rex client with Compose Hot Reload (options go after --, such as -- --workspace FILE)
+    deps: [native]
+    cmds:
+      - ./kotlin run -m desktopApp {{.NATIVE_ACCESS}} -- {{.CLI_ARGS}}
+
+  desktop:steady:
+    desc: Run the Rex client without Hot Reload, so that building doesn't change the app you are using
+    deps: [native]
+    cmds:
+      - ./kotlin run -m desktopApp --no-compose-hot-reload {{.NATIVE_ACCESS}} -- {{.CLI_ARGS}}
+
+  probe:
+    desc: Connect to every configured Rex server without a window and print what was restored
+    deps: [native]
+    cmds:
+      - ./kotlin run -m rexSpike {{.NATIVE_ACCESS}} -- {{.CLI_ARGS}}
+
+  test:
+    desc: Run the tests that run on this machine (JVM and Android)
+    deps: [native]
+    cmds:
+      - ./kotlin test -p jvm -p android {{.CLI_ARGS}}
+
+  # --- libghostty-vt ---
+
+  native:
+    desc: Build libghostty-vt, the terminal emulation library, into native/out (two minutes, once)
+    cmds:
+      - mise exec -- native/build-libghostty-vt.sh
+
+  bindings:
+    desc: Regenerate the libghostty-vt bindings in ghostty/src/ffi from native/ghostty-vt.symbols
+    deps: [native]
+    cmds:
+      - native/generate-bindings.sh
+
+  # --- The web app ---
+
+  web:
+    desc: Serve the web app with live Omarchy theming at http://127.0.0.1:8080
+    # The server module serves the built web app and pushes desktop theme changes to it.
+    cmds:
+      - ./kotlin build -m webApp
+      - WEB_DIR="$PWD/$(dirname "$(find build/tasks -name webApp.wasm -path '*_webApp_build*Debug*' | head -n 1)")" ./kotlin run -m server
+
+  web:build:
+    desc: Build the web app, then tell open browser tabs to reload
+    sources:
+      - shared/src*/**/*
+      - shared/composeResources/**/*
+      - omarchy-theme*/src*/**/*
+      - webApp/src/**/*
+      - webApp/resources/**/*
+      - '**/module.yaml'
+      - project.yaml
+      - libs.versions.toml
+    cmds:
+      - ./kotlin build -m webApp
+      # The build id is written only after a successful build, into the directory the dev
+      # server serves; webApp/resources/dev-reload.js polls it.
+      - date +%s%N > "$(dirname "$(find build/tasks -name webApp.wasm -path '*_webApp_build*Debug*' | head -n 1)")/dev-build-id.txt"
+
+  web:watch:
+    desc: Rebuild the web app on every source change (run next to `task web`)
+    cmds:
+      - '{{.TASK_EXE}} web:build --watch --interval 500ms'
+
+  web:release:
+    desc: Run the optimized web app from the packaged server jar (set PORT to change the port)
+    cmds:
+      - ./kotlin build -m webApp -v release
+      - ./kotlin package -m server -f executable-jar
+      - WEB_DIR="$PWD/build/tasks/_webApp_buildWasmJsAppWasmJsRelease" mise exec -- java -jar build/tasks/_server_executableJarJvm/server-jvm-executable.jar

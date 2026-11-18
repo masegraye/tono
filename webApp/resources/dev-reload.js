@@ -1,6 +1,6 @@
 // Development only: reload this tab when a new build of the web app lands.
 //
-// `mise run web:watch` rebuilds the app when sources change and then writes a fresh
+// `task web:watch` rebuilds the app when sources change and then writes a fresh
 // dev-build-id.txt next to the served files. Outside local development the file does
 // not exist and this script does nothing.
 (() => {

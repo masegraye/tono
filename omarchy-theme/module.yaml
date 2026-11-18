@@ -1,0 +1,8 @@
+description: Reads the Omarchy desktop's theme and font, and follows them as they change
+product:
+  type: kmp/lib
+  platforms: [android, iosArm64, iosSimulatorArm64, jvm, wasmJs]
+
+dependencies:
+  - $libs.kotlinx.coroutines.core: exported
+  - $libs.kotlinx.serialization.json

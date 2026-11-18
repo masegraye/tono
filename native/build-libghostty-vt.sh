@@ -3,7 +3,7 @@
 #
 # Downloads the source archive pinned in GHOSTTY.lock, checks its SHA-256, and builds it
 # with Zig 0.17 into native/out/ (lib/libghostty-vt.so and include/ghostty/vt.h).
-# Run it through `mise run native`, which puts the right Zig on PATH.
+# Run it through `task native`, which runs it with the Zig pinned in mise.toml.
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -21,7 +21,7 @@ fi
 
 zig_version=$(zig version)
 if [[ $zig_version != 0.17.* ]]; then
-  echo "libghostty-vt needs Zig 0.17.x, found $zig_version. Run this through \`mise run native\`." >&2
+  echo "libghostty-vt needs Zig 0.17.x, found $zig_version. Run this through \`task native\`." >&2
   exit 1
 fi
 

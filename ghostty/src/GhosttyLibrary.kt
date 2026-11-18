@@ -12,7 +12,7 @@ internal object GhosttyLibrary {
     private val loaded: Unit by lazy {
         val path = candidates().firstOrNull(Files::isRegularFile)
             ?: throw UnsatisfiedLinkError(
-                "libghostty-vt.so not found. Build it with `mise run native`, or set GHOSTTY_VT_LIB to its path.",
+                "libghostty-vt.so not found. Build it with `task native`, or set GHOSTTY_VT_LIB to its path.",
             )
         System.load(path.toAbsolutePath().toString())
     }
