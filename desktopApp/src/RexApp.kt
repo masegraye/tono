@@ -711,7 +711,7 @@ private fun HostContent(host: RexHost, ui: RexUiState, modifier: Modifier) {
                 }
             }
         }
-        StatusBar(host, view, state.terminals[focusedId])
+        StatusBar(host, view, window?.let(state::nameOf), state.terminals[focusedId])
     }
 }
 
@@ -755,12 +755,25 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, o
 }
 
 @Composable
-private fun StatusBar(host: RexHost, view: SessionView?, terminal: TerminalSession?) {
+private fun StatusBar(host: RexHost, view: SessionView?, tab: TabName?, terminal: TerminalSession?) {
     val grid = terminal?.grid?.collectAsState()?.value
     val exit = terminal?.exitCode?.collectAsState()?.value
-    val parts = listOfNotNull(host.saved.label, view?.label, grid?.let { "${it.columns}×${it.rows}" }, exit?.let { "exited with $it" })
-    Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow).padding(horizontal = 12.dp, vertical = 4.dp)) {
-        HintText(parts.joinToString("  ·  "))
+    val separator = "  ·  "
+    // Where you are, from the outside in: the computer, the session, the tab, and how large
+    // its terminal is. With the sidebar hidden this is the only place that says which tab is
+    // on screen, so the tab's name is the one part in full-strength text.
+    Row(
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow).padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        HintText(listOfNotNull(host.saved.label, view?.label).joinToString(separator))
+        if (tab != null) {
+            HintText(separator)
+            Text(tab.text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            tab.directory?.let { HintText(it, Modifier.padding(start = 8.dp)) }
+        }
+        val rest = listOfNotNull(grid?.let { "${it.columns}×${it.rows}" }, exit?.let { "exited with $it" })
+        if (rest.isNotEmpty()) HintText(separator + rest.joinToString(separator))
     }
 }
 

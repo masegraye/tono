@@ -158,6 +158,9 @@ When it starts it connects to every configured server at once and restores where
   desktop's own warning, error and completion sounds, played with `mpv` as Omarchy plays its own, or failing that
   `canberra-gtk-play`, `pw-play` or `paplay`. They come out of whatever the desktop's current audio output is. The tab on screen stays quiet while the window has focus. A burst of news makes one sound, the most
   pressing. Play Activity Sounds in the palette turns them off and on; the setting is remembered.
+- A line along the bottom says where you are, from the outside in: the computer, the session, the tab (named as in
+  the sidebar, with its directory), and the size of its terminal. It is what still names the tab when the sidebar is
+  hidden.
 - A dropped connection is retried, and everything is read again when it comes back.
 
 A terminal takes its size from one client at a time, its owner, and the client someone is using is the one whose
