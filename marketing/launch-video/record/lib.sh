@@ -8,8 +8,12 @@ mkdir -p "$TAKES"
 # The demo's own Tono window, as opposed to one the user has open.
 tono_window() { cat "$DEMO/window" 2>/dev/null; }
 focus_tono() {
+  # Focusing moves the pointer to the middle of the window, so it is done only when needed,
+  # and the pointer is put away again afterwards.
+  [ "$(hyprctl activewindow -j | jq -r .address)" = "$(tono_window)" ] && return 0
   hyprctl dispatch "hl.dsp.focus({ window = \"address:$(tono_window)\" })" >/dev/null 2>&1
   sleep 0.3
+  cursor_away
   [ "$(hyprctl activewindow -j | jq -r .address)" = "$(tono_window)" ]
 }
 # Out of the picture: the bottom-right corner.
@@ -58,18 +62,24 @@ type_text() {
 }
 # Types into a terminal of the demo session through Rex, a character at a time: for shell
 # commands, which can hold any character. shell_type TAB-LABEL 'text'; shell_enter TAB-LABEL.
-shell_block() { rex window ls -s launch-day --json | jq -r --arg n "$1" '.windows[] | select(.label == $n) | .focused_block_id'; }
+# A tab is named as setup.sh made it (monitor, editor, shell, agent); a pane by its block id.
+block_of() { case $1 in block:*) echo "$1" ;; *) cat "$DEMO/block-$1" ;; esac; }
 shell_type() {
-  local block; block=$(cat "$DEMO/block-$1" 2>/dev/null)
-  local text=$2 i
+  local block text=$2 i
+  block=$(block_of "$1")
   for ((i = 0; i < ${#text}; i++)); do rex send -s launch-day -b "$block" "${text:i:1}" >/dev/null; sleep "${3:-0.03}"; done
 }
-shell_enter() { rex send-key -s launch-day -b "$(cat "$DEMO/block-$1")" enter >/dev/null; }
+shell_enter() { rex send-key -s launch-day -b "$(block_of "$1")" enter >/dev/null; }
+# Runs something in a terminal at once, for what happens off screen.
+shell_run() { rex send -s launch-day -b "$(block_of "$1")" "$2" >/dev/null; shell_enter "$1"; }
+# The pane that has the keyboard in a tab, which after a split is the new one.
+focused_of() { rex window ls -s launch-day --json | jq -r --arg w "$(cat "$DEMO/win-$1")" '.windows[] | select(.window_id == $w) | .focused_block_id'; }
 
 # rec_start NAME ... rec_stop: one take, saved as $TAKES/NAME.mp4.
 rec_start() {
   TAKE=$1
   makoctl mode -a do-not-disturb >/dev/null 2>&1   # no notification over the picture
+  focus_tono
   cursor_away
   OMARCHY_SCREENRECORD_DIR=$TAKES omarchy screenrecord --fullscreen >/dev/null 2>&1 &
   sleep 1.6

@@ -22,7 +22,16 @@ rex window new -s "$sid" shell -c "$repo" --focus=false >/dev/null
 rex window new -s "$sid" agent -c "$repo" --focus=false >/dev/null
 # Which terminal is which, for the scenes to type into, before the names are taken off.
 mkdir -p "$DEMO"
-rex window ls -s "$sid" --json | jq -r '.windows[] | "\(.label) \(.focused_block_id)"' | while read -r label block; do echo "$block" > "$DEMO/block-$label"; done
+rex window ls -s "$sid" --json | jq -r '.windows[] | "\(.label) \(.focused_block_id) \(.window_id)"' | while read -r label block window; do
+  echo "$block" > "$DEMO/block-$label"
+  echo "$window" > "$DEMO/win-$label"
+done
+# A command for the film to type that draws a picture in the terminal.
+mkdir -p "$DEMO/bin"
+printf '#!/bin/sh\nexec "%s/icat.sh" "%s/webApp/resources/icon-512.png"\n' "$here" "$repo" > "$DEMO/bin/logo"
+chmod +x "$DEMO/bin/logo"
+rex send -s "$sid" -b "$(cat "$DEMO/block-shell")" "export PATH=$DEMO/bin:\$PATH; clear" >/dev/null
+rex send-key -s "$sid" -b "$(cat "$DEMO/block-shell")" enter >/dev/null
 # The tabs are named by what runs in them, as Tono does for a tab nobody named: only the
 # agent's keeps a name, since what runs there is a script.
 for w in $(rex window ls -s "$sid" --json | jq -r '.windows[] | select(.label != "agent") | .window_id'); do
