@@ -69,6 +69,12 @@ tasks:
     cmds:
       - mise exec -- native/build-libghostty-vt.sh
 
+  native:wasm:
+    desc: Build libghostty-vt as a WebAssembly module, for the web app, into native/out/wasm
+    deps: [native]
+    cmds:
+      - mise exec -- native/build-libghostty-vt-wasm.sh
+
   bindings:
     desc: Regenerate the libghostty-vt bindings in ghostty/src/ffi from native/ghostty-vt.symbols
     deps: [native]

@@ -12,7 +12,6 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
-import java.util.Base64
 
 /**
  * A data connection: the bytes one terminal block produces. The stream opens with a Ghostty
@@ -30,7 +29,7 @@ class RexTerminalStream private constructor(
         /** Opens the stream that [ticket] (from `data.connect`) was issued for. A ticket works once. */
         suspend fun open(client: HttpClient, endpoint: RexEndpoint, ticket: String): RexTerminalStream {
             val socket = withTimeout(10_000) { client.rexWebSocket(endpoint, "/api/data", SUBPROTOCOL) }
-            val ticketBytes = Base64.getUrlDecoder().decode(ticket)
+            val ticketBytes = decodeBase64Url(ticket)
             check(ticketBytes.size == 16) { "A ticket is 16 bytes, got ${ticketBytes.size}" }
             socket.send(Frame.Binary(true, byteArrayOf(HELLO) + ticketBytes))
 
@@ -108,7 +107,7 @@ internal class RexStreamScanner(nonce: ULong) {
                 }
                 return
             }
-            val body = String(data, start + MARKER.size, end - start - MARKER.size, Charsets.UTF_8)
+            val body = data.decodeToString(start + MARKER.size, end)
             val message = body.substringAfter(';', "").takeIf { body.substringBefore(';') == nonceText }
                 ?.let { runCatching { Json.parseToJsonElement(it).jsonObject }.getOrNull() }
             if (message != null) onMessage(message) else onOutput(data, start, end + TERMINATOR.size - start)
@@ -132,8 +131,8 @@ internal class RexStreamScanner(nonce: ULong) {
     }
 
     private companion object {
-        val MARKER = "\u001b_rex1;".toByteArray(Charsets.US_ASCII)
-        val TERMINATOR = "\u001b\\".toByteArray(Charsets.US_ASCII)
+        val MARKER = "\u001b_rex1;".encodeToByteArray()
+        val TERMINATOR = "\u001b\\".encodeToByteArray()
         const val MAX_MESSAGE_BYTES = 1 shl 20
     }
 }
@@ -145,7 +144,7 @@ internal class RexStreamScanner(nonce: ULong) {
  */
 internal fun snapshotLength(buffer: ByteArray, size: Int): Int? {
     if (size < SNAPSHOT_ENVELOPE_BYTES) return null
-    require(String(buffer, 0, 8, Charsets.US_ASCII) == "GHOSTSNP") { "The stream doesn't start with a Ghostty snapshot" }
+    require(buffer.decodeToString(0, 8) == "GHOSTSNP") { "The stream doesn't start with a Ghostty snapshot" }
     var position = SNAPSHOT_ENVELOPE_BYTES
     while (size - position >= RECORD_HEADER_BYTES) {
         val tag = littleEndian(buffer, position, 2).toInt()

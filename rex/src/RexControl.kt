@@ -1,14 +1,7 @@
 package org.example.kotlintest.rex
 
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
-import io.ktor.client.plugins.websocket.WebSockets
-import io.ktor.client.plugins.websocket.webSocketSession
-import io.ktor.client.request.header
-import io.ktor.client.request.unixSocket
-import io.ktor.client.request.url
-import io.ktor.http.HttpHeaders
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
@@ -29,24 +22,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicLong
-
-/** One HTTP client serves every connection the app makes. */
-fun rexHttpClient(): HttpClient = HttpClient(CIO) { install(WebSockets) }
-
-internal suspend fun HttpClient.rexWebSocket(endpoint: RexEndpoint, path: String, subprotocol: String): DefaultClientWebSocketSession =
-    webSocketSession {
-        when (endpoint) {
-            // Over a Unix socket the host name is ignored.
-            is RexEndpoint.UnixSocket -> {
-                url("ws://localhost$path")
-                unixSocket(endpoint.path)
-            }
-            is RexEndpoint.Network -> url(endpoint.baseUrl + path)
-        }
-        header(HttpHeaders.SecWebSocketProtocol, subprotocol)
-    }
 
 /** The server answered a request with an error. Branch on [code]; [message] is for people. */
 class RexError(val code: String, message: String, val status: Int) : RuntimeException("$code: $message")
@@ -124,8 +99,8 @@ class RexControl private constructor(
     val reconnectToken: String? = identity?.string("reconnect_token")
     val apiRevision: Int = welcome["api_revision"]?.jsonPrimitive?.int ?: 0
 
-    private val nextId = AtomicLong(1)
-    private val pending = ConcurrentHashMap<String, CompletableDeferred<JsonObject>>()
+    private val nextId = Counter()
+    private val pending = concurrentMap<String, CompletableDeferred<JsonObject>>()
     private val eventChannel = Channel<RexEvent>(Channel.UNLIMITED)
     private val ended = CompletableDeferred<String>()
 
@@ -143,7 +118,7 @@ class RexControl private constructor(
      * this is called, which is what keeps typed keys in order.
      */
     suspend fun request(method: String, payload: JsonObject = EMPTY): Deferred<JsonObject> {
-        val id = nextId.getAndIncrement().toString()
+        val id = nextId.next().toString()
         val result = CompletableDeferred<JsonObject>()
         pending[id] = result
         val message = buildJsonObject {

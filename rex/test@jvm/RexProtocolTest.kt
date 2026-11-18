@@ -179,7 +179,7 @@ class WorkspaceTest {
     @Test
     fun `what is saved is read back`() {
         val file = Files.createTempDirectory("workspace").resolve("nested/workspace.json")
-        val workspace = Workspace(file, hosts = listOf(SavedHost("Local", "unix:///run/rex.sock"), SavedHost("studio", "https://studio.ts.net")))
+        val workspace = Workspace(WorkspaceFile(file), hosts = listOf(SavedHost("Local", "unix:///run/rex.sock"), SavedHost("studio", "https://studio.ts.net")))
         workspace.lastHost = "studio"
         workspace.sessions["Local"] = "session:1"
         workspace.collapsedHosts = setOf("studio")

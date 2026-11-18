@@ -44,7 +44,7 @@ import kotlinx.serialization.json.put
 import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.Keymap
 import org.example.kotlintest.rex.RexEndpoint
-import org.example.kotlintest.rex.Tailnet
+import org.example.kotlintest.rex.tailnetRexServers
 import org.example.kotlintest.rex.endpointKey
 import org.example.kotlintest.rex.suggestedHostLabel
 import kotlinx.coroutines.Dispatchers
@@ -216,7 +216,7 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
     // Look for servers each time the picker opens: machines come and go. What was found
     // last time shows meanwhile.
     LaunchedEffect(mode) {
-        if (mode == PaletteMode.AddHost) ui.tailnetServers = withContext(Dispatchers.IO) { Tailnet.rexServers() }
+        if (mode == PaletteMode.AddHost) ui.tailnetServers = tailnetRexServers()
     }
     val listState = rememberLazyListState()
     val focus = remember { FocusRequester() }

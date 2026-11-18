@@ -25,7 +25,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import org.example.kotlintest.ghostty.TerminalColors
 import org.example.kotlintest.ghostty.encodePaste
-import java.util.concurrent.ConcurrentHashMap
+import kotlin.concurrent.Volatile
 
 sealed interface HostConnection {
     data object Connecting : HostConnection
@@ -164,22 +164,22 @@ class RexHost(
     /** Work for the control connection, done one at a time in the order it was asked for. */
     private val actions = Channel<suspend (RexControl) -> Unit>(Channel.UNLIMITED)
     private val retryNow = Channel<Unit>(Channel.CONFLATED)
-    private val desiredGrids = ConcurrentHashMap<String, GridSize>()
+    private val desiredGrids = concurrentMap<String, GridSize>()
     /** Blocks claimed on this connection, until the server's view says otherwise. */
-    private val claimed = ConcurrentHashMap.newKeySet<String>()
+    private val claimed = concurrentSet<String>()
 
     /** Whether this host's terminals are what the user is looking at: it is the host showing, in a window that has focus. */
     @Volatile private var inFront = false
     /** For each session, when a terminal this client owned last closed in it. */
-    private val ownClosures = ConcurrentHashMap<String, Long>()
+    private val ownClosures = concurrentMap<String, Long>()
     /** Terminals a claim is already on its way for, so a moving pointer asks once. */
-    private val claiming = ConcurrentHashMap.newKeySet<String>()
+    private val claiming = concurrentSet<String>()
     /** The terminals claimed for being in front, since this host last came to the front. */
-    private val claimedInFront = ConcurrentHashMap.newKeySet<String>()
+    private val claimedInFront = concurrentSet<String>()
     /** Each terminal's status records, by block id then record id: a program can report several things at once. */
-    private val statusRecords = ConcurrentHashMap<String, MutableMap<String, ActivityState>>()
+    private val statusRecords = concurrentMap<String, MutableMap<String, ActivityState>>()
     /** Blocks whose status has been asked for on this connection. Later changes arrive as events. */
-    private val statusRead = ConcurrentHashMap.newKeySet<String>()
+    private val statusRead = concurrentSet<String>()
     @Volatile private var terminalColors: TerminalColors? = null
     @Volatile private var control: RexControl? = null
     private val endpoint: RexEndpoint? = runCatching { RexEndpoint.parse(saved.endpoint) }.getOrNull()
@@ -456,7 +456,7 @@ class RexHost(
         val terminal = current.terminals[blockId] ?: return@act
         claim(control, sessionId, blockId)
         terminal.scrollToBottom()
-        val data = String(encodePaste(text, terminal.bracketedPaste), Charsets.UTF_8)
+        val data = encodePaste(text, terminal.bracketedPaste).decodeToString()
         control.callBlock("$TERMINAL_CREATOR.write", sessionId, blockId, buildJsonObject { put("data", data) })
     }
 
@@ -722,7 +722,7 @@ class RexHost(
 
     /** Records one status report, and updates what the block as a whole is doing. Null removes the record. */
     private fun setStatus(blockId: String, recordId: String, state: ActivityState?, isNews: Boolean = true) {
-        val records = statusRecords.getOrPut(blockId) { ConcurrentHashMap() }
+        val records = statusRecords.getOrPut(blockId) { concurrentMap() }
         if (state == null || state == ActivityState.Idle) records.remove(recordId) else records[recordId] = state
         publishActivity(blockId, isNews)
     }
@@ -826,7 +826,7 @@ class RexHost(
                 if (owns(blockId)) event.sessionId?.let { sessionId ->
                     // Usually the layout follows this event; if it came first, the session is already known to be empty.
                     if (state.value.views[sessionId]?.windows?.isEmpty() == true) destroy(connection, sessionId, "its last tab closed")
-                    else ownClosures[sessionId] = System.currentTimeMillis()
+                    else ownClosures[sessionId] = nowMillis()
                 }
                 claimed.remove(blockId)
                 statusRecords.remove(blockId)
@@ -841,7 +841,7 @@ class RexHost(
                     showView(connection, view)
                     readStatuses(connection, view) // for terminals that are new
                     // Its last tab just closed, by something done in this client (see block_closed).
-                    val closedHere = ownClosures.remove(sessionId)?.let { System.currentTimeMillis() - it < OWN_CLOSURE_MILLIS } == true
+                    val closedHere = ownClosures.remove(sessionId)?.let { nowMillis() - it < OWN_CLOSURE_MILLIS } == true
                     if (view.windows.isEmpty() && closedHere) destroy(connection, sessionId, "its last tab closed")
                 }
             }
@@ -890,11 +890,9 @@ class RexHost(
     }
 
     /** Why a connection attempt failed, in words fit to show next to the host. */
-    private fun describe(failure: Exception): String = when (failure) {
-        is java.nio.channels.UnresolvedAddressException -> "Host name not found"
+    private fun describe(failure: Exception): String = connectFailureMessage(failure) ?: when (failure) {
         is kotlinx.coroutines.TimeoutCancellationException -> "The server didn't answer in time"
-        is java.nio.file.NoSuchFileException -> "No server is listening at ${failure.file}"
-        else -> failure.message?.takeIf { it.isNotBlank() } ?: failure.javaClass.simpleName
+        else -> failure.message?.takeIf { it.isNotBlank() } ?: failure::class.simpleName ?: "It failed"
     }
 
     private companion object {

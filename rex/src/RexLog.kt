@@ -24,7 +24,7 @@ class RexLog(private val capacity: Int = 600) {
     val entries: StateFlow<List<Entry>> get() = mutableEntries
 
     fun add(source: String, message: String, isError: Boolean = false) {
-        val entry = Entry(System.currentTimeMillis(), source, message, isError)
+        val entry = Entry(nowMillis(), source, message, isError)
         mutableEntries.update { current -> (if (current.size >= capacity) current.drop(current.size - capacity + 1) else current) + entry }
     }
 

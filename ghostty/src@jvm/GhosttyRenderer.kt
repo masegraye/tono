@@ -20,7 +20,7 @@ import java.lang.foreign.ValueLayout.JAVA_SHORT
  * those and reuses the [TerminalRow] objects of the rest. Use one renderer per terminal,
  * on the terminal's thread.
  */
-class GhosttyRenderer : AutoCloseable {
+actual class GhosttyRenderer actual constructor() : AutoCloseable {
     private val arena = Arena.ofShared()
 
     // Handles are opaque pointers. The "ref" segments hold a handle so it can be passed by address.
@@ -72,11 +72,11 @@ class GhosttyRenderer : AutoCloseable {
     }
 
     /** Forgets the cached rows, so the next [render] rebuilds every one. Call it after changing colors. */
-    fun invalidate() {
+    actual fun invalidate() {
         rebuildEverything = true
     }
 
-    fun render(terminal: GhosttyTerminal): TerminalFrame {
+    actual fun render(terminal: GhosttyTerminal): TerminalFrame {
         check("render_state_update", GhosttyVt.ghostty_render_state_update(state, terminal.handle))
 
         check("render_state_get", GhosttyVt.ghostty_render_state_get(state, GhosttyVt.GHOSTTY_RENDER_STATE_DATA_COLORS(), colorsOut))
@@ -281,7 +281,7 @@ class GhosttyRenderer : AutoCloseable {
     private fun cellTry(data: Int, out: MemorySegment): Boolean =
         GhosttyVt.ghostty_render_state_row_cells_get(cells, data, out) == GhosttyVt.GHOSTTY_SUCCESS()
 
-    override fun close() {
+    actual override fun close() {
         GhosttyVt.ghostty_render_state_image_iterator_free(images)
         GhosttyVt.ghostty_render_state_row_cells_free(cells)
         GhosttyVt.ghostty_render_state_row_iterator_free(iterator)

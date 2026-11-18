@@ -45,3 +45,9 @@ private fun resultName(result: Int): String = when (result) {
     GhosttyVt.GHOSTTY_REJECTED() -> "rejected"
     else -> "result $result"
 }
+
+/** The library is loaded from a file the first time anything needs it; this only does that early. */
+actual suspend fun loadGhostty() {
+    GhosttyLibrary.ensureLoaded()
+}
+

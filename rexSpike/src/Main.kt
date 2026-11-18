@@ -8,6 +8,7 @@ import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.RexClient
 import org.example.kotlintest.rex.RexKey
 import org.example.kotlintest.rex.Workspace
+import org.example.kotlintest.rex.load
 import java.nio.file.Path
 
 /**

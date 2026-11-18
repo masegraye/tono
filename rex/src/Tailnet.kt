@@ -1,11 +1,8 @@
 package org.example.kotlintest.rex
 
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.jsonObject
-import java.util.concurrent.TimeUnit
 
 /**
  * A Rex server found on the tailnet. A server with Tailscale turned on joins the tailnet as
@@ -22,18 +19,6 @@ data class TailnetServer(val name: String, val address: String, val online: Bool
 }
 
 object Tailnet {
-    /**
-     * The Rex servers on the tailnet, as the `tailscale` command reports them, those that
-     * are up first. Empty when the command is missing, Tailscale is stopped, or it doesn't
-     * answer in time: discovery is a convenience, and an address can always be typed.
-     */
-    fun rexServers(): List<TailnetServer> = runCatching {
-        val process = ProcessBuilder("tailscale", "status", "--json").redirectErrorStream(false).start()
-        val output = process.inputStream.bufferedReader().use { it.readText() }
-        if (!process.waitFor(5, TimeUnit.SECONDS)) process.destroyForcibly()
-        parseStatus(Json.parseToJsonElement(output).jsonObject)
-    }.getOrDefault(emptyList())
-
     /** Picks the Rex servers out of `tailscale status --json`. */
     fun parseStatus(status: JsonObject): List<TailnetServer> =
         (listOfNotNull(status.obj("Self")) + status.obj("Peer")?.values.orEmpty().mapNotNull { it as? JsonObject })

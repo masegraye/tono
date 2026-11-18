@@ -1,3 +1,18 @@
-# libghostty-vt, Ghostty's terminal emulation core, for the JVM.
-# src/ffi holds bindings generated from its C headers (see native/); the Kotlin files wrap them.
-product: jvm/lib
+# libghostty-vt, Ghostty's terminal emulation core, behind one interface on two platforms.
+#
+# src        what a terminal is to the rest of the app: frames, rows, mouse input, and the
+#            classes each platform provides (Ghostty.kt)
+# src@jvm    the library as a shared object, called through Java's foreign function API;
+#            src@jvm/ffi holds the bindings generated from its C headers (see native/)
+# src@wasmJs the library as a WebAssembly module, reached through webApp/resources/ghostty-glue.js
+product:
+  type: kmp/lib
+  platforms: [jvm, wasmJs]
+
+dependencies:
+  - $libs.kotlinx.coroutines.core
+
+settings:
+  kotlin:
+    # The classes in Ghostty.kt are declared once and provided per platform.
+    freeCompilerArgs: [-Xexpect-actual-classes]

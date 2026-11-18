@@ -31,14 +31,5 @@ sealed interface RexEndpoint {
                 else -> Network("wss://$value")
             }
         }
-
-        /** The local server: `REX_SERVER`, or the per-user socket under `XDG_RUNTIME_DIR`. */
-        fun local(environment: Map<String, String> = System.getenv()): String =
-            environment["REX_SERVER"]
-                ?: "unix://${environment["XDG_RUNTIME_DIR"] ?: "/run/user/${ProcessHandle.current().info().user().map(::uidOf).orElse("1000")}"}/rex/server.sock"
-
-        private fun uidOf(user: String): String =
-            runCatching { ProcessBuilder("id", "-u", user).start().inputStream.bufferedReader().readText().trim() }
-                .getOrNull()?.takeIf { it.isNotEmpty() } ?: "1000"
     }
 }

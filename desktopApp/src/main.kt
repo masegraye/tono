@@ -26,6 +26,7 @@ import kotlinx.coroutines.cancel
 import org.example.kotlintest.ghostty.TerminalColors
 import org.example.kotlintest.rex.RexClient
 import org.example.kotlintest.rex.Workspace
+import org.example.kotlintest.rex.load
 import java.nio.file.Path
 
 /**

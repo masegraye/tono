@@ -22,14 +22,13 @@ import java.lang.foreign.ValueLayout.JAVA_SHORT
  * Not thread-safe: use a terminal, and any [GhosttyRenderer] reading it, from one thread
  * at a time.
  */
-class GhosttyTerminal private constructor(internal val handle: MemorySegment) : AutoCloseable {
+actual class GhosttyTerminal private constructor(internal val handle: MemorySegment) : AutoCloseable {
 
     /** A terminal restored from a snapshot, and how many bytes the snapshot occupied. */
-    class Restored(val terminal: GhosttyTerminal, val snapshotBytes: Int)
+    actual class Restored(actual val terminal: GhosttyTerminal, actual val snapshotBytes: Int)
 
-    companion object {
-        /** An empty terminal. */
-        fun create(columns: Int, rows: Int): GhosttyTerminal {
+    actual companion object {
+        actual fun create(columns: Int, rows: Int): GhosttyTerminal {
             GhosttyLibrary.ensureLoaded()
             return Arena.ofConfined().use { arena ->
                 val out = arena.allocate(ADDRESS)
@@ -43,7 +42,7 @@ class GhosttyTerminal private constructor(internal val handle: MemorySegment) : 
          * scrollback, modes, and any half-received escape sequence. Bytes after the snapshot
          * are left alone; [Restored.snapshotBytes] says where they start.
          */
-        fun restore(bytes: ByteArray, length: Int = bytes.size): Restored {
+        actual fun restore(bytes: ByteArray, length: Int): Restored {
             GhosttyLibrary.ensureLoaded()
             return Arena.ofConfined().use { arena ->
                 val buffer = arena.allocate(length.toLong())
@@ -73,11 +72,11 @@ class GhosttyTerminal private constructor(internal val handle: MemorySegment) : 
         }
     }
 
-    val columns: Int get() = readShort(GhosttyVt.GHOSTTY_TERMINAL_DATA_COLS())
-    val rows: Int get() = readShort(GhosttyVt.GHOSTTY_TERMINAL_DATA_ROWS())
+    actual val columns: Int get() = readShort(GhosttyVt.GHOSTTY_TERMINAL_DATA_COLS())
+    actual val rows: Int get() = readShort(GhosttyVt.GHOSTTY_TERMINAL_DATA_ROWS())
 
     /** Feeds program output to the terminal. */
-    fun write(bytes: ByteArray, offset: Int = 0, length: Int = bytes.size - offset) {
+    actual fun write(bytes: ByteArray, offset: Int, length: Int) {
         if (length <= 0) return
         Arena.ofConfined().use { arena ->
             val buffer = arena.allocate(length.toLong())
@@ -89,12 +88,12 @@ class GhosttyTerminal private constructor(internal val handle: MemorySegment) : 
     fun write(text: String) = write(text.toByteArray())
 
     /** Changes the grid's size, reflowing wrapped lines. Pixel sizes are 0 when unknown. */
-    fun resize(columns: Int, rows: Int, cellWidthPx: Int = 0, cellHeightPx: Int = 0) {
+    actual fun resize(columns: Int, rows: Int, cellWidthPx: Int, cellHeightPx: Int) {
         check("terminal_resize", GhosttyVt.ghostty_terminal_resize(handle, columns.toShort(), rows.toShort(), cellWidthPx, cellHeightPx))
     }
 
     /** Sets the colors used where a program hasn't chosen one. */
-    fun setColors(colors: TerminalColors) = Arena.ofConfined().use { arena ->
+    actual fun setColors(colors: TerminalColors): Unit = Arena.ofConfined().use { arena ->
         val rgb = arena.allocate(GhosttyColorRgb.layout())
         fun set(option: Int, color: Int?) {
             if (color != null) writeRgb(rgb, 0, color)
@@ -113,10 +112,10 @@ class GhosttyTerminal private constructor(internal val handle: MemorySegment) : 
     }
 
     /** Scrolls the view through the scrollback: negative is up, towards older output. */
-    fun scrollViewport(rows: Int) = scroll(GhosttyVt.GHOSTTY_SCROLL_VIEWPORT_DELTA(), rows.toLong())
+    actual fun scrollViewport(rows: Int): Unit = scroll(GhosttyVt.GHOSTTY_SCROLL_VIEWPORT_DELTA(), rows.toLong())
 
     /** Returns the view to the live screen. */
-    fun scrollToBottom() = scroll(GhosttyVt.GHOSTTY_SCROLL_VIEWPORT_BOTTOM(), 0)
+    actual fun scrollToBottom(): Unit = scroll(GhosttyVt.GHOSTTY_SCROLL_VIEWPORT_BOTTOM(), 0)
 
     private fun scroll(tag: Int, delta: Long) = Arena.ofConfined().use { arena ->
         val behavior = arena.allocate(GhosttyTerminalScrollViewport.layout())
@@ -159,7 +158,7 @@ class GhosttyTerminal private constructor(internal val handle: MemorySegment) : 
      * Whether the terminal's program has asked for pasted text to be bracketed (mode 2004),
      * which lets it tell a paste from typing.
      */
-    val bracketedPaste: Boolean
+    actual val bracketedPaste: Boolean
         get() = Arena.ofConfined().use { arena ->
             val config = arena.allocate(GhosttyTerminalModeConfig.layout())
             GhosttyTerminalModeConfig.mode(config, MODE_BRACKETED_PASTE)
@@ -181,7 +180,7 @@ class GhosttyTerminal private constructor(internal val handle: MemorySegment) : 
         }
     }
 
-    override fun close() = GhosttyVt.ghostty_terminal_free(handle)
+    actual override fun close() = GhosttyVt.ghostty_terminal_free(handle)
 
     /** The size of a cell in pixels, as the terminal was last told, or zero. Programs size images by it. */
     val cellWidthPx: Int get() = readInt(GhosttyVt.GHOSTTY_TERMINAL_DATA_WIDTH_PX()) / columns.coerceAtLeast(1)
@@ -250,7 +249,7 @@ private const val MODE_BRACKETED_PASTE: Short = 2004
  * are replaced with spaces, and the text is wrapped in bracketed-paste markers when
  * [bracketed] is true, or has its newlines turned into carriage returns when it isn't.
  */
-fun encodePaste(text: String, bracketed: Boolean): ByteArray {
+actual fun encodePaste(text: String, bracketed: Boolean): ByteArray {
     GhosttyLibrary.ensureLoaded()
     val input = text.toByteArray()
     return Arena.ofConfined().use { arena ->

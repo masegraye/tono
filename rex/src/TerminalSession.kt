@@ -5,7 +5,6 @@ import io.ktor.websocket.readBytes
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,6 +17,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
 import org.example.kotlintest.ghostty.GhosttyMouse
+import org.example.kotlintest.ghostty.loadGhostty
+import kotlin.concurrent.Volatile
 import org.example.kotlintest.ghostty.GhosttyRenderer
 import org.example.kotlintest.ghostty.MouseAction
 import org.example.kotlintest.ghostty.MouseButton
@@ -25,8 +26,6 @@ import org.example.kotlintest.ghostty.MouseInput
 import org.example.kotlintest.ghostty.GhosttyTerminal
 import org.example.kotlintest.ghostty.TerminalColors
 import org.example.kotlintest.ghostty.TerminalFrame
-import java.io.ByteArrayOutputStream
-import java.util.concurrent.Executors
 
 /** A terminal's size in cells, and the pixel size of a cell where the server knows it. */
 data class GridSize(val columns: Int, val rows: Int, val cellWidthPx: Int = 0, val cellHeightPx: Int = 0)
@@ -86,7 +85,7 @@ class TerminalSession internal constructor(
 
     private val commands = Channel<Command>(Channel.UNLIMITED)
     private var colors: TerminalColors? = colors
-    private val job = scope.launch(terminalThread) { run() }
+    private val job = scope.launch(terminalDispatcher) { run() }
 
     /** Sets the colors the terminal is drawn with where its program hasn't chosen one. */
     fun setColors(colors: TerminalColors) { commands.trySend(Command.SetColors(colors)) }
@@ -111,6 +110,7 @@ class TerminalSession internal constructor(
         var mouse: GhosttyMouse? = null
         var stream: RexTerminalStream? = null
         try {
+            loadGhostty() // in a browser the terminal library has to be fetched before its first use
             stream = open()
             val snapshot = receiveSnapshot(stream)
             val restored = GhosttyTerminal.restore(snapshot)
@@ -177,7 +177,7 @@ class TerminalSession internal constructor(
 
     /** Collects stream bytes until the whole snapshot has arrived. More may follow it in the result. */
     private suspend fun receiveSnapshot(stream: RexTerminalStream): ByteArray {
-        val received = ByteArrayOutputStream()
+        val received = ByteCollector()
         var chunks = 0
         while (true) {
             val frame = withTimeoutOrNull(SNAPSHOT_TIMEOUT_MILLIS) { stream.frames.receiveCatching().getOrNull() }
@@ -186,7 +186,7 @@ class TerminalSession internal constructor(
             received.write(frame.readBytes())
             // Walking the records from the start is too slow to do for every chunk of a large
             // snapshot, so only look every so often and whenever the stream pauses.
-            if (++chunks % 64 == 0 || received.size() < 1_000_000 || stream.idle) {
+            if (++chunks % 64 == 0 || received.size < 1_000_000 || stream.idle) {
                 val bytes = received.toByteArray()
                 if (snapshotLength(bytes, bytes.size) != null) return bytes
             }
@@ -226,7 +226,7 @@ class TerminalSession internal constructor(
                 val report = mouse.encode(terminal, input)
                 when {
                     // A click claims the terminal as a key press does; passing over it doesn't.
-                    report.isNotEmpty() -> onInput(String(report, Charsets.ISO_8859_1), input.action == MouseAction.Press && input.button != MouseButton.WheelUp && input.button != MouseButton.WheelDown)
+                    report.isNotEmpty() -> onInput(report.latin1(), input.action == MouseAction.Press && input.button != MouseButton.WheelUp && input.button != MouseButton.WheelDown)
                     command.scrollRows != 0 -> terminal.scrollViewport(command.scrollRows)
                 }
             }
@@ -235,11 +235,6 @@ class TerminalSession internal constructor(
     }
 
     private companion object {
-        /** libghostty-vt handles aren't thread-safe, so every terminal lives on this one thread. */
-        val terminalThread = Executors.newSingleThreadExecutor { task ->
-            Thread(task, "rex-terminals").apply { isDaemon = true }
-        }.asCoroutineDispatcher()
-
         const val SNAPSHOT_TIMEOUT_MILLIS = 15_000L
         /** A short pause after each frame lets output that arrives in pieces be drawn together. */
         const val FRAME_INTERVAL_MILLIS = 4L

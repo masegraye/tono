@@ -11,42 +11,7 @@ import java.lang.foreign.ValueLayout.JAVA_BOOLEAN
 import java.lang.foreign.ValueLayout.JAVA_BYTE
 import java.lang.foreign.ValueLayout.JAVA_LONG
 
-enum class MouseAction { Press, Release, Motion }
-
-/** The buttons a terminal can be told about. The wheel is two of them: a notch is a press. */
-enum class MouseButton { Left, Right, Middle, WheelUp, WheelDown }
-
-/**
- * Something the pointer did over a terminal.
- *
- * @param button the button pressed or released, or the one held during a motion, if any
- * @param x where, in pixels from the terminal's left edge
- * @param y in pixels from its top edge
- * @param cellWidth the size of a character cell as drawn, in pixels, which turns the position into a cell
- * @param anyButtonDown whether any button is down after this event, which some programs ask to be told
- */
-data class MouseInput(
-    val action: MouseAction,
-    val button: MouseButton?,
-    val x: Float,
-    val y: Float,
-    val cellWidth: Int,
-    val cellHeight: Int,
-    val shift: Boolean = false,
-    val control: Boolean = false,
-    val alt: Boolean = false,
-    val anyButtonDown: Boolean = action == MouseAction.Press,
-)
-
-/**
- * Turns pointer events into the bytes a terminal's program asked for. A program says whether
- * it wants the mouse at all, which events, and in what form, by setting terminal modes;
- * Neovim, htop and tmux all do. libghostty-vt keeps those modes, so it does the encoding.
- *
- * One of these serves one terminal: it remembers the cell last moved into, so that moving
- * within a cell says nothing twice. Not thread-safe, like the terminal it reads.
- */
-class GhosttyMouse : AutoCloseable {
+actual class GhosttyMouse actual constructor() : AutoCloseable {
     private val arena = Arena.ofConfined()
     private val encoder: MemorySegment
     private val event: MemorySegment
@@ -74,7 +39,7 @@ class GhosttyMouse : AutoCloseable {
      * isn't tracking the mouse, or not this kind of event, or the pointer is still in the
      * cell last reported.
      */
-    fun encode(terminal: GhosttyTerminal, input: MouseInput): ByteArray {
+    actual fun encode(terminal: GhosttyTerminal, input: MouseInput): ByteArray {
         if (input.cellWidth <= 0 || input.cellHeight <= 0) return EMPTY
         if (input.action == MouseAction.Motion) {
             val cell = ((input.y / input.cellHeight).toLong() shl 32) or ((input.x / input.cellWidth).toLong() and 0xFFFFFFFFL)
@@ -128,7 +93,7 @@ class GhosttyMouse : AutoCloseable {
         return if (length == 0L) EMPTY else buffer.asSlice(0, length).toArray(JAVA_BYTE)
     }
 
-    override fun close() {
+    actual override fun close() {
         GhosttyVt.ghostty_mouse_event_free(event)
         GhosttyVt.ghostty_mouse_encoder_free(encoder)
         arena.close()

@@ -27,7 +27,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
-import java.util.concurrent.ConcurrentHashMap
+import kotlin.concurrent.Volatile
 import org.example.kotlintest.ghostty.TerminalColors
 
 /**
@@ -46,7 +46,7 @@ import org.example.kotlintest.ghostty.TerminalColors
 class RexClient(
     parentScope: CoroutineScope,
     /** What is remembered between runs. The app keeps its sidebar's folded state here too. */
-    val workspace: Workspace = Workspace.load(),
+    val workspace: Workspace = defaultWorkspace(),
     private val info: RexClientInfo = RexClientInfo(name = "Tono", version = "0.1.0"),
 ) : AutoCloseable {
     // The client's own work, under the caller's scope but ended by close(): a caller that
@@ -60,9 +60,9 @@ class RexClient(
     private val keymapRefresh = Channel<Unit>(Channel.CONFLATED)
     private val hostListRefresh = Channel<Unit>(Channel.CONFLATED)
     /** For each host that came from the home server's host list, by label, its id in that list. */
-    private val listedIds = ConcurrentHashMap<String, String>()
+    private val listedIds = concurrentMap<String, String>()
     /** Addresses in that list that turned out to be the home server itself, as [endpointKey]s. */
-    private val ownAddresses = ConcurrentHashMap.newKeySet<String>()
+    private val ownAddresses = concurrentSet<String>()
     @Volatile private var terminalColors: TerminalColors? = null
     @Volatile private var declaredActions: List<RexAction> = emptyList()
     @Volatile private var defaultBindings: List<KeyBinding> = emptyList()
@@ -91,7 +91,7 @@ class RexClient(
         // The first time the app runs there is one host, the local server. It is written to
         // the workspace like any other, so the file shows what the app connects to.
         if (workspace.hosts.isEmpty()) {
-            workspace.hosts = listOf(SavedHost("Local", RexEndpoint.local()))
+            workspace.hosts = listOf(SavedHost("Local", defaultLocalEndpoint()))
             workspace.save()
         }
         val saved = workspace.hosts

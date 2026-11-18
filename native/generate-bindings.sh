@@ -10,7 +10,7 @@ here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 jextract_url=https://download.java.net/java/early_access/jextract/25/2/openjdk-25-jextract+2-4_linux-x64_bin.tar.gz
 jextract_sha256=d0cc481abc1adb16fb9514e1c5e0bfc08d38c29228bece667fb5054ceaffaa42
 package=org.example.kotlintest.ghostty.ffi
-output="$here/../ghostty/src/ffi"
+output="$here/../ghostty/src@jvm/ffi"
 headers="$here/out/include"
 
 [[ -f $headers/ghostty/vt.h ]] || { echo "Build libghostty-vt first: task native" >&2; exit 1; }

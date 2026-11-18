@@ -1,14 +1,27 @@
 # A client for the Rex server: connections, sessions, and live terminals. No UI.
 # The protocol is described by the server itself (GET /llms.txt on its socket).
-product: jvm/lib
+#
+# src        the client
+# src@jvm    how it reaches a server and keeps its state on the desktop: sockets and files
+# src@wasmJs the same in a browser, where connections go through the page's own server
+product:
+  type: kmp/lib
+  platforms: [jvm, wasmJs]
 
 dependencies:
   - //ghostty: exported
   - $ktor.client.core
-  - $ktor.client.cio
   - $ktor.client.websockets
   - $libs.kotlinx.serialization.json: exported
   - $libs.kotlinx.coroutines.core: exported
 
+dependencies@jvm:
+  - $ktor.client.cio
+
+dependencies@wasmJs:
+  - $libs.ktor.client.js
+
 settings:
   ktor: enabled
+  kotlin:
+    freeCompilerArgs: [-Xexpect-actual-classes]
