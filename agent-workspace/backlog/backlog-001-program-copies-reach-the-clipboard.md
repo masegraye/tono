@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | captured |
+| Status | done (commits `971682c`, `9378172`, 2026-11-18) |
 | Area | Clipboard |
 | Size | small |
 | Source | inv-001 |
@@ -28,3 +28,21 @@ First in line. It is the smallest piece of the clipboard work and stands alone.
 ## Not known yet
 
 On the web a page may write to the clipboard only when it is served securely and has focus. Firefox and Safari may refuse a write that doesn't follow a key press or a click. Not tested.
+
+## What was built
+
+A copy from the terminal in use reaches the clipboard on the desktop and in a browser. Built
+by a worker and checked by the orchestrator:
+
+- On the desktop, in a real focused window: a copy landed, as did one with non-ASCII text and
+  one of 200,000 bytes read in parts. A copy made while the window was not in front, and one
+  made with the palette open, left the clipboard alone.
+- In the web app, in headless Chromium, by the worker: the same, and copies up to 5 MB.
+
+Decisions made while building, none of them asked for:
+
+- A dropped copy leaves a line in the debug log, with the text's length and never the text.
+- In a narrow window showing the sidebar, a copy is dropped, since the terminal isn't on screen.
+- Large copies are read 256 KiB at a time.
+
+Not checked: Firefox and Safari, and the 8 MiB refusal against a real server (unit tests only).

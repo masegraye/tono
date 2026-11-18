@@ -4,7 +4,7 @@ Things Tono could do and doesn't yet, formed enough to build later. An entry say
 
 Naming: `backlog-<nnn>-<slug>.md`
 
-Same workspace rules: lowercase kebab-case, permanent numbers, a `Status` field (`captured` → `promoted` | `declined`, with a pointer when promoted, and a note in brackets when something outside holds it up), cross-reference by short code.
+Same workspace rules: lowercase kebab-case, permanent numbers, a `Status` field (`captured` → `promoted` | `done` | `declined`, with a pointer when promoted or the commits when done, and a note in brackets when something outside holds it up), cross-reference by short code.
 
 Most of these came from the audit of Rex Rune in [inv-001](../investigations/inv-001-rex-rune-feature-audit.md).
 
@@ -12,7 +12,7 @@ Most of these came from the audit of Rex Rune in [inv-001](../investigations/inv
 
 The order proposed in inv-001, not yet agreed:
 
-1. backlog-001: Program copies reach the clipboard (OSC 52)
+1. ~~backlog-001: Program copies reach the clipboard (OSC 52)~~ done
 2. backlog-002: Select and copy text
 3. backlog-005: Open links with Ctrl+click
 4. backlog-006: Search a terminal
@@ -28,7 +28,7 @@ The order proposed in inv-001, not yet agreed:
 
 | # | Entry | Area | Size | Status |
 |---|-------|------|------|--------|
-| 001 | [Program copies reach the clipboard (OSC 52)](backlog-001-program-copies-reach-the-clipboard.md) | Clipboard | small | captured |
+| 001 | [Program copies reach the clipboard (OSC 52)](backlog-001-program-copies-reach-the-clipboard.md) | Clipboard | small | done |
 | 002 | [Select and copy text](backlog-002-select-and-copy-text.md) | Clipboard | large | captured |
 | 003 | [Paste or drop files and images](backlog-003-paste-files-and-images.md) | Clipboard | medium | captured |
 | 004 | [Copy on select, and middle-click paste](backlog-004-copy-on-select-and-middle-click-paste.md) | Clipboard | small | captured |
@@ -61,3 +61,4 @@ The order proposed in inv-001, not yet agreed:
 | 031 | [An AUR package](backlog-031-aur-package.md) | Shipping | medium | captured (on hold until asked for) |
 | 032 | [A tab in a window of its own](backlog-032-pop-out-tab-windows.md) | Shipping | medium | captured (on hold: not wanted yet) |
 | 033 | [Publish the Omarchy theme libraries](backlog-033-publish-the-theme-libraries.md) | Shipping | medium | captured (on hold: shelved) |
+| 034 | [The web app may not notice that it lost focus](backlog-034-the-web-app-may-not-notice-losing-focus.md) | The web app | small | captured |

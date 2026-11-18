@@ -46,7 +46,7 @@ specs/spec-001-example/spec.md
 1. An idea, or a gap found by an investigation, becomes a **backlog** entry.
 2. When it is next to be built and is more than a small change, it is promoted to a **spec**: `specs/spec-NNN-<slug>/spec.md`. Small entries can be built straight from the backlog.
 3. A choice that later work will rest on is written down as a **decision** before anything treats it as settled.
-4. Documents carry a `Status` field so their state is visible over time. Specs use `draft`, `in-review`, `accepted`, `in-progress`, `done`, `superseded`. The backlog uses `captured`, `promoted`, `declined`.
+4. Documents carry a `Status` field so their state is visible over time. Specs use `draft`, `in-review`, `accepted`, `in-progress`, `done`, `superseded`. The backlog uses `captured`, `promoted`, `done`, `declined`.
 5. Cross-reference by short code ("informed by inv-001", "promoted from backlog-002").
 
 ## Rules for agents
