@@ -308,7 +308,7 @@ How it is put together:
   Ghostty source pinned in [GHOSTTY.lock](./native/GHOSTTY.lock). [ghostty](./ghostty/src) calls it through Java's
   foreign function API, using bindings generated from its headers (`task bindings` regenerates them from
   [ghostty-vt.symbols](./native/ghostty-vt.symbols)).
-- **Drawing.** libghostty-vt reports which rows changed; [TerminalView.kt](./desktopApp/src/TerminalView.kt) draws the
+- **Drawing.** libghostty-vt reports which rows changed; [TerminalView.kt](./tono/src/TerminalView.kt) draws the
   cells on a Compose canvas, in the Omarchy font and colors, and recolors when the desktop's theme changes.
 - **Typing.** Key events go to the server as they came from the keyboard (`client.key`); the server applies key
   bindings and encodes them for the terminal. Pasted text is made safe and framed by libghostty-vt's paste encoder.
@@ -331,12 +331,29 @@ How it is put together:
   the clipboard is never answered, so nothing a program prints can get at what you have copied. A browser lets a
   page write to the clipboard only when it is served securely (localhost counts) and has focus, and some browsers
   only just after a key press or a click; when one refuses, the debug log says so.
-- **Actions.** [RexActions.kt](./desktopApp/src/RexActions.kt) is the table of what the app can do and its default keys.
+- **Actions.** [RexActions.kt](./tono/src/RexActions.kt) is the table of what the app can do and its default keys.
 
 Not there yet: selecting text with the mouse and copying it, SSH hosts, resuming a terminal's stream after a drop
 (it is reopened from a new snapshot instead), floating layers drawn as windows, animated images, key sequences and
 modes in the keymap, and performing actions for other clients (`rex -C … do`). Keys are named for a US layout, so on other layouts
 some shortcuts may be read as the wrong key; the text typed is still right.
+
+### Credits
+
+Tono is an independent, unofficial client. It stands on other people's work:
+
+- **[Rex](https://www.superlogical.com/rex)**, by Superlogical, is the terminal multiplexer Tono is a client for. Its
+  Mac app is what Tono takes its behaviour, action names and shortcuts from.
+- **[Rex Rune](https://github.com/shuv1337/rex-rune)**, by shuv, is another unofficial Linux client for Rex, written in
+  Rust. It was Tono's reference implementation: where Rex's documentation didn't say how a client should behave
+  (who owns a terminal's size, how tabs are named, what to do with a program's copy), Rex Rune's source and notes
+  did, and Tono follows it. No code is shared.
+- **[Ghostty](https://ghostty.org)**'s terminal core, libghostty-vt, does the terminal emulation.
+- **[Omarchy](https://omarchy.org)** is the desktop Tono is made for and takes its theme and font from.
+
+### License
+
+[MIT](./LICENSE).
 
 ### Testing
 

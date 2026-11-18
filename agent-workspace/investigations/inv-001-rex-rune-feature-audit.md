@@ -9,7 +9,7 @@
 
 ## What was compared
 
-- **Rex Rune** at commit `2612ce6` (after 0.10.1), in `rex-rune`: its `README.md`, `CHANGELOG.md`, and `docs/terminal.md`, `docs/shortcuts.md`, `docs/configuration.md`, `docs/hosts.md`, `docs/downloads.md`, `docs/server-api13.md` and `docs/server-preview14.md`, with `src/connection/clipboard.rs` read for how copies arrive.
+- **[Rex Rune](https://github.com/shuv1337/rex-rune)** at commit `2612ce6` (after 0.10.1): its `README.md`, `CHANGELOG.md`, and `docs/terminal.md`, `docs/shortcuts.md`, `docs/configuration.md`, `docs/hosts.md`, `docs/downloads.md`, `docs/server-api13.md` and `docs/server-preview14.md`, with `src/connection/clipboard.rs` read for how copies arrive.
 - **Tono** at commit `76336f0`: its actions (`tono/src/RexActions.kt`), what it reads from the server (`rex/src/RexHost.kt`), and how it draws (`tono/src/TerminalView.kt`, the renderers in `ghostty/`).
 - **The Rex server here**, API revision 12, and its documentation of methods and events.
 - **libghostty-vt's headers** as built for Tono, in `native/out/include/ghostty/vt/`, for what the library can already do.

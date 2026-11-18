@@ -62,6 +62,13 @@ license. It is at 100 beats a minute, and the film's scenes start on its beats, 
 
 ## What the film says, and what was checked
 
-Every scene is footage of the app doing the thing. Two of its claims go further than what
-has been tried: "on your phone" is shown in a browser's phone mode, and no real phone has
-run it; and the theme scene shows four of Omarchy's themes, not all of them.
+Every scene is footage of the real app. Three things in it are not quite what they seem:
+
+- **The agent is a stand-in.** In the scene about agents, what runs in the tab is
+  `record/agent-sim.sh`, a script that prints what an agent prints and reports its state
+  the way agents do under Rex. What Tono does in answer (the mark on the tab, its change
+  when the agent asks something) is real; the agent, its work and its "193 tests passed"
+  are not.
+- **"On your phone"** is shown in a browser's phone mode, touched rather than clicked. No
+  real phone has run it.
+- **The theme scene** shows four of Omarchy's themes, not all of them.

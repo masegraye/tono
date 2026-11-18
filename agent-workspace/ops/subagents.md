@@ -1,9 +1,10 @@
 # Running workers on Tono
 
-How to fan work out to subagents in this repository. The general routine is the
-`rex-subagents` skill (not part of this repository): each worker is an interactive
-Pi session in its own Rex tab and its own git worktree, talking to the orchestrator over
-pi-intercom. This document is what is particular to Tono. Checked on 2026-11-18.
+How to fan work out to subagents in this repository. The general routine is a Pi skill of
+the author's, `rex-subagents`, which is not part of this repository: each worker is an
+interactive Pi session in its own Rex tab and its own git worktree, talking to the
+orchestrator over pi-intercom. Its two scripts are `spawn-worker` and `close-worker`. This
+document is what is particular to Tono. Checked on 2026-11-18.
 
 ## Starting a worker
 
@@ -18,8 +19,8 @@ it the first `task` in the worktree builds libghostty-vt again, which takes abou
 minutes and a download. With it, `task native` and `task native:wasm` both say the library
 is already built.
 
-Workers land in the Rex session `<project>-agents`, in worktrees under
-`../<project>.worktrees/`, on branches named `agent/<name>`.
+Workers land in a Rex session named after the project (`<project>-agents`), in worktrees
+beside the checkout (`../<project>.worktrees/`), on branches named `agent/<name>`.
 
 ## What a fresh worktree costs
 
@@ -57,10 +58,9 @@ while the main checkout's server stayed up on 8080.
 ## What isn't in the repository yet
 
 The scripts that drive the web app in a headless browser, and the ones that put a real
-window on a hidden workspace, are not checked in (`tw.mjs`, `hidden-browser.sh`
-and the tests around them). A worker in a worktree doesn't know they exist, and a reboot
-loses them. Until they are checked in, the orchestrator runs the browser checks itself, or
-hands a worker the files.
+window on a hidden workspace, were written as the work went and are not checked in. A
+worker in a worktree doesn't have them. Until they are, the orchestrator runs the browser
+checks itself, or hands a worker the files.
 
 ## Which backlog entries can run side by side
 

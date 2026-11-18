@@ -2,6 +2,7 @@
 # The film's takes, one function each. Run one or several: scenes.sh tabs terminal palette.
 # Each leaves the stage as it found it. The stage is set by setup.sh.
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+repo=$(cd "$here/../../.." && pwd)
 . "$here/lib.sh"
 sid=$(rex ls --json | jq -r '.sessions[] | select(.label == "launch-day") | .session_id')
 
@@ -43,7 +44,7 @@ scene_palette() {
   shell_type "$right" fastfetch 0.06; shell_enter "$right"; sleep 1.6
   key ctrl+alt+d; sleep 1.2
   local below; below=$(focused_of shell)
-  shell_type "$below" 'eza --icons -T -L 1 .' 0.035; shell_enter "$below"; sleep 1.8
+  shell_type "$below" "eza --icons -T -L 1 ${repo/#$HOME/\~}" 0.035; shell_enter "$below"; sleep 1.8
   key ctrl+shift+Return; sleep 1.4
   key ctrl+shift+Return; sleep 1.2
   rec_stop
