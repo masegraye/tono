@@ -18,7 +18,8 @@ cursor_away() { hyprctl dispatch "hl.dsp.cursor.move({ x = 1535, y = 863 })" >/d
 # key ctrl+shift+p | key Return | key ctrl+3. Only while the demo window has the keyboard.
 key() {
   focus_tono || { echo "the demo window doesn't have the keyboard; key $1 not sent" >&2; return 1; }
-  local IFS=+ parts=($1) args=() mods=()
+  local parts args=() mods=()
+  IFS=+ read -r -a parts <<<"$1"
   local name=${parts[-1]}
   unset 'parts[-1]'
   for m in "${parts[@]}"; do args+=(-M "$m"); mods=(-m "$m" "${mods[@]}"); done
@@ -48,8 +49,9 @@ rec_stop() {
   saved=$(OMARCHY_SCREENRECORD_DIR=$TAKES omarchy screenrecord --stop-recording 2>/dev/null | tail -1)
   sleep 0.5
   makoctl mode -r do-not-disturb >/dev/null 2>&1
+  # The recorder names its file by the time; the newest one is this take.
   local newest
-  newest=$(ls -t "$TAKES"/*.mp4 2>/dev/null | grep -v "/$TAKE.mp4" | head -1)
+  newest=$(find "$TAKES" -maxdepth 1 -name 'screenrecording-*.mp4' -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-)
   [ -n "$newest" ] && mv -f "$newest" "$TAKES/$TAKE.mp4"
   ffprobe -v error -show_entries format=duration:stream=width,height,r_frame_rate -of csv=p=0 "$TAKES/$TAKE.mp4" | tr '\n' ' '
   echo "-> $TAKES/$TAKE.mp4"
