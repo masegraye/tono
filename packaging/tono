@@ -1,0 +1,11 @@
+#!/bin/sh
+# Tono, a Linux client for Rex. Installed by `task install`; `task uninstall` removes it.
+# Options: --workspace FILE keeps hosts and where you were in FILE instead of the usual place.
+home="${XDG_DATA_HOME:-$HOME/.local/share}/tono"
+
+# The Java it was installed with, or failing that whichever is on PATH (it needs 25 or later).
+java="$home/jre/bin/java"
+[ -x "$java" ] || java=java
+
+GHOSTTY_VT_LIB="$home/libghostty-vt.so" exec "$java" --enable-native-access=ALL-UNNAMED \
+  --add-opens=java.desktop/sun.awt.X11=ALL-UNNAMED -jar "$home/tono.jar" "$@"

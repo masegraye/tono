@@ -1,7 +1,7 @@
-# omre
+# Tono
 
-Omarchy + Rex: a Linux client for [Rex](https://www.superlogical.com/rex) that takes its colors and font from the
-[Omarchy](https://omarchy.org/) desktop. It is a Kotlin Multiplatform project targeting Android, iOS, Desktop (fast UI
+A Linux client for [Rex](https://www.superlogical.com/rex) that takes its colors and font from the
+[Omarchy](https://omarchy.org/) desktop. Rex is Latin for king; *tono* (殿) is Japanese for lord. It is a Kotlin Multiplatform project targeting Android, iOS, Desktop (fast UI
 development with Compose Hot Reload) and Web (Wasm), built with the
 [Kotlin Toolchain](https://kotlin-toolchain.org/latest/).
 
@@ -40,7 +40,7 @@ A fresh clone builds as it is: every module it depends on is in this repository.
 Run each module from the command line:
 
 - Android app: `./kotlin run -m androidApp`
-- Desktop app: `task desktop` (it needs the native library; see [Omre](#omre-the-rex-client))
+- Desktop app: `task desktop` (it needs the native library; see [Tono](#tono-the-rex-client))
 - iOS app: `./kotlin run -m iosApp`
 - Web app: `./kotlin run -m webApp` (static files only), or `task web` to serve it from the server module with
   live theming
@@ -89,7 +89,7 @@ The tasks are in [Taskfile.yml](./Taskfile.yml) (`task` lists them):
   involved at runtime. The server reads `WEB_DIR`, `HOST` (default `127.0.0.1`) and `PORT` (default `8080`) from the
   environment.
 
-### Omre, the Rex client
+### Tono, the Rex client
 
 The desktop app is a Linux client for [Rex](https://www.superlogical.com/rex), which keeps terminals running on a server
 and lets clients attach to them. It is desktop-only; the other targets still show the UI showcase, which the desktop
@@ -99,6 +99,16 @@ app keeps under its menu.
 task native    # once: download and build libghostty-vt into native/out (about two minutes)
 task desktop   # the client
 task probe     # the same connections with no window: prints what was restored
+```
+
+To have it as a command, `task install` builds the app as one jar and installs `tono` into `~/.local/bin`, with the
+app, the terminal library and a link to the Java that runs them in `~/.local/share/tono`, and an entry for the
+desktop's app launcher. It no longer needs this checkout after that; run `task install` again to update it, and
+`task uninstall` to remove it. Its windows have the class `tono`, which is what a Hyprland window rule matches.
+
+```sh
+task install
+tono            # or: tono --workspace FILE
 ```
 
 When it starts it connects to every configured server at once and restores where you were:

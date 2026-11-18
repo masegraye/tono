@@ -40,6 +40,8 @@ fun main(args: Array<String>) {
     // everything. This has to be said before the first window class loads.
     if (System.getProperty("sun.java2d.uiScale") == null && detectOmarchyUiScale() != null) System.setProperty("sun.java2d.uiScale", "1")
 
+    nameWindowClass("tono")
+
     val workspaceFile = args.indexOf("--workspace").takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
     val workspace = workspaceFile?.let { Workspace.load(Path.of(it)) } ?: Workspace.load()
 
@@ -54,7 +56,7 @@ fun main(args: Array<String>) {
                 connections.cancel()
                 exitApplication()
             },
-            title = "Omre",
+            title = "Tono",
             state = rememberWindowState(size = DpSize(1280.dp, 820.dp)),
         ) {
             // Renders at the Hyprland monitor's scale, which the JVM doesn't see under XWayland.
@@ -84,7 +86,7 @@ private fun Showcase(onBack: () -> Unit) {
         App()
         OmarchyTheme {
             FilledTonalButton(onClick = onBack, modifier = Modifier.align(Alignment.BottomStart).padding(16.dp)) {
-                Text("Back to Omre")
+                Text("Back to Tono")
             }
         }
     }
@@ -95,3 +97,20 @@ private fun OmarchyPalette.toTerminalColors(): TerminalColors {
     fun rgb(hex: String) = hex.removePrefix("#").toInt(16)
     return TerminalColors(rgb(colors.foreground), rgb(colors.background), rgb(colors.cursor), colors.ansi.map(::rgb))
 }
+
+/**
+ * Gives the app's windows a class of their own. A window manager knows a window by its class
+ * (it is what a Hyprland window rule matches, and how a launcher ties a window to its entry),
+ * and Java names it after whichever class started the program, which for a packaged jar is
+ * the jar's loader. X11 only, and only when the launch options open the toolkit to it
+ * (`--add-opens java.desktop/sun.awt.X11=ALL-UNNAMED`); otherwise the name stays as it was.
+ */
+private fun nameWindowClass(name: String) {
+    runCatching {
+        val toolkit = java.awt.Toolkit.getDefaultToolkit()
+        val field = toolkit.javaClass.getDeclaredField("awtAppClassName")
+        field.isAccessible = true
+        field.set(toolkit, name)
+    }
+}
+

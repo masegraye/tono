@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Tono
+GenericName=Rex Client
+Comment=Terminals that keep running on your Rex servers
+Exec=tono
+Icon=utilities-terminal
+Terminal=false
+Categories=System;TerminalEmulator;
+Keywords=rex;terminal;sessions;ssh;
+StartupWMClass=tono

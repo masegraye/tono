@@ -7,8 +7,9 @@
 version: '3'
 
 vars:
-  # The terminal emulator is a native library, called through Java's foreign function API.
-  NATIVE_ACCESS: --jvm-args=--enable-native-access=ALL-UNNAMED
+  # The terminal emulator is a native library, called through Java's foreign function API,
+  # and the window is given a class of its own, for which the toolkit has to be opened.
+  NATIVE_ACCESS: '--jvm-args="--enable-native-access=ALL-UNNAMED --add-opens=java.desktop/sun.awt.X11=ALL-UNNAMED"'
 
 tasks:
   default:
@@ -17,19 +18,37 @@ tasks:
     cmds:
       - '{{.TASK_EXE}} --list'
 
-  # --- Omre, the desktop app ---
+  # --- Tono, the desktop app ---
 
   desktop:
-    desc: Run Omre with Compose Hot Reload (options go after --, such as -- --workspace FILE)
+    desc: Run Tono with Compose Hot Reload (options go after --, such as -- --workspace FILE)
     deps: [native]
     cmds:
       - ./kotlin run -m desktopApp {{.NATIVE_ACCESS}} -- {{.CLI_ARGS}}
 
   desktop:steady:
-    desc: Run Omre without Hot Reload, so that building doesn't change the app you are using
+    desc: Run Tono without Hot Reload, so that building doesn't change the app you are using
     deps: [native]
     cmds:
       - ./kotlin run -m desktopApp --no-compose-hot-reload {{.NATIVE_ACCESS}} -- {{.CLI_ARGS}}
+
+  package:
+    desc: Build Tono as a single runnable jar
+    deps: [native]
+    cmds:
+      - ./kotlin package -m desktopApp -f executable-jar
+
+  install:
+    desc: Install the `tono` command for you (~/.local/bin/tono; the app goes in ~/.local/share/tono)
+    deps: [package]
+    cmds:
+      - mise exec -- packaging/install.sh
+
+  uninstall:
+    desc: Remove the `tono` command and the installed app (your hosts and settings are kept)
+    cmds:
+      - rm -f "$HOME/.local/bin/tono" "${XDG_DATA_HOME:-$HOME/.local/share}/applications/tono.desktop"
+      - rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/tono"
 
   probe:
     desc: Connect to every configured Rex server without a window and print what was restored
