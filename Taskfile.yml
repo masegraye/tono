@@ -48,6 +48,7 @@ tasks:
     desc: Remove the `tono` command and the installed app (your hosts and settings are kept)
     cmds:
       - rm -f "$HOME/.local/bin/tono" "${XDG_DATA_HOME:-$HOME/.local/share}/applications/tono.desktop"
+      - find "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor" -path '*/apps/tono.*' -delete 2>/dev/null || true
       - rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/tono"
 
   probe:

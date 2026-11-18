@@ -1,5 +1,9 @@
 package org.example.kotlintest
 
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -14,6 +18,7 @@ import kotlinx.coroutines.cancel
 import org.example.kotlintest.rex.RexClient
 import org.example.kotlintest.rex.Workspace
 import org.example.kotlintest.rex.load
+import org.jetbrains.skia.Image
 import java.nio.file.Path
 
 /**
@@ -45,6 +50,7 @@ fun main(args: Array<String>) {
                 exitApplication()
             },
             title = "Tono",
+            icon = remember { windowIcon() },
             state = rememberWindowState(size = DpSize(1280.dp, 820.dp)),
         ) {
             // Renders at the Hyprland monitor's scale, which the JVM doesn't see under XWayland.
@@ -54,6 +60,16 @@ fun main(args: Array<String>) {
         }
     }
 }
+
+/**
+ * The app's icon, for window lists and title bars that show one. A launcher takes its icon
+ * from the installed entry instead; this is for the window itself. Null if the picture isn't
+ * in the jar, which leaves the toolkit's own.
+ */
+private fun windowIcon(): Painter? = runCatching {
+    val bytes = object {}.javaClass.getResourceAsStream("/icon.png")?.use { it.readBytes() } ?: return null
+    BitmapPainter(Image.makeFromEncoded(bytes).toComposeImageBitmap())
+}.getOrNull()
 
 /**
  * Gives the app's windows a class of their own. A window manager knows a window by its class
