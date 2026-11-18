@@ -15,6 +15,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -168,7 +170,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
                             Box(Modifier.weight(1f)) {
                                 if (selected != null) {
                                     // Beside the sidebar the panel needs no gap on that side: the sidebar's own margin is one.
-                                    HostContent(selected, ui, Modifier.fillMaxSize().padding(start = if (ui.sidebarVisible) 0.dp else PANEL_GAP, top = PANEL_GAP, end = PANEL_GAP), onShowSidebar = if (narrow) { { commands.run("client.sidebar.toggle", origin = "status bar") } } else null)
+                                    HostContent(selected, ui, commands, keymap, Modifier.fillMaxSize().padding(start = if (ui.sidebarVisible) 0.dp else PANEL_GAP, top = PANEL_GAP, end = PANEL_GAP), onShowSidebar = if (narrow) { { commands.run("client.sidebar.toggle", origin = "status bar") } } else null)
                                 }
                                 // The button that brings the sidebar back appears under the pointer. A narrow
                                 // window is likely a touch screen, with no pointer to be under: its button is in the status bar.
@@ -679,7 +681,7 @@ private fun FoldMark(collapsed: Boolean, visible: Boolean) {
 }
 
 @Composable
-private fun HostContent(host: RexHost, ui: RexUiState, modifier: Modifier, onShowSidebar: (() -> Unit)? = null) {
+private fun HostContent(host: RexHost, ui: RexUiState, commands: RexCommands, keymap: Keymap, modifier: Modifier, onShowSidebar: (() -> Unit)? = null) {
     val state by host.state.collectAsState()
     val view = state.view
     val window = state.window
@@ -735,7 +737,17 @@ private fun HostContent(host: RexHost, ui: RexUiState, modifier: Modifier, onSho
                 }
             }
         }
-        StatusBar(host, view, window?.let(state::nameOf), state.terminals[focusedId], onShowSidebar)
+        StatusBar(host, view, window?.let(state::nameOf), state.terminals[focusedId], onShowSidebar) {
+            // What can be done to the pane with the keyboard, as in the corner of Rex.app's
+            // tabs. Only when there is such a pane.
+            if (focusedId != null) {
+                val zoomed = window.zoomedBlockId != null
+                PaneButton("Split Pane Right", "pane.split.right", commands, keymap) { SplitRightIcon(it, STATUS_ICON) }
+                PaneButton("Split Pane Down", "pane.split.down", commands, keymap) { SplitDownIcon(it, STATUS_ICON) }
+                // Zooming means something only where there are other panes to hide.
+                PaneButton(if (zoomed) "Unzoom Pane" else "Zoom Pane", "pane.zoom", commands, keymap, active = zoomed, enabled = zoomed || window.panes.size > 1) { ZoomIcon(it, STATUS_ICON) }
+            }
+        }
     }
 }
 
@@ -783,31 +795,48 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, a
 }
 
 @Composable
-private fun StatusBar(host: RexHost, view: SessionView?, tab: TabName?, terminal: TerminalSession?, onShowSidebar: (() -> Unit)? = null) {
+private fun StatusBar(
+    host: RexHost,
+    view: SessionView?,
+    tab: TabName?,
+    terminal: TerminalSession?,
+    onShowSidebar: (() -> Unit)? = null,
+    buttons: @Composable RowScope.() -> Unit = {},
+) {
     val grid = terminal?.grid?.collectAsState()?.value
     val exit = terminal?.exitCode?.collectAsState()?.value
     val separator = "  ·  "
     // Where you are, from the outside in: the computer, the session, the tab, and how large
     // its terminal is. With the sidebar hidden this is the only place that says which tab is
     // on screen, so the tab's name is the one part in full-strength text.
+    // Tall enough for its buttons to be easy to hit, and no taller.
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        Modifier.fillMaxWidth().padding(start = 12.dp, end = 6.dp, top = 3.dp, bottom = 3.dp).heightIn(min = STATUS_BUTTON),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // In a narrow window: the way back to the sidebar, and only the tab's name, for want of room.
-        if (onShowSidebar != null) {
-            ToolbarButton("Show Sidebar", shortcut = null, onClick = onShowSidebar) { SidebarIcon(it) }
-        } else {
-            HintText(listOfNotNull(host.saved.label, view?.label).joinToString(separator))
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            // In a narrow window: the way back to the sidebar, and only the tab's name, for want of room.
+            if (onShowSidebar != null) {
+                ToolbarButton("Show Sidebar", shortcut = null, onClick = onShowSidebar, size = STATUS_BUTTON) { SidebarIcon(it, STATUS_ICON) }
+            } else {
+                HintText(listOfNotNull(host.saved.label, view?.label).joinToString(separator))
+            }
+            if (tab != null) {
+                HintText(if (onShowSidebar != null) "  " else separator)
+                Text(tab.text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                tab.directory?.let { HintText(it, Modifier.padding(start = 8.dp)) }
+            }
+            val rest = listOfNotNull(grid?.let { "${it.columns}×${it.rows}" }, exit?.let { "exited with $it" })
+            if (rest.isNotEmpty()) HintText(separator + rest.joinToString(separator))
         }
-        if (tab != null) {
-            HintText(if (onShowSidebar != null) "  " else separator)
-            Text(tab.text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            tab.directory?.let { HintText(it, Modifier.padding(start = 8.dp)) }
-        }
-        val rest = listOfNotNull(grid?.let { "${it.columns}×${it.rows}" }, exit?.let { "exited with $it" })
-        if (rest.isNotEmpty()) HintText(separator + rest.joinToString(separator))
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically, content = buttons)
     }
+}
+
+/** One of the buttons at the end of the status line: an action on the pane with the keyboard, by its name. */
+@Composable
+private fun PaneButton(description: String, action: String, commands: RexCommands, keymap: Keymap, active: Boolean = false, enabled: Boolean = true, icon: @Composable (tint: Color) -> Unit) {
+    ToolbarButton(description, keymap.shortcutFor(action)?.display(), onClick = { commands.run(action, origin = "status bar") }, active = active, enabled = enabled, size = STATUS_BUTTON, icon = icon)
 }
 
 @Composable
