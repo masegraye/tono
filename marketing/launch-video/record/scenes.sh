@@ -104,10 +104,11 @@ scene_phone() {
     {"wait": 900},
     {"tap": [100, 186], "wait": 1700},
     {"tap": [200, 320], "wait": 1300},
-    {"type": "ls", "each": 170, "wait": 400},
+    {"type": "echo hello from my phone", "each": 80, "wait": 500},
     {"type": "\n", "wait": 1900},
     {"tap": [22, 806], "wait": 1500}
   ]'
+  rm -f "$DEMO"/phone-ready "$DEMO"/phone-go "$DEMO"/phone-done "$DEMO"/phone-release
   DEMO=$DEMO node "$here/phone.mjs" 9347 take "$steps" &
   while [ ! -e "$DEMO/phone-ready" ]; do sleep 0.2; done
   rec_start phone; sleep 0.6
