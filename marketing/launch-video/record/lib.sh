@@ -77,13 +77,26 @@ focused_of() { rex window ls -s launch-day --json | jq -r --arg w "$(cat "$DEMO/
 
 # No notification may land on a take, the recorder's own "saved" included, so they are held
 # for as long as a script that records is running.
-quiet_on() { makoctl mode -a do-not-disturb >/dev/null 2>&1; }
-quiet_off() { makoctl mode -r do-not-disturb >/dev/null 2>&1; makoctl dismiss -a >/dev/null 2>&1; }
+# Omarchy's shell shows notifications; older Omarchy uses mako. Both are told.
+quiet_on() {
+  WAS_QUIET=$(omarchy-shell notifications dndState 2>/dev/null || echo off)
+  omarchy-shell notifications setDnd true >/dev/null 2>&1
+  makoctl mode -a do-not-disturb >/dev/null 2>&1
+  clear_popups
+}
+quiet_off() {
+  sleep 6   # the recorder's "saved" notice comes a moment after the last take
+  clear_popups
+  [ "$WAS_QUIET" = on ] || omarchy-shell notifications setDnd false >/dev/null 2>&1
+  omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1
+  makoctl mode -r do-not-disturb >/dev/null 2>&1
+}
+clear_popups() { omarchy-shell notifications dismissAll >/dev/null 2>&1; makoctl dismiss -a >/dev/null 2>&1; true; }
 
 # rec_start NAME ... rec_stop: one take, saved as $TAKES/NAME.mp4.
 rec_start() {
   TAKE=$1
-  makoctl dismiss -a >/dev/null 2>&1               # nothing left over the picture
+  clear_popups                                     # nothing left over the picture
   focus_tono
   cursor_away
   OMARCHY_SCREENRECORD_DIR=$TAKES omarchy screenrecord --fullscreen >/dev/null 2>&1 &

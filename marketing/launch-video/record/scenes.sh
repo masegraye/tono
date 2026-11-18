@@ -40,10 +40,10 @@ scene_palette() {
   type_text split 0.1; sleep 1.0
   key Return; sleep 1.3
   local right; right=$(focused_of shell)
-  shell_type "$right" lazygit 0.07; shell_enter "$right"; sleep 1.6
+  shell_type "$right" fastfetch 0.06; shell_enter "$right"; sleep 1.6
   key ctrl+alt+d; sleep 1.2
   local below; below=$(focused_of shell)
-  shell_type "$below" fastfetch 0.06; shell_enter "$below"; sleep 1.8
+  shell_type "$below" 'eza --tree -L1 --icons .' 0.035; shell_enter "$below"; sleep 1.8
   key ctrl+shift+Return; sleep 1.4
   key ctrl+shift+Return; sleep 1.2
   rec_stop
