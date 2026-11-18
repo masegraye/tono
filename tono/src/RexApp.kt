@@ -53,7 +53,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -74,6 +73,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import org.example.kotlintest.rex.nowMillis
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -130,7 +131,9 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
     // Things an action starts and doesn't wait for, such as reading the clipboard.
     ui.scope = rememberCoroutineScope()
 
-    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    // The window is one surface, the color of the sidebar. The sidebar is simply what is on
+    // it, with no edge of its own, and the terminals are a panel raised over it (HostContent).
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Box(
             Modifier.fillMaxSize().focusRequester(rootFocus).focusable().onPreviewKeyEvent { event ->
                 if (ui.palette != null || ui.renaming != null) return@onPreviewKeyEvent false // an overlay has the keyboard
@@ -159,13 +162,13 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
                                 keymap = keymap,
                                 fill = narrow,
                             )
-                            if (!narrow) VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                         // In a narrow window the sidebar is shown instead of the terminals, not beside them.
                         if (!(narrow && ui.sidebarVisible)) {
                             Box(Modifier.weight(1f)) {
                                 if (selected != null) {
-                                    HostContent(selected, ui, Modifier.fillMaxSize(), onShowSidebar = if (narrow) { { commands.run("client.sidebar.toggle", origin = "status bar"); Unit } } else null)
+                                    // Beside the sidebar the panel needs no gap on that side: the sidebar's own margin is one.
+                                    HostContent(selected, ui, Modifier.fillMaxSize().padding(start = if (ui.sidebarVisible) 0.dp else PANEL_GAP, top = PANEL_GAP, end = PANEL_GAP, bottom = PANEL_GAP), onShowSidebar = if (narrow) { { commands.run("client.sidebar.toggle", origin = "status bar") } } else null)
                                 }
                                 // The button that brings the sidebar back appears under the pointer. A narrow
                                 // window is likely a touch screen, with no pointer to be under: its button is in the status bar.
@@ -684,28 +687,43 @@ private fun HostContent(host: RexHost, ui: RexUiState, modifier: Modifier, onSho
     // Which pane has the keyboard is the session's own state, so every client agrees on it.
     val focusedId = window?.let(::focusedBlockOf)
 
-    Column(modifier.fillMaxSize()) {
+    // The panel the terminals are on: the terminal's own color, with rounded corners and a
+    // quiet outline, over the window's surface. One panel however many panes the tab has.
+    val shape = RoundedCornerShape(PANEL_CORNER)
+    Column(
+        modifier.fillMaxSize()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.background)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape),
+    ) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
                 state.connection != HostConnection.Connected ->
                     Notice(if (state.connection is HostConnection.Disconnected) "Not connected to ${host.saved.label}" else "Connecting to ${host.saved.label}…")
                 view == null -> Notice(if (state.sessions.isEmpty()) "This server has no sessions" else "Select a session")
                 panes.isEmpty() -> Notice("This tab is empty")
-                else -> BoxWithConstraints(Modifier.fillMaxSize().padding(4.dp)) {
+                else -> BoxWithConstraints(Modifier.fillMaxSize()) {
                     val width = maxWidth
                     val height = maxHeight
+                    val divider = MaterialTheme.colorScheme.outlineVariant
                     for (pane in panes) {
                         val rect = if (window?.zoomedBlockId != null) PaneRect.Full else pane.rect
                         Box(
                             Modifier
                                 .offset(x = width * rect.x, y = height * rect.y)
                                 .size(width * rect.width, height * rect.height)
-                                .padding(3.dp),
+                                // Panes that share the panel are parted by a line, on the
+                                // sides where a pane has a neighbour before it.
+                                .drawBehind {
+                                    if (rect.x > 0f) drawLine(divider, Offset(0f, 0f), Offset(0f, size.height), 1.dp.toPx())
+                                    if (rect.y > 0f) drawLine(divider, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx())
+                                },
                         ) {
                             Pane(
                                 pane = pane,
                                 terminal = state.terminals[pane.blockId],
                                 focused = pane.blockId == focusedId,
+                                alone = panes.size == 1,
                                 onFocus = { host.focusBlock(pane.blockId) },
                                 host = host,
                                 ui = ui,
@@ -720,15 +738,18 @@ private fun HostContent(host: RexHost, ui: RexUiState, modifier: Modifier, onSho
 }
 
 @Composable
-private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, onFocus: () -> Unit, host: RexHost, ui: RexUiState) {
-    val shape = MaterialTheme.shapes.small
+private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, alone: Boolean, onFocus: () -> Unit, host: RexHost, ui: RexUiState) {
+    // Which of several panes has the keyboard is shown by the others being dimmed, not by
+    // an outline round the one: an outline round the only pane of a tab says nothing.
+    val dim = if (focused || alone) Color.Transparent else MaterialTheme.colorScheme.background.copy(alpha = UNFOCUSED_PANE_DIM)
     Box(
         Modifier
             .fillMaxSize()
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.background)
-            .border(1.dp, if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, shape)
-            .padding(6.dp),
+            .drawWithContent {
+                drawContent()
+                drawRect(dim)
+            }
+            .padding(PANE_PADDING),
     ) {
         when {
             !pane.isTerminal -> Notice("This block isn't a terminal")
@@ -764,11 +785,15 @@ private fun StatusBar(host: RexHost, view: SessionView?, tab: TabName?, terminal
     val grid = terminal?.grid?.collectAsState()?.value
     val exit = terminal?.exitCode?.collectAsState()?.value
     val separator = "  ·  "
+    val line = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
     // Where you are, from the outside in: the computer, the session, the tab, and how large
     // its terminal is. With the sidebar hidden this is the only place that says which tab is
     // on screen, so the tab's name is the one part in full-strength text.
     Row(
-        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow).padding(horizontal = 12.dp, vertical = 4.dp),
+        // On the panel with the terminals it describes, under a line.
+        Modifier.fillMaxWidth()
+            .drawBehind { drawLine(line, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx()) }
+            .padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // In a narrow window: the way back to the sidebar, and only the tab's name, for want of room.
@@ -793,6 +818,16 @@ private fun Notice(text: String) {
         Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+/** The panel the terminals are on: how round its corners are, and how far it stands off the window's edges. */
+private val PANEL_CORNER = 10.dp
+private val PANEL_GAP = 6.dp
+
+/** Between a pane's edge and its terminal. */
+private val PANE_PADDING = 8.dp
+
+/** How much of a pane that doesn't have the keyboard is hidden under the panel's color. */
+private const val UNFOCUSED_PANE_DIM = 0.4f
 
 /** Narrower than this, a window shows the sidebar or the terminals, one at a time. */
 private val NARROW_WINDOW = 560.dp
