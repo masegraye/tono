@@ -15,6 +15,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -145,20 +146,32 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
             },
         ) {
             Column(Modifier.fillMaxSize()) {
-                Row(Modifier.weight(1f).fillMaxWidth()) {
-                    if (ui.sidebarVisible) {
-                        Sidebar(
-                            hosts = hosts,
-                            selected = selected,
-                            ui = ui,
-                            commands = commands,
-                            keymap = keymap,
-                        )
-                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    }
-                    Box(Modifier.weight(1f)) {
-                        if (selected != null) HostContent(selected, ui, Modifier.fillMaxSize())
-                        if (!ui.sidebarVisible) SidebarReveal(commands, keymap.shortcutFor("client.sidebar.toggle")?.display())
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                    val narrow = maxWidth < NARROW_WINDOW
+                    SideEffect { ui.narrow = narrow }
+                    Row(Modifier.fillMaxSize()) {
+                        if (ui.sidebarVisible) {
+                            Sidebar(
+                                hosts = hosts,
+                                selected = selected,
+                                ui = ui,
+                                commands = commands,
+                                keymap = keymap,
+                                fill = narrow,
+                            )
+                            if (!narrow) VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        }
+                        // In a narrow window the sidebar is shown instead of the terminals, not beside them.
+                        if (!(narrow && ui.sidebarVisible)) {
+                            Box(Modifier.weight(1f)) {
+                                if (selected != null) {
+                                    HostContent(selected, ui, Modifier.fillMaxSize(), onShowSidebar = if (narrow) { { commands.run("client.sidebar.toggle", origin = "status bar"); Unit } } else null)
+                                }
+                                // The button that brings the sidebar back appears under the pointer. A narrow
+                                // window is likely a touch screen, with no pointer to be under: its button is in the status bar.
+                                if (!ui.sidebarVisible && !narrow) SidebarReveal(commands, keymap.shortcutFor("client.sidebar.toggle")?.display())
+                            }
+                        }
                     }
                 }
                 if (ui.debugLogVisible) {
@@ -181,7 +194,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
                     title = { Text(pending.title) },
                     text = { Text(pending.text) },
                     confirmButton = {
-                        PrimaryDialogButton(pending.confirmLabel, onClick = { dismiss(); pending.onConfirm() }, Modifier.focusRequester(confirmFocus), destructive = pending.destructive)
+                        PrimaryDialogButton(pending.confirmLabel, onClick = { dismiss(); pending.onConfirm() }, Modifier.focusRequester(confirmFocus).onEscape(dismiss), destructive = pending.destructive)
                     },
                     dismissButton = { SecondaryDialogButton("Cancel", dismiss) },
                 )
@@ -203,6 +216,7 @@ private fun Sidebar(
     ui: RexUiState,
     commands: RexCommands,
     keymap: Keymap,
+    fill: Boolean = false,
 ) {
     val paletteShortcut = keymap.shortcutFor("client.palette.toggle")?.display()
     // Every host's state, read here so that tabs can be numbered across all of them.
@@ -218,7 +232,7 @@ private fun Sidebar(
     )
 
     Column(
-        Modifier.width(240.dp).fillMaxHeight().background(MaterialTheme.colorScheme.surfaceContainerLow),
+        (if (fill) Modifier.fillMaxWidth() else Modifier.width(240.dp)).fillMaxHeight().background(MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         // What the sidebar can do, as buttons: hide itself, show only what is active, and
         // find anything. The rest is in the menu at the end.
@@ -662,7 +676,7 @@ private fun FoldMark(collapsed: Boolean, visible: Boolean) {
 }
 
 @Composable
-private fun HostContent(host: RexHost, ui: RexUiState, modifier: Modifier) {
+private fun HostContent(host: RexHost, ui: RexUiState, modifier: Modifier, onShowSidebar: (() -> Unit)? = null) {
     val state by host.state.collectAsState()
     val view = state.view
     val window = state.window
@@ -701,7 +715,7 @@ private fun HostContent(host: RexHost, ui: RexUiState, modifier: Modifier) {
                 }
             }
         }
-        StatusBar(host, view, window?.let(state::nameOf), state.terminals[focusedId])
+        StatusBar(host, view, window?.let(state::nameOf), state.terminals[focusedId], onShowSidebar)
     }
 }
 
@@ -729,6 +743,7 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, o
                     // focus says, what is typed then is meant for the thing on top, and a
                     // key sent here would be typed into a shell and claim its terminal.
                     onKey = { if (!ui.overlayOpen) host.sendKey(pane.blockId, it) },
+                    onText = { if (!ui.overlayOpen) host.typeText(pane.blockId, it) },
                     onDesiredGrid = { host.setDesiredGrid(pane.blockId, it) },
                     onPointerOver = { host.pointerOver(pane.blockId) },
                     fontSize = ui.fontSize.sp,
@@ -745,7 +760,7 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, o
 }
 
 @Composable
-private fun StatusBar(host: RexHost, view: SessionView?, tab: TabName?, terminal: TerminalSession?) {
+private fun StatusBar(host: RexHost, view: SessionView?, tab: TabName?, terminal: TerminalSession?, onShowSidebar: (() -> Unit)? = null) {
     val grid = terminal?.grid?.collectAsState()?.value
     val exit = terminal?.exitCode?.collectAsState()?.value
     val separator = "  ·  "
@@ -756,9 +771,14 @@ private fun StatusBar(host: RexHost, view: SessionView?, tab: TabName?, terminal
         Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow).padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        HintText(listOfNotNull(host.saved.label, view?.label).joinToString(separator))
+        // In a narrow window: the way back to the sidebar, and only the tab's name, for want of room.
+        if (onShowSidebar != null) {
+            ToolbarButton("Show Sidebar", shortcut = null, onClick = onShowSidebar) { SidebarIcon(it) }
+        } else {
+            HintText(listOfNotNull(host.saved.label, view?.label).joinToString(separator))
+        }
         if (tab != null) {
-            HintText(separator)
+            HintText(if (onShowSidebar != null) "  " else separator)
             Text(tab.text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
             tab.directory?.let { HintText(it, Modifier.padding(start = 8.dp)) }
         }
@@ -773,6 +793,9 @@ private fun Notice(text: String) {
         Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+/** Narrower than this, a window shows the sidebar or the terminals, one at a time. */
+private val NARROW_WINDOW = 560.dp
 
 /** How soon a second click on a tab must follow the first to count as a double click. */
 private const val DOUBLE_CLICK_MILLIS = 400L

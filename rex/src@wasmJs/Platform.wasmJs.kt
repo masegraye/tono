@@ -65,6 +65,8 @@ internal actual class Counter actual constructor() {
     actual fun next(): Long = value++
 }
 
+internal actual val clientPlatform: String = "web"
+
 actual fun nowMillis(): Long = dateNow().toLong()
 
 internal actual fun connectFailureMessage(failure: Exception): String? = null

@@ -46,7 +46,7 @@ fun RenameTabDialog(renaming: TabRename, onDismiss: () -> Unit) {
                 singleLine = true,
                 placeholder = { Text(renaming.automaticName) },
                 supportingText = { Text("Leave it empty to name the tab after the program running in it.") },
-                modifier = Modifier.fillMaxWidth().focusRequester(focus).onPreviewKeyEvent { event ->
+                modifier = Modifier.fillMaxWidth().focusRequester(focus).onEscape(onDismiss).onPreviewKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.NumPadEnter)) { save(); true } else false
                 },
             )

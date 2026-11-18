@@ -1,0 +1,47 @@
+Images in the WebAssembly build of libghostty-vt. Applied by build-libghostty-vt-wasm.sh
+to its own copy of the source pinned in GHOSTTY.lock; the desktop's library is built from
+the source as it comes.
+
+Upstream turns the Kitty graphics protocol off for wasm32-freestanding. What stops it
+compiling there is reading images from files, which a browser has no use for (and which the
+desktop app turns off as well, so that a remote program can't make this machine read its own
+files). So: keep the protocol, refuse files, and decode PNGs with the decoder the library
+already carries, since a browser's own decoders can't be called in the middle of a write.
+
+--- a/src/terminal/build_options.zig
++++ b/src/terminal/build_options.zig
+@@ -272,7 +272,7 @@
+     /// targets, so it is always disabled there regardless of the
+     /// feature setting.
+     pub fn kittyGraphics(self: Options, target: std.Target) bool {
+-        if (target.os.tag == .freestanding) return false;
++        _ = target;
+         return self.features.kitty_graphics;
+     }
+ 
+--- a/src/terminal/kitty/graphics_image.zig
++++ b/src/terminal/kitty/graphics_image.zig
+@@ -182,6 +182,9 @@
+             }
+         }
+ 
++        // Nothing to read a path from without an operating system.
++        if (comptime builtin.target.os.tag == .freestanding) return error.UnsupportedMedium;
++
+         // Depending on the medium, load the data from the path.
+         switch (t.medium) {
+             .direct => unreachable, // handled above
+--- a/src/terminal/sys.zig
++++ b/src/terminal/sys.zig
+@@ -16,7 +16,10 @@
+ /// and the exact semantics are up to callers. For example, the Kitty Graphics
+ /// Protocol will work but cannot accept PNG images.
+ pub var decode_png: ?DecodePngFn = png: {
+-    if (build_options.artifact == .lib) break :png null;
++    // A WebAssembly host has no decoder it can call from here: a browser's own
++    // work asynchronously. The bundled one is used instead.
++    if (build_options.artifact == .lib and
++        @import("builtin").target.os.tag != .freestanding) break :png null;
+     break :png &decodePngWuffs;
+ };
+ 

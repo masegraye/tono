@@ -37,6 +37,7 @@ private fun glueRendererNew(): Int = js("globalThis.GhosttyGlue.rendererNew()")
 private fun glueRendererFree(state: Int): Unit = js("globalThis.GhosttyGlue.rendererFree(state)")
 private fun glueRendererInvalidate(state: Int): Unit = js("globalThis.GhosttyGlue.rendererInvalidate(state)")
 private fun glueRender(state: Int, terminal: Int): String = js("globalThis.GhosttyGlue.render(state, terminal)")
+private fun glueImageRead(terminal: Int, id: Int): String = js("globalThis.GhosttyGlue.imageRead(terminal, id)")
 private fun glueMouseNew(): String = js("globalThis.GhosttyGlue.mouseNew()")
 private fun glueMouseFree(encoder: Int, event: Int): Unit = js("globalThis.GhosttyGlue.mouseFree(encoder, event)")
 private fun glueMouseEncode(
@@ -97,6 +98,22 @@ actual class GhosttyTerminal private constructor(internal val handle: Int) : Aut
 
     actual val bracketedPaste: Boolean get() = glueTerminalBracketedPaste(handle)
 
+    /**
+     * Copies out the pixels of an image a program sent, as RGBA. Null if there is no such
+     * image, its pixels haven't arrived yet, or they are in a form the glue doesn't know.
+     */
+    internal fun readImage(id: Int): TerminalImage? {
+        val described = glueImageRead(handle, id)
+        // "width,height," and then the pixels, which may hold any byte, commas included.
+        val first = described.indexOf(',')
+        val second = described.indexOf(',', first + 1)
+        if (first < 0 || second < 0) return null
+        val width = described.substring(0, first).toInt()
+        val height = described.substring(first + 1, second).toInt()
+        val rgba = ByteArray(described.length - second - 1) { described[second + 1 + it].code.toByte() }
+        return TerminalImage(id, width, height, rgba)
+    }
+
     actual override fun close() = glueTerminalFree(handle)
 }
 
@@ -105,6 +122,10 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
 
     /** The rows of the last frame, by the id each keeps as it scrolls, to reuse the ones that didn't change. */
     private var rows = HashMap<String, TerminalRow>()
+
+    /** The images already copied out, by number and version, and where the last frame put them. */
+    private var imageCache = HashMap<String, TerminalImage>()
+    private var placements: List<TerminalImagePlacement> = emptyList()
 
     actual fun invalidate() = glueRendererInvalidate(state)
 
@@ -162,17 +183,49 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
                 color = color.toInt().takeIf { it >= 0 },
             )
         }
+        readImages(terminal, header[4])
         return TerminalFrame(
             columns = header[0].toInt(),
             rows = shown,
             background = header[1].toInt(),
             foreground = foreground,
             cursor = cursor,
-            // Images aren't read here yet: the WebAssembly build of the library leaves out
-            // the functions that hand over their pixels.
+            images = placements,
             cellWidthPx = terminal.cellWidthPx,
             cellHeightPx = terminal.cellHeightPx,
         )
+    }
+
+    /**
+     * Takes the glue's account of which images are on screen (its `describeImages` says how
+     * it is written). Most frames change no image, and an image's pixels are copied out once
+     * per version.
+     */
+    private fun readImages(terminal: GhosttyTerminal, described: String) {
+        if (described == "=") return
+        val found = ArrayList<TerminalImagePlacement>()
+        val nextCache = HashMap<String, TerminalImage>()
+        for (placement in described.split(';')) {
+            val n = placement.split(',')
+            if (n.size < 15) continue
+            val key = n[0] + "." + n[1]
+            // Pixels still on their way (an image restored from a snapshot) are drawn once they arrive.
+            val image = nextCache[key] ?: imageCache[key] ?: terminal.readImage(n[0].toUInt().toInt()) ?: continue
+            nextCache[key] = image
+            found += TerminalImagePlacement(
+                image = image,
+                layer = when (n[2]) {
+                    "0" -> TerminalImagePlacement.Layer.BelowBackground
+                    "1" -> TerminalImagePlacement.Layer.BelowText
+                    else -> TerminalImagePlacement.Layer.AboveText
+                },
+                column = n[3].toInt(), row = n[4].toInt(), columns = n[5].toInt(), rows = n[6].toInt(),
+                sourceX = n[7].toInt(), sourceY = n[8].toInt(), sourceWidth = n[9].toInt(), sourceHeight = n[10].toInt(),
+                pixelWidth = n[11].toInt(), pixelHeight = n[12].toInt(), offsetX = n[13].toInt(), offsetY = n[14].toInt(),
+            )
+        }
+        imageCache = nextCache
+        placements = found
     }
 
     actual override fun close() = glueRendererFree(state)

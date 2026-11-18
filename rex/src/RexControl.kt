@@ -38,7 +38,24 @@ class RexEvent(
 )
 
 /** How this program introduces itself to servers. */
-class RexClientInfo(val name: String, val version: String, val label: String? = null)
+class RexClientInfo(val name: String, val version: String, val label: String? = null) {
+    /** The same program, told apart from others like it by [label], such as the device it is on. */
+    fun labelled(label: String?) = RexClientInfo(name, version, label?.let(::fitted))
+
+    private companion object {
+        /** A server takes a label of up to 64 bytes. */
+        const val MAX_LABEL_BYTES = 64
+
+        fun fitted(label: String): String {
+            var end = label.length
+            while (end > 0 && label.substring(0, end).encodeToByteArray().size > MAX_LABEL_BYTES) end--
+            return label.substring(0, end)
+        }
+    }
+}
+
+/** This app, as it introduces itself. */
+val TonoClient = RexClientInfo(name = "Tono", version = "0.1.0")
 
 /**
  * The control connection to one server: a WebSocket carrying one JSON object per message.
@@ -74,7 +91,7 @@ class RexControl private constructor(
                 reconnectToken?.let { put("reconnect_token", it) }
                 putJsonObject("client") {
                     put("kind", "app")
-                    put("platform", "linux")
+                    put("platform", clientPlatform)
                     put("name", info.name)
                     put("version", info.version)
                     info.label?.let { put("label", it) }

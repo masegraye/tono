@@ -47,7 +47,7 @@ class RexClient(
     parentScope: CoroutineScope,
     /** What is remembered between runs. The app keeps its sidebar's folded state here too. */
     val workspace: Workspace = defaultWorkspace(),
-    private val info: RexClientInfo = RexClientInfo(name = "Tono", version = "0.1.0"),
+    private val info: RexClientInfo = TonoClient,
 ) : AutoCloseable {
     // The client's own work, under the caller's scope but ended by close(): a caller that
     // waits for its scope to finish (a command-line tool in runBlocking) would otherwise

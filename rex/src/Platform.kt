@@ -31,6 +31,9 @@ internal expect class Counter() {
     fun next(): Long
 }
 
+/** What the client runs on, in the words Rex has for it: `linux`, `macos`, `windows`, `web` or `other`. */
+internal expect val clientPlatform: String
+
 /** Milliseconds since the start of 1970. */
 expect fun nowMillis(): Long
 

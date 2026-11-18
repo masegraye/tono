@@ -70,8 +70,7 @@ tasks:
       - mise exec -- native/build-libghostty-vt.sh
 
   native:wasm:
-    desc: Build libghostty-vt as a WebAssembly module, for the web app, into native/out/wasm
-    deps: [native]
+    desc: Build libghostty-vt as a WebAssembly module, for the web app, into native/out-wasm
     cmds:
       - mise exec -- native/build-libghostty-vt-wasm.sh
 
@@ -128,6 +127,7 @@ tasks:
 
   web:release:
     desc: Run the optimized web app from the packaged server jar (set PORT to change the port)
+    deps: [native:wasm]
     cmds:
       - ./kotlin build -m webApp -v release
       - ./kotlin package -m server -f executable-jar

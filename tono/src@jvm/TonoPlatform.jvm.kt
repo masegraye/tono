@@ -54,6 +54,11 @@ internal actual fun Tooltip(tip: @Composable () -> Unit, content: @Composable ()
     TooltipArea(tooltip = tip, delayMillis = 500, tooltipPlacement = TooltipPlacement.CursorPoint(offset = DpOffset(0.dp, 18.dp)), content = content)
 }
 
+internal actual val fontsArriveLater: Boolean = false
+
+/** A window on the desktop is made full screen by the window manager, with its own key. */
+internal actual val fullScreen: FullScreen? = null
+
 /**
  * The command that plays a sound from the desktop's sound theme, using whichever player is
  * installed. mpv comes first: it is what Omarchy itself plays its sounds with (see its

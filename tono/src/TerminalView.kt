@@ -3,6 +3,9 @@ package org.example.kotlintest
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -10,9 +13,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
+import org.example.kotlintest.rex.nowMillis
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -40,7 +44,9 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.areAnyPressed
 import androidx.compose.ui.input.pointer.isAltPressed
 import androidx.compose.ui.input.pointer.isCtrlPressed
@@ -86,6 +92,7 @@ import kotlin.math.roundToInt
  *
  * @param focused whether this is the terminal the user is typing into
  * @param onKey a key was pressed, released, or is repeating while this view had focus
+ * @param onText text was typed that no key press stands for, as a keyboard on a screen does
  * @param focusRequests change it to hand the keyboard back to this view, if it is the focused one
  */
 @OptIn(ExperimentalComposeUiApi::class)
@@ -97,16 +104,28 @@ fun TerminalView(
     onKey: (RexKey) -> Unit,
     onDesiredGrid: (GridSize) -> Unit,
     modifier: Modifier = Modifier,
+    onText: (String) -> Unit = {},
     onPointerOver: () -> Unit = {},
     fontSize: TextUnit = 13.sp,
     focusRequests: Int = 0,
 ) {
     val frame by terminal.frame.collectAsState()
-    val fontFamily = LocalTerminalFont.current ?: MaterialTheme.typography.bodyMedium.fontFamily ?: FontFamily.Monospace
+    val fontFamily = MaterialTheme.typography.bodyMedium.fontFamily ?: FontFamily.Monospace
     val style = remember(fontFamily, fontSize) { TextStyle(fontFamily = fontFamily, fontSize = fontSize) }
     val measurer = rememberTextMeasurer(cacheSize = 0) // rows are cached below, by identity
     val cell = remember(style, measurer) { measureCell(measurer, style) }
     val layouts = remember(style) { RowLayouts() }
+    // Where fonts arrive after the text that needs them (see fontsArriveLater), rows drawn
+    // without one are laid out again once it has had time to come, and this says to redraw.
+    var laterFonts by remember { mutableIntStateOf(0) }
+    if (fontsArriveLater) {
+        LaunchedEffect(layouts) {
+            while (true) {
+                delay(LATER_FONT_CHECK_MILLIS)
+                if (layouts.forgetRowsAwaitingFonts(nowMillis())) laterFonts++
+            }
+        }
+    }
     val pictures = remember(terminal) { Pictures() }
 
     var size by remember { mutableStateOf(IntSize.Zero) }
@@ -151,27 +170,61 @@ fun TerminalView(
     var hasKeyboard by remember { mutableStateOf(false) }
     LaunchedEffect(focused, focusRequests) { if (focused) focusRequester.requestFocus() }
     val keysDown = remember { HashSet<Long>() }
+    // Preview, so that Tab and the arrow keys reach the terminal instead of moving focus.
+    val keys = Modifier.onPreviewKeyEvent { event ->
+        val repeat = when (event.type) {
+            KeyEventType.KeyDown -> !keysDown.add(event.key.keyCode)
+            KeyEventType.KeyUp -> { keysDown.remove(event.key.keyCode); false }
+            else -> return@onPreviewKeyEvent false
+        }
+        val key = rexKey(event, repeat) ?: return@onPreviewKeyEvent false
+        onKey(key)
+        true
+    }
 
+    // On a touch screen there are no keys until a text field has the keyboard, so a terminal
+    // that is touched gives the keyboard to a field of its own: see ScreenKeyboard.kt.
+    val screenField = remember { FocusRequester() }
+    val screenTyping = remember { ScreenTyping() }
+    var touched by remember { mutableStateOf(false) } // whether the last press was a finger
+    var screenKeyboard by remember { mutableStateOf(false) } // whether that field has the keyboard
+    var controlHeld by remember { mutableStateOf(false) }
+    fun press(name: String, control: Boolean = false) {
+        for (pressed in listOf(true, false)) onKey(rexKeyNamed(name, typed = null, pressed = pressed, repeat = false, shift = false, control = control, alt = false, meta = false))
+    }
+    fun typed(edit: ScreenEdit) {
+        repeat(edit.backspaces) { press("backspace") }
+        var text = edit.text
+        // Control, from the row of extra keys, goes with the next key typed.
+        if (controlHeld && text.isNotEmpty()) {
+            controlHeld = false
+            controlKeyNamed(text[0])?.let { press(it, control = true); text = text.substring(1) }
+        }
+        // A new line from a keyboard is the Enter key; the rest is text as it stands.
+        text.split('\n').forEachIndexed { index, line ->
+            if (index > 0) press("enter")
+            if (line.isNotEmpty()) onText(line)
+        }
+    }
+
+    Column(modifier.fillMaxSize()) {
+    Box(Modifier.weight(1f).fillMaxWidth()) {
     Canvas(
-        modifier
+        Modifier
             .fillMaxSize()
             .clipToBounds()
             .onSizeChanged { size = it }
             .focusRequester(focusRequester)
             .onFocusChanged { hasKeyboard = it.isFocused }
             .focusable()
-            // Preview, so that Tab and the arrow keys reach the terminal instead of moving focus.
-            .onPreviewKeyEvent { event ->
-                val repeat = when (event.type) {
-                    KeyEventType.KeyDown -> !keysDown.add(event.key.keyCode)
-                    KeyEventType.KeyUp -> { keysDown.remove(event.key.keyCode); false }
-                    else -> return@onPreviewKeyEvent false
+            .then(keys)
+            .onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event -> touched = event.changes.any { it.type == PointerType.Touch } }
+            .pointerInput(Unit) {
+                detectTapGestures {
+                    onFocusRequested()
+                    if (touched) screenField.requestFocus() else focusRequester.requestFocus()
                 }
-                val key = rexKey(event, repeat) ?: return@onPreviewKeyEvent false
-                onKey(key)
-                true
             }
-            .pointerInput(Unit) { detectTapGestures { onFocusRequested(); focusRequester.requestFocus() } }
             // The pointer, for programs that track it (Neovim, htop, tmux). Each event is
             // offered to the terminal, which knows what its program asked to be told.
             .onPointerEvent(PointerEventType.Press) { event -> mouseButton(event.button)?.let { report(event, MouseAction.Press, it) } }
@@ -198,6 +251,7 @@ fun TerminalView(
     ) {
         val current = frame
         if (current == null) return@Canvas
+        laterFonts // read, so that a change draws again
         drawRect(Color(0xFF000000 or current.background.toLong()))
         layouts.retain(current.rows)
         pictures.retain(current.images)
@@ -207,7 +261,21 @@ fun TerminalView(
             drawRow(row, rowIndex, cell, layouts.of(row, measurer, style))
         }
         current.images.forEach { if (it.layer == TerminalImagePlacement.Layer.AboveText) drawImage(it, current, cell, pictures) }
-        current.cursor?.let { drawCursor(it, current, cell, active = focused && hasKeyboard) }
+        current.cursor?.let { drawCursor(it, current, cell, active = focused && (hasKeyboard || screenKeyboard)) }
+    }
+    // A keyboard that has real keys as well (a tablet's) sends them here while this has the focus.
+    ScreenKeyboardField(screenTyping, ::typed, Modifier.focusRequester(screenField).onFocusChanged { screenKeyboard = it.isFocused; if (!it.isFocused) controlHeld = false }.then(keys))
+    }
+    if (screenKeyboard) {
+        ScreenKeyRow(controlHeld, onKey = { key ->
+            when (key) {
+                ScreenKey.Control -> controlHeld = !controlHeld
+                // Giving the keyboard back to the terminal itself, which has no use for one on a screen, puts it away.
+                ScreenKey.Hide -> focusRequester.requestFocus()
+                else -> key.rexName?.let { press(it, control = controlHeld.also { controlHeld = false }) }
+            }
+        })
+    }
     }
 }
 
@@ -233,8 +301,49 @@ private class RowLayouts {
     }
 
     fun of(row: TerminalRow, measurer: TextMeasurer, style: TextStyle): List<TextLayoutResult?> =
-        cache.getOrPut(row) { row.runs.map { run -> if (run.text.isBlank()) null else measurer.measure(AnnotatedString(run.text), style.merge(run), softWrap = false, maxLines = 1) } }
+        cache.getOrPut(row) {
+            if (fontsArriveLater && row !in awaitingFonts && row.runs.any { run -> run.text.any(::mayNeedAnotherFont) }) awaitingFonts[row] = nowMillis()
+            row.runs.map { run -> if (run.text.isBlank()) null else measurer.measure(AnnotatedString(run.text), style.merge(run), softWrap = false, maxLines = 1) }
+        }
+
+    /** When each row that may be waiting for a font was first laid out. */
+    private val awaitingFonts = HashMap<TerminalRow, Long>()
+
+    /**
+     * Forgets the layout of rows whose font has had time to arrive since they were laid out,
+     * so that they are laid out again with it. Each row is tried a few times, further and
+     * further apart, and then left as it is. Returns whether any row was forgotten.
+     */
+    fun forgetRowsAwaitingFonts(now: Long): Boolean {
+        if (awaitingFonts.isEmpty()) return false
+        var forgot = false
+        val rows = awaitingFonts.entries.iterator()
+        while (rows.hasNext()) {
+            val (row, since) = rows.next()
+            val age = now - since
+            when {
+                row !in cache -> rows.remove() // gone from the screen
+                age > LATER_FONT_TRIES.last() + LATER_FONT_CHECK_MILLIS -> rows.remove()
+                LATER_FONT_TRIES.any { age >= it && age < it + LATER_FONT_CHECK_MILLIS } -> { cache.remove(row); forgot = true }
+            }
+        }
+        return forgot
+    }
 }
+
+/** How often rows waiting for a font are looked at, and how long after a row was laid out it is laid out again. */
+private const val LATER_FONT_CHECK_MILLIS = 500L
+private val LATER_FONT_TRIES = listOf(1_000L, 2_500L, 6_000L, 15_000L)
+
+/**
+ * Whether a character is one the desktop's font may not have, such as Chinese, Arabic or an
+ * emoji. What a monospace font for terminals can be counted on for is left out: Latin,
+ * Greek and Cyrillic, punctuation, arrows and mathematics, the line-drawing characters, and
+ * the private-use symbols that prompts and status lines are full of.
+ */
+private fun mayNeedAnotherFont(char: Char): Boolean = char.isSurrogate() || CERTAIN_RANGES.none { char.code in it }
+
+private val CERTAIN_RANGES = listOf(0x0000..0x052F, 0x1E00..0x206F, 0x2190..0x22FF, 0x2500..0x25FF, 0xE000..0xF8FF)
 
 private fun TextStyle.merge(run: TerminalRun): TextStyle = copy(
     color = Color(0xFF000000 or run.foreground.toLong()),
@@ -329,11 +438,3 @@ private fun mouseButton(button: PointerButton?): MouseButton? = when (button) {
     PointerButton.Tertiary -> MouseButton.Middle
     else -> null
 }
-
-/**
- * The font terminals are drawn in, when it isn't the theme's. A terminal is a grid, so it
- * needs a font whose characters are all one width; the desktop's theme has one, and where
- * the theme can't supply it (a browser with no desktop to ask) the app provides one here.
- */
-val LocalTerminalFont = staticCompositionLocalOf<FontFamily?> { null }
-

@@ -94,9 +94,28 @@
 
   // --- Terminals ---
 
+  /** How much image data one terminal keeps, as in other Rex clients. */
+  const IMAGE_STORAGE_BYTES = 64n << 20n;
+
   function terminalNew(columns, rows) {
     check('terminal_new', ex.ghostty_terminal_new(0, slots + SLOT.a, columns, rows));
-    return view().getUint32(slots + SLOT.a, true);
+    return allowImages(view().getUint32(slots + SLOT.a, true));
+  }
+
+  /**
+   * Lets programs show images with the Kitty graphics protocol, which is off until a terminal
+   * is given room to keep them. Only pixels sent in the output itself are taken; this build of
+   * the library can't read files at all, and the settings say so as the desktop's do.
+   */
+  function allowImages(terminal) {
+    const set = (option, value) => check('terminal_set', ex.ghostty_terminal_set(terminal, E('GhosttyTerminalOption', option), value));
+    view().setBigUint64(slots + SLOT.a, IMAGE_STORAGE_BYTES, true);
+    set('KITTY_IMAGE_STORAGE_LIMIT', slots + SLOT.a);
+    bytes()[slots + SLOT.b] = 0;
+    set('KITTY_IMAGE_MEDIUM_FILE', slots + SLOT.b);
+    set('KITTY_IMAGE_MEDIUM_SHARED_MEM', slots + SLOT.b);
+    set('KITTY_IMAGE_MEDIUM_TEMP_FILE', 0);
+    return terminal;
   }
 
   /**
@@ -111,8 +130,11 @@
       check('snapshot_decoder_new_buf', ex.ghostty_snapshot_decoder_new_buf(0, slots + SLOT.a, data, binary.length));
       const decoder = view().getUint32(slots + SLOT.a, true);
       try {
+        // A snapshot can carry the images on screen; they are dropped unless there is room for them.
+        view().setBigUint64(slots + SLOT.c, IMAGE_STORAGE_BYTES, true);
+        check('snapshot_decoder_set', ex.ghostty_snapshot_decoder_set(decoder, E('GhosttySnapshotDecoderOption', 'KITTY_IMAGE_STORAGE_LIMIT'), slots + SLOT.c));
         check('snapshot_decoder_decode', ex.ghostty_snapshot_decoder_decode(decoder, slots + SLOT.b));
-        const terminal = view().getUint32(slots + SLOT.b, true);
+        const terminal = allowImages(view().getUint32(slots + SLOT.b, true));
         check('snapshot_decoder_get', ex.ghostty_snapshot_decoder_get(decoder, E('GhosttySnapshotDecoderData', 'SOURCE_OFFSET'), slots + SLOT.c));
         return terminal + ',' + view().getUint32(slots + SLOT.c, true);
       } finally {
@@ -201,12 +223,15 @@
     check('render_state_new', ex.ghostty_render_state_new(0, slots + SLOT.a));
     const state = view().getUint32(slots + SLOT.a, true);
     // The iterators are handed to the library by address, so each gets a slot of its own.
-    const iteratorRef = ex.ghostty_wasm_alloc(8);
+    const iteratorRef = ex.ghostty_wasm_alloc(12);
     check('render_state_row_iterator_new', ex.ghostty_render_state_row_iterator_new(0, iteratorRef));
     check('render_state_row_cells_new', ex.ghostty_render_state_row_cells_new(0, iteratorRef + 4));
+    check('render_state_image_iterator_new', ex.ghostty_render_state_image_iterator_new(0, iteratorRef + 8));
     renderers.set(state, {
       iteratorRef,
       cellsRef: iteratorRef + 4,
+      imagesRef: iteratorRef + 8,
+      placements: null, // which arrangement of images was last described, as the library numbers them
       known: new Set(), // the rows sent whole last frame, which the other side still holds
       everything: true,
       foreground: -1,
@@ -221,7 +246,8 @@
     if (!renderer) return;
     ex.ghostty_render_state_row_cells_free(view().getUint32(renderer.cellsRef, true));
     ex.ghostty_render_state_row_iterator_free(view().getUint32(renderer.iteratorRef, true));
-    ex.ghostty_wasm_free(renderer.iteratorRef, 8);
+    ex.ghostty_render_state_image_iterator_free(view().getUint32(renderer.imagesRef, true));
+    ex.ghostty_wasm_free(renderer.iteratorRef, 12);
     ex.ghostty_render_state_free(state);
     renderers.delete(state);
   }
@@ -242,9 +268,9 @@
   /**
    * Describes what to draw, as one string.
    *
-   * The first record is "columns US background US foreground US cursor", where cursor is
-   * empty when it is hidden and otherwise "column,row,shape,blinking,color" (color -1 for the
-   * foreground). Then one record per visible row, top to bottom: "=" and the row's id when
+   * The first record is "columns US background US foreground US cursor US images", where
+   * cursor is empty when it is hidden and otherwise "column,row,shape,blinking,color" (color
+   * -1 for the foreground), and images is as `describeImages` says. Then one record per visible row, top to bottom: "=" and the row's id when
    * the row is unchanged since the last frame, or "+" and its id followed by its runs, each
    * six fields: column, cells, foreground, background (-1 for none), flags (1 bold, 2 italic,
    * 4 underline, 8 strikethrough) and text. A row keeps its id as it scrolls.
@@ -300,8 +326,89 @@
     const cursorText = memory[c('visible')] && memory[c('viewport_has_value')]
       ? [view().getUint16(c('viewport_x'), true), view().getUint16(c('viewport_y'), true), view().getInt32(c('visual_style'), true), memory[c('blinking')], cursorColor].join(',')
       : '';
+    const images = describeImages(state, renderer);
     check('render_state_clean', ex.ghostty_render_state_clean(state));
-    return [columns, background, foreground, cursorText].join(US) + (out.length ? RS + out.join(RS) : '');
+    return [columns, background, foreground, cursorText, images].join(US) + (out.length ? RS + out.join(RS) : '');
+  }
+
+  /**
+   * Which images are on screen and where: "=" when that is as it was last frame, as it nearly
+   * always is, and otherwise the placements with ";" between, in the order to draw them. Each
+   * is fifteen numbers with commas between: the image's number and version, its layer (0 below
+   * the background, 1 below text, 2 above it), the column and row of its top-left cell, the
+   * columns and rows it covers, the part of the image to draw (x, y, width, height), the size
+   * to draw at and the offset into the first cell, in the terminal's own pixels. The pixels
+   * themselves are asked for by number, once per version (`imageRead`).
+   */
+  function describeImages(state, renderer) {
+    if (ex.ghostty_render_state_get(state, E('GhosttyRenderStateData', 'IMAGE_PLACEMENTS_GENERATION'), slots + SLOT.a) !== OK) return '=';
+    const generation = view().getBigUint64(slots + SLOT.a, true);
+    if (generation === renderer.placements) return '=';
+    if (ex.ghostty_render_state_get(state, E('GhosttyRenderStateData', 'IMAGE_ITERATOR'), renderer.imagesRef) !== OK) return '=';
+    renderer.placements = generation;
+
+    const images = view().getUint32(renderer.imagesRef, true);
+    const data = T.GhosttyRenderStateImageData.values;
+    const layers = T.GhosttyRenderStateImageLayer.values;
+    const get = (what) => check('render_state_image_get', ex.ghostty_render_state_image_get(images, what, slots + SLOT.a));
+    const unsigned = (what) => (get(what), view().getUint32(slots + SLOT.a, true));
+    const signed = (what) => (get(what), view().getInt32(slots + SLOT.a, true));
+    const found = [];
+    while (ex.ghostty_render_state_image_iterator_next(images)) {
+      if (signed(data.PROTOCOL) !== E('GhosttyImageProtocol', 'KITTY')) continue;
+      const layer = signed(data.LAYER);
+      get(data.IMAGE_GENERATION);
+      const version = view().getBigUint64(slots + SLOT.a, true).toString();
+      found.push([
+        unsigned(data.IMAGE_ID), version,
+        layer === layers.BELOW_BACKGROUND ? 0 : layer === layers.BELOW_TEXT ? 1 : 2,
+        signed(data.VIEWPORT_COL), signed(data.VIEWPORT_ROW), unsigned(data.GRID_COLS), unsigned(data.GRID_ROWS),
+        unsigned(data.SOURCE_X), unsigned(data.SOURCE_Y), unsigned(data.SOURCE_WIDTH), unsigned(data.SOURCE_HEIGHT),
+        unsigned(data.PIXEL_WIDTH), unsigned(data.PIXEL_HEIGHT), unsigned(data.CELL_OFFSET_X), unsigned(data.CELL_OFFSET_Y),
+      ].join(','));
+    }
+    return found.join(';');
+  }
+
+  /**
+   * The pixels of an image a program sent, as "width,height," and then four bytes a pixel:
+   * red, green, blue, alpha. Empty if there is no such image, its pixels haven't arrived yet,
+   * or they are in a form this doesn't know.
+   */
+  function imageRead(terminal, id) {
+    if (ex.ghostty_terminal_get(terminal, E('GhosttyTerminalData', 'KITTY_GRAPHICS'), slots + SLOT.a) !== OK) return '';
+    const image = ex.ghostty_kitty_graphics_image(view().getUint32(slots + SLOT.a, true), id);
+    if (!image) return '';
+    const data = T.GhosttyKittyGraphicsImageData.values;
+    const number = (what) => (ex.ghostty_kitty_graphics_image_get(image, what, slots + SLOT.a) === OK ? view().getUint32(slots + SLOT.a, true) : 0);
+    const width = number(data.WIDTH);
+    const height = number(data.HEIGHT);
+    const pointer = number(data.DATA_PTR);
+    const length = number(data.DATA_LEN);
+    if (ex.ghostty_kitty_graphics_image_get(image, data.FORMAT, slots + SLOT.a) !== OK) return '';
+    const format = view().getInt32(slots + SLOT.a, true);
+    const count = width * height;
+    if (!pointer || count <= 0 || length <= 0) return '';
+
+    const formats = T.GhosttyKittyImageFormat.values;
+    const prefix = width + ',' + height + ',';
+    if (format === formats.RGBA) return length >= count * 4 ? prefix + take(pointer, count * 4) : '';
+    // The other forms are widened to four bytes a pixel: [bytes a pixel, where alpha is or -1, whether it is gray].
+    const shape = format === formats.RGB ? [3, -1, false] : format === formats.GRAY ? [1, -1, true] : format === formats.GRAY_ALPHA ? [2, 1, true] : null;
+    if (!shape || length < count * shape[0]) return '';
+    const [step, alpha, gray] = shape;
+    const source = bytes().subarray(pointer, pointer + count * step);
+    const rgba = new Uint8Array(count * 4);
+    for (let i = 0; i < count; i++) {
+      const from = i * step;
+      rgba[i * 4] = source[from];
+      rgba[i * 4 + 1] = source[gray ? from : from + 1];
+      rgba[i * 4 + 2] = source[gray ? from : from + 2];
+      rgba[i * 4 + 3] = alpha < 0 ? 255 : source[from + alpha];
+    }
+    let out = prefix;
+    for (let from = 0; from < rgba.length; from += 8192) out += String.fromCharCode.apply(null, rgba.subarray(from, from + 8192));
+    return out;
   }
 
   /** The runs of the row the cells iterator points at, each field led by a separator. */
@@ -437,6 +544,6 @@
   globalThis.GhosttyGlue = {
     init, terminalNew, terminalRestore, terminalFree, terminalWrite, terminalResize, terminalColumns, terminalRows,
     terminalWidthPx, terminalHeightPx, terminalSetColors, terminalScrollBy, terminalScrollToBottom, terminalBracketedPaste,
-    pasteEncode, rendererNew, rendererFree, rendererInvalidate, render, mouseNew, mouseFree, mouseEncode,
+    pasteEncode, rendererNew, rendererFree, rendererInvalidate, render, imageRead, mouseNew, mouseFree, mouseEncode,
   };
 })();

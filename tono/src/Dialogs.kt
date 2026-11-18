@@ -15,6 +15,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 
 /*
@@ -80,3 +85,14 @@ private fun Modifier.keyboardFocusRing(interaction: MutableInteractionSource): M
 private fun KeyHint(key: String) {
     Text(key, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(start = 8.dp), color = androidx.compose.material3.LocalContentColor.current.copy(alpha = 0.65f))
 }
+
+/**
+ * Backs out of a dialog on Escape, from whatever in it has the keyboard. A dialog does this
+ * itself on the desktop; in a browser it doesn't always, so the dialogs here say so.
+ */
+fun Modifier.onEscape(dismiss: () -> Unit): Modifier = onPreviewKeyEvent { event ->
+    if (event.key != Key.Escape) return@onPreviewKeyEvent false
+    if (event.type == KeyEventType.KeyDown) dismiss()
+    true
+}
+

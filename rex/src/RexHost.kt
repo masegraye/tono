@@ -460,6 +460,19 @@ class RexHost(
         control.callBlock("$TERMINAL_CREATOR.write", sessionId, blockId, buildJsonObject { put("data", data) })
     }
 
+    /**
+     * Types text into a block as it is, for text that didn't come from keys: what a keyboard
+     * on a screen put together, which may be a whole word, or a character no key has.
+     */
+    fun typeText(blockId: String, text: String) = act(null) { control ->
+        if (text.isEmpty()) return@act
+        val current = state.value
+        val sessionId = current.selectedSessionId ?: return@act
+        claim(control, sessionId, blockId)
+        current.terminals[blockId]?.scrollToBottom()
+        control.callBlock("$TERMINAL_CREATOR.write", sessionId, blockId, buildJsonObject { put("data", text) })
+    }
+
     /** Sends a terminal's program input that isn't a key press, such as the report of a mouse click. */
     private fun write(sessionId: String, blockId: String, data: String, claims: Boolean) = act(null) { control ->
         if (claims) claim(control, sessionId, blockId)

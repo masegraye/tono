@@ -8,6 +8,8 @@ dependencies:
   - $ktor.server.core
   - $ktor.server.netty
   - $ktor.server.websockets
+  - $ktor.server.compression
+  - $ktor.server.conditionalHeaders
   - $ktor.client.core
   - $ktor.client.cio
   - $ktor.client.websockets

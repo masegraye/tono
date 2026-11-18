@@ -1,8 +1,11 @@
 package org.example.kotlintest.server
 
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCall
+import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondFile
 import io.ktor.server.response.respondText
@@ -12,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.example.kotlintest.rex.tailnetRexServers
 import java.io.File
@@ -26,26 +30,39 @@ import java.util.concurrent.TimeUnit
  *   symbols. A page has only the fonts it is given.
  * - `GET /api/tono/sounds/{name}`: the desktop's warning, error and completion sounds.
  * - `GET /api/tono/tailnet`: the Rex servers on the tailnet, as `tailscale` reports them.
+ * - `GET /api/tono/whoami`: which device the page is open on, so it can say so to the Rex
+ *   servers it connects to. They all see this machine connecting, whichever device it is for.
  *
  * @param library the WebAssembly build of libghostty-vt, or null to look for it in a checkout
  */
 fun Application.tonoAssets(library: File? = null) {
-    val wasm = library ?: findInCheckout("native/out/wasm/ghostty-vt.wasm")
+    val wasm = library ?: findInCheckout("native/out-wasm/ghostty-vt.wasm")
     routing {
         get("/ghostty-vt.wasm") {
-            if (wasm?.isFile == true) call.respondFile(wasm)
+            if (wasm?.isFile == true) call.respondKept(wasm)
             else call.respondText("The terminal library isn't built: run `task native:wasm`.", status = HttpStatusCode.NotFound)
         }
         get("/api/tono/font/{style}") {
             val file = FONT_STYLES[call.parameters["style"]]?.let { desktopFont(it) }
-            if (file != null) call.respondFile(file) else call.respond(HttpStatusCode.NotFound)
+            if (file != null) call.respondKept(file) else call.respond(HttpStatusCode.NotFound)
         }
         get("/api/tono/sounds/{name}") {
             // Three fixed names: nothing a request says ends up in a path.
             val file = SOUNDS.firstOrNull { it == call.parameters["name"] }?.let { name ->
                 SOUND_DIRECTORIES.map { File(it, "$name.oga") }.firstOrNull(File::isFile)
             }
-            if (file != null) call.respondFile(file) else call.respond(HttpStatusCode.NotFound)
+            if (file != null) call.respondKept(file) else call.respond(HttpStatusCode.NotFound)
+        }
+        get("/api/tono/whoami") {
+            val caller = call.caller
+            call.respondText(
+                buildJsonObject {
+                    put("local", caller.local)
+                    caller.device?.let { put("device", it) }
+                    caller.login?.let { put("login", it) }
+                }.toString(),
+                ContentType.Application.Json,
+            )
         }
         get("/api/tono/tailnet") {
             val servers = tailnetRexServers()
@@ -61,6 +78,12 @@ fun Application.tonoAssets(library: File? = null) {
             )
         }
     }
+}
+
+/** Sends a file for the browser to keep, and to ask about before it uses it again. */
+private suspend fun ApplicationCall.respondKept(file: File) {
+    response.header(HttpHeaders.CacheControl, REVALIDATE.toString())
+    respondFile(file)
 }
 
 /** A file of this checkout, looking up from the working directory, as the desktop app finds the native library. */

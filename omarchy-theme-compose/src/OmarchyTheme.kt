@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.font.FontFamily
 import dev.mg.omarchy.theme.OmarchyAppearance
 import dev.mg.omarchy.theme.OmarchyPalette
@@ -33,7 +34,8 @@ fun OmarchyTheme(
     state: OmarchyThemeState = rememberOmarchyThemeState(),
     content: @Composable () -> Unit,
 ) {
-    val typography = remember(state.fontFamily) { omarchyTypography(state.fontFamily) }
+    val fontFamily = LocalOmarchyFont.current ?: state.fontFamily
+    val typography = remember(fontFamily) { omarchyTypography(fontFamily) }
     MaterialTheme(
         colorScheme = omarchyColorScheme(state.palette, state.isDark),
         shapes = omarchyShapes(),
@@ -41,6 +43,14 @@ fun OmarchyTheme(
         content = content,
     )
 }
+
+/**
+ * A font for [OmarchyTheme] to use in place of the desktop's. It is for where the desktop's
+ * font can't be loaded by name, which is a web page: a page has only the fonts it is given,
+ * so an app that can get the desktop's font some other way (from the server that serves it,
+ * say) provides it here. Null, the default, leaves the choice to the desktop.
+ */
+val LocalOmarchyFont = staticCompositionLocalOf<FontFamily?> { null }
 
 /**
  * Creates the state behind [OmarchyTheme] and keeps it in step with the desktop for as long

@@ -52,6 +52,13 @@ class RexUiState(val client: RexClient) {
     var sidebarVisible by mutableStateOf(true)
 
     /**
+     * Whether the window is too narrow to show the sidebar and a terminal side by side, as a
+     * phone held upright is. Then one of them fills it at a time: the sidebar is where you
+     * choose a tab, and going to one puts it away.
+     */
+    var narrow by mutableStateOf(false)
+
+    /**
      * Whether the sidebar lists only the tabs whose programs have something to say: working,
      * waiting for you, failed or done. For finding what needs you among many tabs.
      */
@@ -117,7 +124,11 @@ class RexUiState(val client: RexClient) {
     val overlayOpen: Boolean get() = palette != null || renaming != null || confirmation != null
 
     /** Hands the keyboard back to the focused terminal, unless something is open over it. */
-    fun returnFocusToTerminal() { if (!overlayOpen) focusRequests++ }
+    fun returnFocusToTerminal() {
+        if (overlayOpen) return
+        focusRequests++
+        if (narrow) sidebarVisible = false
+    }
 
     fun closePalette() {
         palette = null

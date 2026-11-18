@@ -102,25 +102,74 @@ do, which the server does for it.
 - **Terminals.** libghostty-vt runs in the page as a WebAssembly module (`task native:wasm` builds it from the same
   pinned source as the desktop's library, in half a minute). Calling it a function at a time from Kotlin is slow in a
   browser, since each call crosses into JavaScript and back, so [ghostty-glue.js](./webApp/resources/ghostty-glue.js)
-  does the cell-by-cell work beside the library and hands a whole frame over at once.
+  does the cell-by-cell work beside the library and hands a whole frame over at once. Upstream leaves images out of
+  the WebAssembly build; [a small patch](./native/ghostty-vt-wasm.patch) puts them back, for pictures sent in the
+  output itself, which is all the desktop app accepts either.
 - **Connections.** A page can't open the local server's socket, and a Rex server refuses a WebSocket that says it
   comes from another site's page. So the page connects to [a relay](./server/src/TonoRelay.kt) on its own server,
-  which makes the real connection and passes messages both ways, unread.
+  which makes the real connection and passes messages both ways, unread. A dropped connection is taken up again where
+  it left off, as on the desktop.
 - **The desktop's look.** The theme follows the desktop live, as before. The server also hands over the desktop's
-  monospace font, so terminals have the same glyphs as on the desktop, and its sounds.
+  monospace font, so terminals have the same glyphs as on the desktop, and its sounds. A character that font doesn't
+  have (Chinese, say, or an emoji) is drawn in a Noto font that the page fetches from Google's font service the first
+  time one appears: Compose does this for every web app, and it is the one thing the page asks of the internet.
 - **Your settings** (hosts folded, the tab you were on) are kept in the browser, so each browser has its own.
+- **Size.** The page is sent compressed, and a browser that has a file is told so instead of being sent it again: a
+  first visit downloads about 12 MB before anything shows (10 MB of it the app, or 8 with `task web:release`), and
+  later visits next to nothing.
 
-Who can reach it: by default, only this machine. `task web:tailnet`, run beside `task web`, puts it on your tailnet at
+#### Who can reach it
+
+By default, only this machine. `task web:tailnet`, run beside `task web`, puts it on your tailnet at
 `https://<this machine>.<your tailnet>.ts.net/`, using `tailscale serve`: Tailscale accepts connections from your
-tailnet alone and passes them to the server on this machine's own address. Nothing is opened to the internet. The
-server holds to that itself as well ([TailnetOnly.kt](./server/src/TailnetOnly.kt)): it answers only this machine and
-tailnet addresses whatever address it is told to listen on; the relay serves only its own page, so another site open
-in your browser can't use it; and it connects only to this machine's Rex server and to Rex servers on the tailnet.
-Keep in mind what it is: whoever can open the page is at your terminals, as you.
+tailnet alone and passes them to the server on this machine's own address. Nothing is opened to the internet.
 
-Different from the desktop, for now: a browser keeps some keys for itself (Control with T, W, N, Tab and the digits,
-among others), so those shortcuts only work when the page runs as an installed app window; images and tooltips
-aren't there yet; and a character the desktop's font lacks is drawn in whatever the browser falls back to.
+Being on the tailnet is not enough, though, since a tailnet can have other people on it. As a Rex server does, this
+one lets in only the Tailscale user who owns this machine ([TailnetOnly.kt](./server/src/TailnetOnly.kt)); it asks
+Tailscale whose device each request came from, and a device that is someone else's, or a tagged machine with no owner,
+gets a 403. `TONO_ALLOW_IDENTIFIED=1` lets in everyone Tailscale can put a name to. The relay serves only its own
+page, so another site open in your browser can't use it, and it connects only to this machine's Rex server and to Rex
+servers on the tailnet. Keep in mind what it is: whoever can open the page is at your terminals, as you.
+
+Rex servers see every browser as this machine connecting, since it is this machine that connects. So that their lists
+of clients can tell a phone from a laptop, the page gives the name of the device it is open on as its label
+(`rex client ls`), and says it is a `web` client.
+
+A page takes a terminal's size only while it is being used, like every Rex client: when its window has the keyboard,
+or it is typed or clicked in. A page whose window doesn't have the keyboard leaves sizes alone, and closing a page
+gives the size back to whichever client had it.
+
+#### The keyboard
+
+A browser acts on any key a page lets through, and most of a terminal's keys mean something to a browser.
+[page-keys.js](./webApp/resources/page-keys.js) keeps them: nothing with Control or Alt, and no function key, is left
+for the browser, whatever is open in the app at the time. So Control+P is the shell's, and Control+Shift+P is the
+palette, never the print dialog. Copy, paste and the like in a text field, reloading, and the developer tools still
+work.
+
+Some keys a browser never shows a page in a tab at all: Control with T, N, W or Tab, and their Shift forms. For those:
+
+- **Full screen** (F11, or Toggle Full Screen in the palette) gives the page every key, in Chromium browsers. Escape
+  goes to the terminal; hold it to leave.
+- **Installing the page as an app** (the install button in the address bar) gives it a window of its own, which gets
+  every key too.
+- **In a plain tab**, New Tab and New Session have a second key, Control+Alt+T and Control+Alt+N, and going to a tab
+  by number works as it is. Control+W still closes the tab, and in a shell that key deletes a word, so the page asks
+  before it goes.
+
+#### On a phone
+
+A window too narrow for the sidebar and a terminal side by side shows one at a time: the sidebar to choose a tab, then
+the tab, with a button in the status bar to go back. Touching a terminal brings up the keyboard, and a row of the keys
+a phone's keyboard lacks appears over it: Escape, Tab, Control (which goes with the next key typed) and the arrows.
+
+#### What has been tried, and what hasn't
+
+Tried in Chromium on this machine: terminals, images, the palette, tooltips, paste, sounds, renaming and dragging
+tabs, the mouse in programs that track it, reconnecting, the keys above in a real window (a tab, an app window and
+full screen), and the phone layout and its typing in Chromium's emulation of a phone. In Firefox: loading, typing,
+the palette and images. Not tried: Safari, which the tools here couldn't run, and any real phone or tablet. On those,
+expect the keyboard to be where it goes wrong first. The sounds are Ogg files, which older Safari versions don't play.
 
 ### Tono, the Rex client
 
@@ -222,7 +271,7 @@ of Command, and Shift added where Control alone belongs to the terminal.
 | Ctrl+Shift+H | Switch host |
 | Ctrl+1 … Ctrl+8, Ctrl+9 | Go to that tab; Ctrl+9 is the last tab |
 | Ctrl+Tab / Ctrl+Shift+Tab, Ctrl+PageDown / PageUp | Next / previous tab |
-| Ctrl+Shift+T / Ctrl+Shift+N | New tab / new session |
+| Ctrl+Shift+T / Ctrl+Shift+N, or Ctrl+Alt+T / Ctrl+Alt+N | New tab / new session |
 | Ctrl+Shift+D / Ctrl+Alt+D | Split the pane right / down |
 | Ctrl+Alt+arrows | Focus the pane in that direction |
 | Alt+] / Alt+[ | Focus the next / previous pane |

@@ -42,6 +42,26 @@ internal expect fun clockTime(millis: Long): String
 internal expect fun Tooltip(tip: @Composable () -> Unit, content: @Composable () -> Unit)
 
 /**
+ * Whether a font can turn up after the text that needs it has been drawn. A browser has
+ * only the fonts it was given, and fetches one for a character none of them has (Chinese,
+ * say, or an emoji) when the character first appears; until it arrives the character is an
+ * empty box. On the desktop every font is there from the start.
+ */
+internal expect val fontsArriveLater: Boolean
+
+/**
+ * The app filling the screen, where the app is what asks for that. Null on the desktop,
+ * where it is the window manager's to do.
+ */
+internal expect val fullScreen: FullScreen?
+
+internal interface FullScreen {
+    val isOn: Boolean
+
+    fun toggle()
+}
+
+/**
  * Plays one of the desktop's sounds, by its name in the sound theme (see [soundFor]), and
  * says in [log] how that went.
  */

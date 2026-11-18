@@ -2,10 +2,28 @@
 
 package org.example.kotlintest
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import kotlinx.coroutines.delay
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -135,9 +153,76 @@ private fun timeOfDay(millis: Double): String =
 
 internal actual fun clockTime(millis: Long): String = timeOfDay(millis.toDouble())
 
-/** Not yet in a browser: the buttons work the same without it. */
+/**
+ * The desktop's toolkit has tooltips of its own; here it is a popup shown once the pointer
+ * has rested on [content] for half a second, and taken away when it leaves or presses.
+ */
 @Composable
-internal actual fun Tooltip(tip: @Composable () -> Unit, content: @Composable () -> Unit) = content()
+internal actual fun Tooltip(tip: @Composable () -> Unit, content: @Composable () -> Unit) {
+    var over by remember { mutableStateOf(false) }
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(over) {
+        if (over) delay(TOOLTIP_DELAY_MILLIS)
+        shown = over
+    }
+    val gap = with(LocalDensity.current) { 6.dp.roundToPx() }
+    Box(
+        Modifier.pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    // Looked at on the way down to the content, and left for it to handle.
+                    when (awaitPointerEvent(PointerEventPass.Initial).type) {
+                        PointerEventType.Enter, PointerEventType.Move -> over = true
+                        PointerEventType.Exit, PointerEventType.Press -> over = false
+                    }
+                }
+            }
+        },
+    ) {
+        content()
+        if (shown) Popup(popupPositionProvider = remember(gap) { BelowAnchor(gap) }, content = tip)
+    }
+}
+
+private const val TOOLTIP_DELAY_MILLIS = 500L
+
+/** Under what it describes, clear of the pointer, and moved in from the window's edges. */
+private class BelowAnchor(private val gap: Int) : PopupPositionProvider {
+    override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
+        val x = anchorBounds.left.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0))
+        val below = anchorBounds.bottom + gap
+        val y = if (below + popupContentSize.height <= windowSize.height) below else anchorBounds.top - gap - popupContentSize.height
+        return IntOffset(x, y.coerceAtLeast(0))
+    }
+}
+
+internal actual val fontsArriveLater: Boolean = true
+
+private fun isFullScreen(): Boolean = js("document.fullscreenElement != null")
+
+/**
+ * In full screen a page may ask for the whole keyboard, which gets it the keys a browser
+ * otherwise keeps (Control with T, N, W or Tab) and Escape, which would otherwise leave full
+ * screen; holding Escape still does. Only some browsers have that to ask for. The rest go
+ * full screen and keep their keys.
+ */
+private fun toggleFullScreen(): Unit = js(
+    """{
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+        } else {
+            document.documentElement.requestFullscreen()
+                .then(() => { if (navigator.keyboard && navigator.keyboard.lock) return navigator.keyboard.lock(); })
+                .catch(() => {});
+        }
+    }""",
+)
+
+internal actual val fullScreen: FullScreen? = object : FullScreen {
+    override val isOn: Boolean get() = isFullScreen()
+
+    override fun toggle() = toggleFullScreen()
+}
 
 private fun playAudio(url: String): Promise<JsAny?> = js("new Audio(url).play()")
 

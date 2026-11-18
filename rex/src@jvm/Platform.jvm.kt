@@ -53,6 +53,15 @@ internal actual class Counter actual constructor() {
     actual fun next(): Long = value.getAndIncrement()
 }
 
+internal actual val clientPlatform: String = System.getProperty("os.name").orEmpty().lowercase().let { os ->
+    when {
+        "linux" in os -> "linux"
+        "mac" in os -> "macos"
+        "windows" in os -> "windows"
+        else -> "other"
+    }
+}
+
 actual fun nowMillis(): Long = System.currentTimeMillis()
 
 internal actual fun connectFailureMessage(failure: Exception): String? = when (failure) {

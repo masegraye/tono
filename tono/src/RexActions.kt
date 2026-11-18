@@ -18,7 +18,8 @@ import org.example.kotlintest.rex.SplitDirection
  *
  * @param keys the keys bound to it by default. They follow Rex.app's, with Control in place
  *   of Command, and Shift added where Control alone belongs to the terminal (Control+T
- *   reaches the shell; Control+Shift+T opens a tab).
+ *   reaches the shell; Control+Shift+T opens a tab). A few have a second key with Alt, for
+ *   a browser tab, where the browser keeps the first for itself.
  * @param argKeys default keys that run the action with arguments, such as Control+3 for tab 3
  * @param inPalette false for actions that only make sense with arguments
  */
@@ -104,7 +105,7 @@ internal fun clientActions(): List<ClientAction> = buildList {
     })
 
     // Session
-    add(ClientAction("session.new", "New Session", "Session", "create", keys = listOf("ctrl+shift+n"), available = hasHost) {
+    add(ClientAction("session.new", "New Session", "Session", "create", keys = listOf("ctrl+shift+n", "ctrl+alt+n"), available = hasHost) {
         host?.newSession()
     })
     add(ClientAction("session.close", "Close Session", "Session", "kill destroy delete end", available = hasSession) {
@@ -152,7 +153,7 @@ internal fun clientActions(): List<ClientAction> = buildList {
     })
 
     // Tab
-    add(ClientAction("client.tab.new", "New Tab", "Tab", "create window", keys = listOf("ctrl+shift+t"), available = hasSession) {
+    add(ClientAction("client.tab.new", "New Tab", "Tab", "create window", keys = listOf("ctrl+shift+t", "ctrl+alt+t"), available = hasSession) {
         host?.newTab()
     })
     add(ClientAction("client.tab.close", "Close Tab", "Tab", "window", keys = listOf("ctrl+alt+w"), available = { window != null }) {
@@ -277,6 +278,17 @@ internal fun clientActions(): List<ClientAction> = buildList {
         // Turning them on plays one, so you know what to listen for and that it works here.
         if (soundsEnabled) sounds?.request(ActivityState.Done)
     })
+    // Only where the app is what asks for it, which is a browser. There it is also the way to
+    // get every key: a browser keeps some for itself in a tab, and gives them up in full screen.
+    fullScreen?.let { screen ->
+        add(ClientAction(
+            "client.window.fullscreen.toggle", "Toggle Full Screen", "Window", "fullscreen enter exit window browser keys shortcuts",
+            keys = listOf("f11"),
+            state = { if (screen.isOn) "on" else "off" },
+        ) {
+            screen.toggle()
+        })
+    }
     // Not in Rex.app: this app's log of what it and the servers are doing.
     add(ClientAction("client.debug_log.toggle", "Toggle Debug Log", "View", "events console diagnostics", keys = listOf("ctrl+`")) {
         debugLogVisible = !debugLogVisible

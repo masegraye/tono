@@ -4,4 +4,6 @@ html, body {
     margin: 0;
     padding: 0;
     overflow: hidden;
+    /* Dark while the app loads, as it nearly always is once it has. */
+    background: #0b1522;
 }
