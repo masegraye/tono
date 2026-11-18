@@ -15,4 +15,4 @@ Conventions:
 
 | Document | Purpose |
 |----------|---------|
-| _none yet_ | |
+| [subagents.md](subagents.md) | Running workers on Tono: how to start one, what a fresh worktree costs, what workers share and how to keep them apart, and which backlog entries can run side by side |

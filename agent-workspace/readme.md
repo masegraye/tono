@@ -17,7 +17,7 @@ Working memory for the people and agents working on Tono. This is where we keep 
 | `decisions/` | `adr` | Decisions and their reasons, one per file |
 | `handoffs/` | `handoff` | Where a session left off, so the next one can pick up |
 
-Only `backlog/` and `investigations/` have documents so far. The rest have a readme that says what belongs there.
+Only `backlog/`, `investigations/` and `ops/` have documents so far. The rest have a readme that says what belongs there.
 
 ## Naming convention
 
