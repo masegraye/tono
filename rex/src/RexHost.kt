@@ -92,6 +92,12 @@ data class HostState(
         return TabName(program.name, program.directory)
     }
 
+    /**
+     * Whether a terminal is the one in use on this host: the pane that has the keyboard, in
+     * the tab on screen. Whether the host itself is the one showing is not this state's to say.
+     */
+    fun isInUse(sessionId: String, blockId: String): Boolean = sessionId == selectedSessionId && window?.keyboardBlockId == blockId
+
     /** The most pressing thing any pane of a tab is doing. */
     fun activityOf(window: WindowView): ActivityState =
         window.panes.maxOfOrNull { activity[it.blockId] ?: ActivityState.Idle } ?: ActivityState.Idle
@@ -156,6 +162,8 @@ class RexHost(
     private val onActivityNews: (blockId: String, state: ActivityState) -> Unit = { _, _ -> },
     /** Called for the server's own events, such as `keymap_changed`, and with `connected` after each connect. */
     private val onServerEvent: (type: String) -> Unit = {},
+    /** Called with text a program copied in the terminal in use here, for this machine's clipboard. */
+    private val onProgramCopy: (ProgramCopy) -> Unit = {},
 ) {
     private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]))
     private val mutableState = MutableStateFlow(HostState(shownWindows = rememberedTabs))
@@ -180,6 +188,15 @@ class RexHost(
     private val statusRecords = concurrentMap<String, MutableMap<String, ActivityState>>()
     /** Blocks whose status has been asked for on this connection. Later changes arrive as events. */
     private val statusRead = concurrentSet<String>()
+    /**
+     * What programs copy. Only the terminal in use may change the clipboard: the focused pane
+     * of the tab on screen, on the host showing, while the app's window has the keyboard.
+     */
+    private val copies = ProgramCopies(
+        inUse = { sessionId, blockId -> inFront && state.value.isInUse(sessionId, blockId) },
+        log = { message, isError -> log.add(saved.label, message, isError) },
+        deliver = { sessionId, blockId, text -> onProgramCopy(ProgramCopy(saved.label, sessionId, blockId, text)) },
+    )
     @Volatile private var terminalColors: TerminalColors? = null
     @Volatile private var control: RexControl? = null
     private val endpoint: RexEndpoint? = runCatching { RexEndpoint.parse(saved.endpoint) }.getOrNull()
@@ -614,6 +631,7 @@ class RexHost(
             claimedInFront.clear()
             statusRecords.clear()
             statusRead.clear()
+            copies.forget()
             mutableState.value.terminals.values.forEach { it.close() }
             mutableState.update { it.copy(connection = HostConnection.Disconnected(reason), views = emptyMap(), terminals = emptyMap(), activity = emptyMap(), programs = emptyMap()) }
             val delayMillis = RETRY_DELAYS_MILLIS[minOf(attempt++, RETRY_DELAYS_MILLIS.lastIndex)]
@@ -666,9 +684,15 @@ class RexHost(
                     }
                 }
             }
+            // Beside the events rather than among them: a large copy is read in many parts,
+            // and the events that follow it shouldn't wait for that.
+            val copying = launch {
+                copies.run { sessionId, blockId, args -> connection.callBlock("$TERMINAL_CREATOR.clipboard_read", sessionId, blockId, args) }
+            }
             connection.closed.await()
             events.cancel()
             work.cancel()
+            copying.cancel()
         }
     }
 
@@ -831,6 +855,7 @@ class RexHost(
                     "program_status_changed" -> setStatus(blockId, fields?.string("id").orEmpty(), ActivityState.parse(fields?.obj("record")?.string("state")))
                     "process_changed" -> setProgram(blockId, fields)
                     "program_status_removed" -> (fields?.get("ids") as? JsonArray).orEmpty().forEach { id -> setStatus(blockId, (id as? JsonPrimitive)?.content.orEmpty(), null) }
+                    "clipboard_written" -> event.sessionId?.let { sessionId -> copies.written(sessionId, blockId, fields) }
                 }
             }
             "block_closed" -> event.payload.string("block_id")?.let { blockId ->

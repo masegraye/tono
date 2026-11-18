@@ -148,6 +148,22 @@ private fun readClipboard(): Promise<JsAny?> = js("navigator.clipboard.readText(
 /** The browser may ask the user first, and refuses a page that isn't served securely. */
 internal actual suspend fun clipboardText(): String? = runCatching { (readClipboard().await<JsAny?>() as? JsString)?.toString() }.getOrNull()
 
+/** Resolves to null when the text is on the clipboard, and to the browser's reason when it isn't. */
+private fun writeClipboard(text: String): Promise<JsAny?> = js(
+    """(async () => {
+        try {
+            if (!navigator.clipboard) return 'the page has no clipboard, as when it is not served securely';
+            await navigator.clipboard.writeText(text);
+            return null;
+        } catch (error) {
+            return 'the browser refused (' + (error && error.name ? error.name + ': ' + error.message : error) + ')';
+        }
+    })()""",
+)
+
+internal actual suspend fun setClipboardText(text: String): String? =
+    runCatching { (writeClipboard(text).await<JsAny?>() as? JsString)?.toString() }.getOrElse { "the browser refused" }
+
 private fun timeOfDay(millis: Double): String =
     js("(() => { const d = new Date(millis); return d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0'); })()")
 

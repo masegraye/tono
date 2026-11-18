@@ -38,7 +38,11 @@ data class WindowView(
     val zoomedBlockId: String?,
     /** Every block to draw, back to front: the tiled layout first, then floating layers. */
     val panes: List<PaneView>,
-)
+) {
+    /** The pane that has the keyboard in this tab: the zoomed one, else the session's focused one, else the first. */
+    val keyboardBlockId: String?
+        get() = zoomedBlockId ?: focusedBlockId?.takeIf { id -> panes.any { it.blockId == id } } ?: panes.firstOrNull()?.blockId
+}
 
 data class PaneView(
     val blockId: String,

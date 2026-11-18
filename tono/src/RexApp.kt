@@ -72,6 +72,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import kotlinx.coroutines.flow.collectLatest
 import org.example.kotlintest.rex.nowMillis
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -118,6 +120,21 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
         val player = Sounds(this) { message, isError -> ui.client.log.add("sound", message, isError = isError) }
         ui.sounds = player
         ui.client.activityNews.collect { if (ui.soundsEnabled) player.request(it) }
+    }
+
+    // What a program copies in the terminal in use goes on this machine's clipboard. Only the
+    // newest counts: one that arrives while the last is still being written takes its place.
+    val focusedNow by rememberUpdatedState(windowFocused)
+    LaunchedEffect(ui) {
+        ui.client.programCopies.collectLatest { copy ->
+            if (!ui.takes(copy, focusedNow)) {
+                ui.client.log.add("clipboard", "ignored a copy: its terminal is no longer the one in use")
+                return@collectLatest
+            }
+            val refusal = setClipboardText(copy.text)
+            if (refusal == null) ui.client.log.add("clipboard", "a program copied ${copy.text.length} characters")
+            else ui.client.log.add("clipboard", "couldn't take a program's copy: $refusal", isError = true)
+        }
     }
 
     // Shortcuts are looked up here, above everything, so they work wherever the keyboard is.

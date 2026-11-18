@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 import java.awt.AWTEvent
 import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
+import java.awt.datatransfer.StringSelection
 import java.awt.event.AWTEventListener
 import java.awt.event.KeyEvent
 import java.awt.event.WindowEvent
@@ -43,6 +44,10 @@ internal actual fun WatchControlKey(onChange: (held: Boolean) -> Unit) {
 internal actual suspend fun clipboardText(): String? = runCatching {
     Toolkit.getDefaultToolkit().systemClipboard.getData(DataFlavor.stringFlavor) as? String
 }.getOrNull()
+
+internal actual suspend fun setClipboardText(text: String): String? = runCatching {
+    Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
+}.exceptionOrNull()?.let { it.message ?: it::class.simpleName ?: "the clipboard refused" }
 
 internal actual fun clockTime(millis: Long): String = TIME.format(Instant.ofEpochMilli(millis))
 

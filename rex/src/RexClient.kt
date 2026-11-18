@@ -83,6 +83,15 @@ class RexClient(
      */
     val activityNews: SharedFlow<ActivityState> get() = mutableActivityNews
 
+    private val mutableProgramCopies = MutableSharedFlow<ProgramCopy>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /**
+     * Text that programs have copied in the terminal in use, for this machine's clipboard.
+     * A copy that nobody has taken yet is replaced by the next, and one that arrives while
+     * nobody is listening is lost, which is right: it should never turn up later.
+     */
+    val programCopies: SharedFlow<ProgramCopy> get() = mutableProgramCopies
+
     val hosts: StateFlow<List<RexHost>> get() = mutableHosts
     /** The label of the host being shown. */
     val selectedHost: StateFlow<String?> get() = mutableSelectedHost
@@ -278,6 +287,7 @@ class RexClient(
             workspace.save()
         },
         onActivityNews = { _, state -> mutableActivityNews.tryEmit(state) },
+        onProgramCopy = { mutableProgramCopies.tryEmit(it) },
         rememberedTabs = workspace.tabs.toMap(),
         onTabShown = { sessionId, windowId ->
             val before = workspace.tabs[sessionId]

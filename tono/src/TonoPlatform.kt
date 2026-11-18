@@ -34,6 +34,13 @@ internal expect fun WatchControlKey(onChange: (held: Boolean) -> Unit)
 /** The text on the clipboard, or null if there is none or it can't be read. */
 internal expect suspend fun clipboardText(): String?
 
+/**
+ * Puts text on the clipboard. Returns null once it is there, and otherwise why it isn't, for
+ * the debug log. A browser refuses a page that isn't served securely or doesn't have focus,
+ * and some refuse a write that doesn't follow a key press or a click. Never throws.
+ */
+internal expect suspend fun setClipboardText(text: String): String?
+
 /** A moment as the time of day, to the millisecond, for the debug log. */
 internal expect fun clockTime(millis: Long): String
 

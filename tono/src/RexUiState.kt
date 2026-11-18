@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import org.example.kotlintest.rex.ActivityState
 import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.HostState
+import org.example.kotlintest.rex.ProgramCopy
 import org.example.kotlintest.rex.RexClient
 import org.example.kotlintest.rex.RexHost
 import org.example.kotlintest.rex.SessionView
@@ -123,6 +124,20 @@ class RexUiState(val client: RexClient) {
     /** Whether something is open over the terminals and has the keyboard: the palette, or a dialog. */
     val overlayOpen: Boolean get() = palette != null || renaming != null || confirmation != null
 
+    /**
+     * Whether text a program copied should go on the clipboard: see [takesCopy].
+     *
+     * @param windowFocused whether the app's window has the keyboard
+     */
+    fun takes(copy: ProgramCopy, windowFocused: Boolean): Boolean = takesCopy(
+        copy,
+        windowFocused = windowFocused,
+        // In a narrow window the sidebar is shown instead of the terminals, so it is over them too.
+        overlayOpen = overlayOpen || (narrow && sidebarVisible),
+        shownHost = host?.saved?.label,
+        state = hostState,
+    )
+
     /** Hands the keyboard back to the focused terminal, unless something is open over it. */
     fun returnFocusToTerminal() {
         if (overlayOpen) return
@@ -232,8 +247,24 @@ class RexUiState(val client: RexClient) {
 }
 
 /** The pane that has the keyboard in a tab: the zoomed one, else the session's focused one, else the first. */
-internal fun focusedBlockOf(window: WindowView): String? =
-    window.zoomedBlockId ?: window.focusedBlockId?.takeIf { id -> window.panes.any { it.blockId == id } } ?: window.panes.firstOrNull()?.blockId
+internal fun focusedBlockOf(window: WindowView): String? = window.keyboardBlockId
+
+/**
+ * Whether text a program copied should go on this machine's clipboard. Only the terminal the
+ * user is at may change it, or a program somewhere out of sight could replace what they are
+ * about to paste. So the copy has to come from the pane with the keyboard, in the tab on
+ * screen, on the host being shown, while the app's window has the keyboard and nothing is
+ * open over the terminals. These are Rex Rune's rules.
+ *
+ * The host checks where the copy came from when it arrives. This is asked at the last
+ * moment, since reading a large copy takes time and the user may have moved on.
+ *
+ * @param overlayOpen whether something is open over the terminals: the palette, or a dialog
+ * @param shownHost the label of the host being shown
+ * @param state that host's state
+ */
+internal fun takesCopy(copy: ProgramCopy, windowFocused: Boolean, overlayOpen: Boolean, shownHost: String?, state: HostState?): Boolean =
+    windowFocused && !overlayOpen && copy.host == shownHost && state?.isInUse(copy.sessionId, copy.blockId) == true
 
 /** A place the user can go: a session, or one of its tabs. */
 data class NavigationStop(val host: String, val sessionId: String, val windowId: String? = null)
