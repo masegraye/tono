@@ -51,7 +51,7 @@ fun RenameTabDialog(renaming: TabRename, onDismiss: () -> Unit) {
                 },
             )
         },
-        confirmButton = { TextButton(onClick = save) { Text("Rename") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { PrimaryDialogButton("Rename", save) },
+        dismissButton = { SecondaryDialogButton("Cancel", onDismiss) },
     )
 }

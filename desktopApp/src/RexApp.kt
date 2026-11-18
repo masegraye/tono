@@ -181,9 +181,9 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
                     title = { Text(pending.title) },
                     text = { Text(pending.text) },
                     confirmButton = {
-                        TextButton(onClick = { dismiss(); pending.onConfirm() }, modifier = Modifier.focusRequester(confirmFocus)) { Text(pending.confirmLabel) }
+                        PrimaryDialogButton(pending.confirmLabel, onClick = { dismiss(); pending.onConfirm() }, Modifier.focusRequester(confirmFocus), destructive = pending.destructive)
                     },
-                    dismissButton = { TextButton(onClick = dismiss) { Text("Cancel") } },
+                    dismissButton = { SecondaryDialogButton("Cancel", dismiss) },
                 )
             }
         }

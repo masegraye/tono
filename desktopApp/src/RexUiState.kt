@@ -24,8 +24,13 @@ enum class PaletteMode {
     RemoveHost,
 }
 
-/** Something destructive, waiting for the user to agree to it. */
-class Confirmation(val title: String, val text: String, val confirmLabel: String, val onConfirm: () -> Unit)
+/**
+ * Something waiting for the user to agree to it.
+ *
+ * @param destructive whether agreeing ends or removes something that can't be brought back.
+ *   Everything asked about so far does, which is why it is asked.
+ */
+class Confirmation(val title: String, val text: String, val confirmLabel: String, val destructive: Boolean = true, val onConfirm: () -> Unit)
 
 /**
  * A tab whose name is being edited.
