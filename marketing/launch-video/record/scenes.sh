@@ -43,7 +43,7 @@ scene_palette() {
   shell_type "$right" fastfetch 0.06; shell_enter "$right"; sleep 1.6
   key ctrl+alt+d; sleep 1.2
   local below; below=$(focused_of shell)
-  shell_type "$below" 'eza -T -L 1 --icons .' 0.035; shell_enter "$below"; sleep 1.8
+  shell_type "$below" 'eza --icons -T -L 1 .' 0.035; shell_enter "$below"; sleep 1.8
   key ctrl+shift+Return; sleep 1.4
   key ctrl+shift+Return; sleep 1.2
   rec_stop
