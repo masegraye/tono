@@ -43,7 +43,7 @@ scene_palette() {
   shell_type "$right" fastfetch 0.06; shell_enter "$right"; sleep 1.6
   key ctrl+alt+d; sleep 1.2
   local below; below=$(focused_of shell)
-  shell_type "$below" 'eza --tree -L1 --icons .' 0.035; shell_enter "$below"; sleep 1.8
+  shell_type "$below" 'eza -T -L 1 --icons .' 0.035; shell_enter "$below"; sleep 1.8
   key ctrl+shift+Return; sleep 1.4
   key ctrl+shift+Return; sleep 1.2
   rec_stop
@@ -56,10 +56,10 @@ scene_palette() {
 scene_agents() {
   key ctrl+1; shell_run agent clear; sleep 1
   rec_start agents; sleep 0.8
-  shell_run agent "$here/agent-sim.sh 3.4"
-  sleep 4.9          # working, then it asks
-  key ctrl+4; sleep 1.3
-  shell_type agent y; sleep 2.6
+  shell_run agent "$here/agent-sim.sh 9"
+  sleep 5.1          # working, then it asks
+  key ctrl+4; sleep 1.4
+  shell_type agent y; sleep 2.8
   rec_stop
   sleep 1; shell_run agent clear
 }

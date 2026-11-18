@@ -32,6 +32,9 @@ key() {
   unset 'parts[-1]'
   local mods=${parts[*]^^}
   hyprctl dispatch "hl.dsp.send_shortcut({ mods = \"$mods\", key = \"$name\", window = \"address:$(tono_window)\" })" >/dev/null 2>&1
+  # The window is never told the modifiers were let go, and Tono shows its tab numbers
+  # while it believes Control is down. A tap of Shift on its own sets that straight.
+  if [ -n "$mods" ]; then key_state "" Shift_L down; key_state "" Shift_L up; fi
 }
 key_state() { hyprctl dispatch "hl.dsp.send_key_state({ mods = \"$1\", key = \"$2\", state = \"$3\" })" >/dev/null 2>&1; }
 # Holds Control long enough for the sidebar's digits to fade in, presses each digit in turn, and lets go.

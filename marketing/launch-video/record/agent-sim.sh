@@ -11,7 +11,10 @@ say "\033[1;35m●\033[0m Editing \033[36mtono/src/RexApp.kt\033[0m  \033[32m+18
 say "\033[1;35m●\033[0m Running \033[33mtask test\033[0m" 1.2
 say "  \033[32m✓\033[0m 193 tests passed" 0.6
 state blocked
-say "\n\033[1;33m?\033[0m Merge into main?  \033[2m(y/n)\033[0m" "${1:-3.2}"
+printf '\n\033[1;33m?\033[0m Merge into main?  \033[2m(y/n)\033[0m '
+read -r -n 1 -t "${1:-8}" _answer || true
+printf '\n'
+sleep 0.4
 state working
 say "\033[1;35m●\033[0m Merging \033[36magent/program-copies\033[0m" 0.9
 state done
