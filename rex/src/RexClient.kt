@@ -229,6 +229,23 @@ class RexClient(
         mutableSelectedHost.value = label
         workspace.lastHost = label
         workspace.save()
+        tellHostsWhichIsInFront()
+    }
+
+    @Volatile private var windowFocused = false
+
+    /**
+     * Says whether the app's window has focus. While it does, the host showing claims the
+     * terminals on screen, so that they take their size from the client being used.
+     */
+    fun setWindowFocused(focused: Boolean) {
+        windowFocused = focused
+        tellHostsWhichIsInFront()
+    }
+
+    private fun tellHostsWhichIsInFront() {
+        val showing = mutableSelectedHost.value
+        mutableHosts.value.forEach { it.setInFront(windowFocused && it.saved.label == showing) }
     }
 
     /** Sets the colors every terminal is drawn with, now and for terminals opened later. */

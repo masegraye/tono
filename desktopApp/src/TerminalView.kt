@@ -97,8 +97,10 @@ fun TerminalView(
     val layouts = remember(style) { RowLayouts() }
 
     var size by remember { mutableStateOf(IntSize.Zero) }
-    // Wait for a resize to settle before asking for a new grid.
-    LaunchedEffect(size, cell) {
+    // Wait for a resize to settle before asking for a new grid. Keyed on the terminal too:
+    // going to another tab puts a different terminal in the same space, and its size has to
+    // be said even though the space didn't change.
+    LaunchedEffect(terminal, size, cell) {
         if (size.width <= 0 || size.height <= 0) return@LaunchedEffect
         delay(150)
         val columns = (size.width / cell.width).toInt()

@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.example.kotlintest.rex.ActivityState
 import org.example.kotlintest.rex.HostConnection
+import androidx.compose.ui.platform.LocalWindowInfo
 import org.example.kotlintest.rex.HostState
 import org.example.kotlintest.rex.PaneRect
 import org.example.kotlintest.rex.PaneView
@@ -98,6 +99,10 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
     val selectedLabel by ui.client.selectedHost.collectAsState()
     val keymap by ui.client.keymap.collectAsState()
     val selected = hosts.firstOrNull { it.saved.label == selectedLabel } ?: hosts.firstOrNull()
+
+    // The client in use is the one terminals take their size from, so say when that is this one.
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    LaunchedEffect(windowFocused) { ui.client.setWindowFocused(windowFocused) }
 
     // Shortcuts are looked up here, above everything, so they work wherever the keyboard is.
     // A key that isn't a shortcut carries on down to the focused terminal.

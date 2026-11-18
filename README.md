@@ -147,8 +147,11 @@ When it starts it connects to every configured server at once and restores where
   folded server or session shows the dots for whatever is inside it.
 - A dropped connection is retried, and everything is read again when it comes back.
 
-Looking at a terminal is passive: it is drawn at the size its current owner gave it. Pressing a key in one claims it,
-which makes the terminal take its size from this client, as it would from any Rex client.
+A terminal takes its size from one client at a time, its owner, and the client someone is using is the one whose
+size should count. So Tono claims the terminals on screen while its window has focus: once each, and again each time
+the window comes forward, as Rex's own apps do. Typing or clicking in a terminal claims it too. If another client
+takes a terminal back, Tono leaves it alone until one of those happens again, so two clients never fight over one.
+Without focus, Tono only looks: a terminal is drawn at the size its owner gave it.
 
 Which tab is on screen is this app's own choice. Two clients on one session share its terminals, so each sees what
 the other types, but each looks at the tab it chose: going to a tab in Rex.app doesn't move this app, and the other

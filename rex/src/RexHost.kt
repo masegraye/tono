@@ -162,6 +162,11 @@ class RexHost(
     private val desiredGrids = ConcurrentHashMap<String, GridSize>()
     /** Blocks claimed on this connection, until the server's view says otherwise. */
     private val claimed = ConcurrentHashMap.newKeySet<String>()
+
+    /** Whether this host's terminals are what the user is looking at: it is the host showing, in a window that has focus. */
+    @Volatile private var inFront = false
+    /** The terminals claimed for being in front, since this host last came to the front. */
+    private val claimedInFront = ConcurrentHashMap.newKeySet<String>()
     /** Each terminal's status records, by block id then record id: a program can report several things at once. */
     private val statusRecords = ConcurrentHashMap<String, MutableMap<String, ActivityState>>()
     /** Blocks whose status has been asked for on this connection. Later changes arrive as events. */
@@ -192,6 +197,37 @@ class RexHost(
             if (state.value.selectedSessionId != sessionId) attach(control, sessionId)
             else state.value.views[sessionId]?.let { showView(control, it) } // open the tab's terminals
             makeActive(control, sessionId)
+        }
+    }
+
+    /**
+     * Says whether this host's terminals are in front of the user: this is the host showing,
+     * and the app's window has focus.
+     *
+     * A terminal takes its size from one client at a time, its owner, and the client someone
+     * is using is the one whose size should count. So, as Rex's own apps do, this app claims
+     * the terminals on screen when it comes to the front: once each, and again the next time
+     * it comes forward. If another client takes one back meanwhile, that is left alone until
+     * then, or until something is typed here, so two clients never fight over a terminal.
+     */
+    fun setInFront(value: Boolean) {
+        if (inFront == value) return
+        inFront = value
+        if (value) {
+            claimedInFront.clear()
+            act(null) { claimInFront(it) }
+        }
+    }
+
+    /** Claims the terminals on screen that haven't been claimed since this host came to the front. */
+    private suspend fun claimInFront(control: RexControl) {
+        if (!inFront) return
+        val current = state.value
+        val sessionId = current.selectedSessionId ?: return
+        val window = current.window ?: return
+        for (pane in window.panes) {
+            if (!pane.isTerminal || (window.zoomedBlockId != null && pane.blockId != window.zoomedBlockId)) continue
+            if (claimedInFront.add(pane.blockId)) claim(control, sessionId, pane.blockId)
         }
     }
 
@@ -440,6 +476,8 @@ class RexHost(
         if (!taken) return
         claimed += blockId
         log.add(saved.label, "claimed ${short(blockId)}: it now takes its size from this client")
+        // The size is sent now if the terminal has been laid out here, and otherwise as soon
+        // as it has (see setDesiredGrid).
         desiredGrids[blockId]?.let { resize(control, sessionId, blockId, it) }
     }
 
@@ -460,6 +498,7 @@ class RexHost(
                 }
             })
         }.onSuccess { log.add(saved.label, "asked for ${short(blockId)} to be ${grid.columns}×${grid.rows}") }
+            .onFailure { log.add(saved.label, "couldn't size ${short(blockId)}: ${it.message}", isError = true) }
     }
 
     private suspend fun run() {
@@ -503,6 +542,7 @@ class RexHost(
             }
             // Everything read on that connection is stale now; it is all read again on the next.
             claimed.clear()
+            claimedInFront.clear()
             statusRecords.clear()
             statusRead.clear()
             mutableState.value.terminals.values.forEach { it.close() }
@@ -640,7 +680,7 @@ class RexHost(
     }
 
     /** Takes a session's new layout. For the selected session, also makes the open terminals match the blocks it shows. */
-    private fun showView(connection: RexControl, view: SessionView) {
+    private suspend fun showView(connection: RexControl, view: SessionView) {
         val endpoint = endpoint ?: return
         mutableState.update { current ->
             val views = current.views + (view.sessionId to view)
@@ -671,7 +711,10 @@ class RexHost(
             val shown = if (window != null) current.shownWindows + (view.sessionId to window.id) else current.shownWindows - view.sessionId
             current.copy(views = views, terminals = terminals, shownWindows = shown)
         }
-        if (view.sessionId == state.value.selectedSessionId) onTabShown(view.sessionId, state.value.shownWindows[view.sessionId])
+        if (view.sessionId == state.value.selectedSessionId) {
+            onTabShown(view.sessionId, state.value.shownWindows[view.sessionId])
+            claimInFront(connection) // a tab just gone to, or a pane just opened, is on screen now
+        }
     }
 
     private fun openTerminal(connection: RexControl, endpoint: RexEndpoint, sessionId: String, blockId: String) =
