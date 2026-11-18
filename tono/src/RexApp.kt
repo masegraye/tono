@@ -168,7 +168,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
                             Box(Modifier.weight(1f)) {
                                 if (selected != null) {
                                     // Beside the sidebar the panel needs no gap on that side: the sidebar's own margin is one.
-                                    HostContent(selected, ui, Modifier.fillMaxSize().padding(start = if (ui.sidebarVisible) 0.dp else PANEL_GAP, top = PANEL_GAP, end = PANEL_GAP, bottom = PANEL_GAP), onShowSidebar = if (narrow) { { commands.run("client.sidebar.toggle", origin = "status bar") } } else null)
+                                    HostContent(selected, ui, Modifier.fillMaxSize().padding(start = if (ui.sidebarVisible) 0.dp else PANEL_GAP, top = PANEL_GAP, end = PANEL_GAP), onShowSidebar = if (narrow) { { commands.run("client.sidebar.toggle", origin = "status bar") } } else null)
                                 }
                                 // The button that brings the sidebar back appears under the pointer. A narrow
                                 // window is likely a touch screen, with no pointer to be under: its button is in the status bar.
@@ -689,14 +689,16 @@ private fun HostContent(host: RexHost, ui: RexUiState, modifier: Modifier, onSho
 
     // The panel the terminals are on: the terminal's own color, with rounded corners and a
     // quiet outline, over the window's surface. One panel however many panes the tab has.
+    // What is inside the outline is the tab; the status line is about the tab, not part of
+    // it, so it sits on the window's surface underneath.
     val shape = RoundedCornerShape(PANEL_CORNER)
-    Column(
-        modifier.fillMaxSize()
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.background)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape),
-    ) {
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+    Column(modifier.fillMaxSize()) {
+        Box(
+            Modifier.weight(1f).fillMaxWidth()
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.background)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape),
+        ) {
             when {
                 state.connection != HostConnection.Connected ->
                     Notice(if (state.connection is HostConnection.Disconnected) "Not connected to ${host.saved.label}" else "Connecting to ${host.saved.label}…")
@@ -785,15 +787,11 @@ private fun StatusBar(host: RexHost, view: SessionView?, tab: TabName?, terminal
     val grid = terminal?.grid?.collectAsState()?.value
     val exit = terminal?.exitCode?.collectAsState()?.value
     val separator = "  ·  "
-    val line = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
     // Where you are, from the outside in: the computer, the session, the tab, and how large
     // its terminal is. With the sidebar hidden this is the only place that says which tab is
     // on screen, so the tab's name is the one part in full-strength text.
     Row(
-        // On the panel with the terminals it describes, under a line.
-        Modifier.fillMaxWidth()
-            .drawBehind { drawLine(line, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx()) }
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // In a narrow window: the way back to the sidebar, and only the tab's name, for want of room.
