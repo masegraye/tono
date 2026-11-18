@@ -11,6 +11,8 @@ import org.example.kotlintest.rex.Workspace
 import java.nio.file.Path
 
 /**
+ * `--claim <seconds>`: claims the shown tab's focused terminal and stays connected that long.
+ *
  * `--type <text>`: types the text and Enter into the selected host's focused terminal, the
  * way the app does when you press keys. Unlike everything else here this is not passive:
  * typing claims the terminal for this client.
@@ -70,6 +72,20 @@ private suspend fun kotlinx.coroutines.CoroutineScope.probe(args: Array<String>)
     }
 
     if (typed != null) typeInto(client, typed)
+
+    // `--claim <seconds>`: takes the shown tab's focused terminal, as the app does when the
+    // pointer is over it, and stays connected that long. It stands in for a second client
+    // when checking who ends up owning a terminal.
+    args.indexOf("--claim").takeIf { it >= 0 }?.let { args.getOrNull(it + 1)?.toLongOrNull() }?.let { seconds ->
+        val host = client.hosts.value.firstOrNull { it.saved.label == client.selectedHost.value }
+        val window = host?.state?.value?.window
+        val blockId = window?.focusedBlockId ?: window?.panes?.firstOrNull()?.blockId
+        if (host != null && blockId != null) {
+            host.pointerOver(blockId)
+            println("claimed $blockId as ${host.state.value.clientId}; holding for ${seconds}s")
+            delay(seconds * 1_000)
+        }
+    }
 
     for (host in client.hosts.value) {
         val state = host.state.value

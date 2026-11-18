@@ -643,6 +643,7 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, o
                     // key sent here would be typed into a shell and claim its terminal.
                     onKey = { if (!ui.overlayOpen) host.sendKey(pane.blockId, it) },
                     onDesiredGrid = { host.setDesiredGrid(pane.blockId, it) },
+                    onPointerOver = { host.pointerOver(pane.blockId) },
                     fontSize = ui.fontSize.sp,
                     focusRequests = ui.focusRequests,
                 )

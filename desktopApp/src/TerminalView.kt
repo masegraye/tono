@@ -96,6 +96,7 @@ fun TerminalView(
     onKey: (RexKey) -> Unit,
     onDesiredGrid: (GridSize) -> Unit,
     modifier: Modifier = Modifier,
+    onPointerOver: () -> Unit = {},
     fontSize: TextUnit = 13.sp,
     focusRequests: Int = 0,
 ) {
@@ -175,7 +176,9 @@ fun TerminalView(
             // offered to the terminal, which knows what its program asked to be told.
             .onPointerEvent(PointerEventType.Press) { event -> mouseButton(event.button)?.let { report(event, MouseAction.Press, it) } }
             .onPointerEvent(PointerEventType.Release) { event -> mouseButton(event.button)?.let { report(event, MouseAction.Release, it) } }
+            .onPointerEvent(PointerEventType.Enter) { onPointerOver() }
             .onPointerEvent(PointerEventType.Move) { event ->
+                onPointerOver()
                 val held = when {
                     event.buttons.isPrimaryPressed -> MouseButton.Left
                     event.buttons.isSecondaryPressed -> MouseButton.Right

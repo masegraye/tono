@@ -148,9 +148,10 @@ When it starts it connects to every configured server at once and restores where
 - A dropped connection is retried, and everything is read again when it comes back.
 
 A terminal takes its size from one client at a time, its owner, and the client someone is using is the one whose
-size should count. So Tono claims the terminals on screen while its window has focus: once each, and again each time
-the window comes forward, as Rex's own apps do. Typing or clicking in a terminal claims it too. If another client
-takes a terminal back, Tono leaves it alone until one of those happens again, so two clients never fight over one.
+size should count. So Tono claims the terminals on screen while its window has focus: when the window comes forward
+and when you go to a tab, as Rex's own apps do. Typing or clicking in a terminal claims it too, and so does moving
+the pointer over it. If another client takes a terminal back, Tono leaves it alone until one of those happens again,
+so two clients never fight over one.
 Without focus, Tono only looks: a terminal is drawn at the size its owner gave it.
 
 Which tab is on screen is this app's own choice. Two clients on one session share its terminals, so each sees what

@@ -165,6 +165,8 @@ class RexHost(
 
     /** Whether this host's terminals are what the user is looking at: it is the host showing, in a window that has focus. */
     @Volatile private var inFront = false
+    /** Terminals a claim is already on its way for, so a moving pointer asks once. */
+    private val claiming = ConcurrentHashMap.newKeySet<String>()
     /** The terminals claimed for being in front, since this host last came to the front. */
     private val claimedInFront = ConcurrentHashMap.newKeySet<String>()
     /** Each terminal's status records, by block id then record id: a program can report several things at once. */
@@ -194,6 +196,9 @@ class RexHost(
     fun showTab(sessionId: String, windowId: String) {
         setShown(sessionId, windowId)
         act("show tab") { control ->
+            // Going to a tab claims its terminals afresh, as in Rex.app: whatever another
+            // client did with them since this one last had them, the tab is in use here now.
+            state.value.views[sessionId]?.windows?.firstOrNull { it.id == windowId }?.panes?.forEach { claimedInFront.remove(it.blockId) }
             if (state.value.selectedSessionId != sessionId) attach(control, sessionId)
             else state.value.views[sessionId]?.let { showView(control, it) } // open the tab's terminals
             makeActive(control, sessionId)
@@ -216,6 +221,24 @@ class RexHost(
         if (value) {
             claimedInFront.clear()
             act(null) { claimInFront(it) }
+        }
+    }
+
+    /**
+     * Says the pointer is over a terminal. That claims it, as in Rex.app: the client under
+     * your hand is the one in use, and a program that follows the mouse needs the terminal
+     * to be the size it is drawn at here for the pointer to land where it looks.
+     *
+     * Called for every movement, so it does nothing unless the terminal is someone else's.
+     */
+    fun pointerOver(blockId: String) {
+        if (owns(blockId) || !claiming.add(blockId)) return
+        act(null) { control ->
+            try {
+                state.value.selectedSessionId?.let { claim(control, it, blockId) }
+            } finally {
+                claiming.remove(blockId)
+            }
         }
     }
 
