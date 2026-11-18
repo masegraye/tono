@@ -6,20 +6,24 @@ development with Compose Hot Reload) and Web (Wasm), built with the
 [Kotlin Toolchain](https://kotlin-toolchain.org/latest/).
 
 - [/androidApp](./androidApp) contains the Android application.
-- [/desktopApp](./desktopApp) contains the desktop (JVM) application: a client for [Rex](https://www.superlogical.com/rex).
-- [/ghostty](./ghostty) wraps libghostty-vt, Ghostty's terminal emulation core, for the JVM.
-- [/rex](./rex) is the Rex client itself, without any UI: connections, sessions and live terminals.
+- [/tono](./tono) is Tono itself, a client for [Rex](https://www.superlogical.com/rex): the interface, shared by the
+  desktop and the web.
+- [/desktopApp](./desktopApp) puts it in a window on the desktop (JVM).
+- [/ghostty](./ghostty) wraps libghostty-vt, Ghostty's terminal emulation core: a shared library on the JVM, a
+  WebAssembly module in a browser.
+- [/rex](./rex) is the Rex client without any UI: connections, sessions and live terminals.
 - [/rexSpike](./rexSpike) is a command-line check of that client.
 - [/iosApp](./iosApp) contains the iOS application.
 - [/shared](./shared) holds the code shared across your applications — Compose UI,
   business logic, and platform-specific implementations. [src](./shared/src) is for common code; the
   sibling `src@<platform>` folders (for example `src@android`) hold code compiled only for the platform named in the
   folder.
-- [/server](./server) is a Ktor server that serves the web application and tells it how the desktop is themed.
+- [/server](./server) is a Ktor server that serves the web application and gives it what a page can't get for
+  itself: connections to Rex servers, the terminal library, and the desktop's theme, font and sounds.
 - [/omarchy-theme](./omarchy-theme), [/omarchy-theme-compose](./omarchy-theme-compose) and
   [/omarchy-theme-ktor](./omarchy-theme-ktor) are the libraries that read the Omarchy theme, turn it into a Compose
   Material theme, and serve it to web pages.
-- [/webApp](./webApp) contains the web application, compiled to WebAssembly with Kotlin/Wasm.
+- [/webApp](./webApp) puts Tono on a web page, compiled to WebAssembly with Kotlin/Wasm.
 
 The `kotlin` (macOS/Linux) and `kotlin.bat` (Windows) scripts in the project root are self-bootstrapping wrappers for
 the Kotlin Toolchain: they download the pinned toolchain version on first use, so no separate installation is required.
@@ -42,8 +46,7 @@ Run each module from the command line:
 - Android app: `./kotlin run -m androidApp`
 - Desktop app: `task desktop` (it needs the native library; see [Tono](#tono-the-rex-client))
 - iOS app: `./kotlin run -m iosApp`
-- Web app: `./kotlin run -m webApp` (static files only), or `task web` to serve it from the server module with
-  live theming
+- Web app: `task web` serves it from the server module, which it needs (see [Tono in a browser](#tono-in-a-browser))
 
 ### UI showcase and Omarchy theming
 
@@ -81,13 +84,43 @@ The tasks are in [Taskfile.yml](./Taskfile.yml) (`task` lists them):
   `task desktop:steady` runs it without Hot Reload, for when you are using the app while changing it: a build then
   leaves the running app alone.
 - `task test` runs the tests that can run on this machine.
-- `task web` builds the web app and serves it from the server module at http://127.0.0.1:8080. `task web:watch`
+- `task web` builds the web app and serves it from the server module at http://127.0.0.1:8080, and
+  `task web:tailnet` lets your other devices reach it over your tailnet. `task web:watch`
   in a second terminal rebuilds it whenever a source file changes and reloads open browser tabs. Hot Reload is JVM-only,
   so on web a code change is a full rebuild and page reload (about 15 seconds) and the page state is lost. The reload is
   driven by [dev-reload.js](./webApp/resources/dev-reload.js), which only runs on localhost.
 - `task web:release` builds the optimized web app and a self-contained server jar and runs them, with no build tool
   involved at runtime. The server reads `WEB_DIR`, `HOST` (default `127.0.0.1`) and `PORT` (default `8080`) from the
   environment.
+
+### Tono in a browser
+
+`task web` serves the same app as a web page. It is the desktop app's own code: the sidebar, terminals, palette,
+dialogs and shortcuts are shared, and the showcase is under the same menu. What differs is what a page isn't allowed to
+do, which the server does for it.
+
+- **Terminals.** libghostty-vt runs in the page as a WebAssembly module (`task native:wasm` builds it from the same
+  pinned source as the desktop's library, in half a minute). Calling it a function at a time from Kotlin is slow in a
+  browser, since each call crosses into JavaScript and back, so [ghostty-glue.js](./webApp/resources/ghostty-glue.js)
+  does the cell-by-cell work beside the library and hands a whole frame over at once.
+- **Connections.** A page can't open the local server's socket, and a Rex server refuses a WebSocket that says it
+  comes from another site's page. So the page connects to [a relay](./server/src/TonoRelay.kt) on its own server,
+  which makes the real connection and passes messages both ways, unread.
+- **The desktop's look.** The theme follows the desktop live, as before. The server also hands over the desktop's
+  monospace font, so terminals have the same glyphs as on the desktop, and its sounds.
+- **Your settings** (hosts folded, the tab you were on) are kept in the browser, so each browser has its own.
+
+Who can reach it: by default, only this machine. `task web:tailnet`, run beside `task web`, puts it on your tailnet at
+`https://<this machine>.<your tailnet>.ts.net/`, using `tailscale serve`: Tailscale accepts connections from your
+tailnet alone and passes them to the server on this machine's own address. Nothing is opened to the internet. The
+server holds to that itself as well ([TailnetOnly.kt](./server/src/TailnetOnly.kt)): it answers only this machine and
+tailnet addresses whatever address it is told to listen on; the relay serves only its own page, so another site open
+in your browser can't use it; and it connects only to this machine's Rex server and to Rex servers on the tailnet.
+Keep in mind what it is: whoever can open the page is at your terminals, as you.
+
+Different from the desktop, for now: a browser keeps some keys for itself (Control with T, W, N, Tab and the digits,
+among others), so those shortcuts only work when the page runs as an installed app window; images and tooltips
+aren't there yet; and a character the desktop's font lacks is drawn in whatever the browser falls back to.
 
 ### Tono, the Rex client
 

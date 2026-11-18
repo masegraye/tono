@@ -84,11 +84,22 @@ tasks:
   # --- The web app ---
 
   web:
-    desc: Serve the web app with live Omarchy theming at http://127.0.0.1:8080
-    # The server module serves the built web app and pushes desktop theme changes to it.
+    desc: Serve Tono for the browser at http://127.0.0.1:8080, to this machine only
+    # The server module serves the built web app, and gives it what a page can't get for
+    # itself: connections to Rex servers, the terminal library, the desktop's theme and font.
+    deps: [native:wasm]
     cmds:
       - ./kotlin build -m webApp
       - WEB_DIR="$PWD/$(dirname "$(find build/tasks -name webApp.wasm -path '*_webApp_build*Debug*' | head -n 1)")" ./kotlin run -m server
+
+  web:tailnet:
+    desc: Let your other devices reach the running web Tono, over your tailnet only (stop it with Control+C)
+    # Tailscale takes connections from your tailnet alone, over HTTPS with a certificate for
+    # this machine's tailnet name, and passes them to the server on this machine's own
+    # address. Nothing listens on any other network, and nothing is opened to the internet
+    # (that would be `tailscale funnel`, which this never runs).
+    cmds:
+      - tailscale serve {{.PORT | default "8080"}}
 
   web:build:
     desc: Build the web app, then tell open browser tabs to reload
@@ -96,6 +107,9 @@ tasks:
       - shared/src*/**/*
       - shared/composeResources/**/*
       - omarchy-theme*/src*/**/*
+      - tono/src*/**/*
+      - rex/src*/**/*
+      - ghostty/src*/**/*
       - webApp/src/**/*
       - webApp/resources/**/*
       - '**/module.yaml'

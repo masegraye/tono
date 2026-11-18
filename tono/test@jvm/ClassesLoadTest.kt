@@ -22,4 +22,24 @@ class ClassesLoadTest {
         assertTrue(names.size > 20, "found only ${names.size} classes under $root")
         for (name in names) Class.forName(name, false, anchor.classLoader).declaredMethods // linking is what fails
     }
+
+    /**
+     * Two modules that each have a file of the same name in the same package compile to
+     * classes of the same name, and a packaged app holds only one of them: the other's
+     * functions are then missing when it runs. Each module builds and tests fine alone, so
+     * this looks across them.
+     */
+    @Test
+    fun `no class of this module has a namesake in another`() {
+        val anchor = Class.forName("org.example.kotlintest.RexAppKt")
+        val root = File(anchor.protectionDomain.codeSource.location.toURI())
+        val files = if (root.isDirectory) {
+            root.walkTopDown().filter { it.extension == "class" }.map { it.relativeTo(root).path.replace(File.separatorChar, '/') }.toList()
+        } else {
+            java.util.zip.ZipFile(root).use { zip -> zip.entries().asSequence().map { it.name }.filter { it.endsWith(".class") }.toList() }
+        }
+        val shared = files.filter { anchor.classLoader.getResources(it).toList().size > 1 }
+        assertTrue(shared.isEmpty(), "also defined by another module: $shared")
+    }
 }
+
