@@ -20,6 +20,9 @@ sid=$(rex session new "$SESSION" --window monitor -c "$repo" --json -- btop | jq
 rex window new -s "$sid" editor -c "$repo" --focus=false -- nvim tono/src/TonoApp.kt >/dev/null
 rex window new -s "$sid" shell -c "$repo" --focus=false >/dev/null
 rex window new -s "$sid" agent -c "$repo" --focus=false >/dev/null
+# Which terminal is which, for the scenes to type into, before the names are taken off.
+mkdir -p "$DEMO"
+rex window ls -s "$sid" --json | jq -r '.windows[] | "\(.label) \(.focused_block_id)"' | while read -r label block; do echo "$block" > "$DEMO/block-$label"; done
 # The tabs are named by what runs in them, as Tono does for a tab nobody named: only the
 # agent's keeps a name, since what runs there is a script.
 for w in $(rex window ls -s "$sid" --json | jq -r '.windows[] | select(.label != "agent") | .window_id'); do

@@ -15,25 +15,56 @@ focus_tono() {
 # Out of the picture: the bottom-right corner.
 cursor_away() { hyprctl dispatch "hl.dsp.cursor.move({ x = 1535, y = 863 })" >/dev/null 2>&1; }
 
+# Keys go through the compositor's own shortcut sender, which uses the real keymap. (wtype
+# makes a keymap of its own, and a window running under XWayland, as Tono's does, reads
+# its keys through the old one and gets the wrong keys.)
+#
 # key ctrl+shift+p | key Return | key ctrl+3. Only while the demo window has the keyboard.
 key() {
   focus_tono || { echo "the demo window doesn't have the keyboard; key $1 not sent" >&2; return 1; }
-  local parts args=() mods=()
+  local parts
   IFS=+ read -r -a parts <<<"$1"
   local name=${parts[-1]}
   unset 'parts[-1]'
-  for m in "${parts[@]}"; do args+=(-M "$m"); mods=(-m "$m" "${mods[@]}"); done
-  wtype "${args[@]}" -k "$name" "${mods[@]}"
+  local mods=${parts[*]^^}
+  hyprctl dispatch "hl.dsp.send_shortcut({ mods = \"$mods\", key = \"$name\", window = \"address:$(tono_window)\" })" >/dev/null 2>&1
 }
+key_state() { hyprctl dispatch "hl.dsp.send_key_state({ mods = \"$1\", key = \"$2\", state = \"$3\" })" >/dev/null 2>&1; }
 # Holds Control long enough for the sidebar's digits to fade in, presses each digit in turn, and lets go.
-tabs_by_number() { # pause-ms digit...
+tabs_by_number() { # pause-seconds digit...
   focus_tono || return 1
-  local pause=$1 args=(-M ctrl -s 600); shift
-  for d in "$@"; do args+=(-k "$d" -s "$pause"); done
-  wtype "${args[@]}" -m ctrl
+  local pause=$1; shift
+  key_state "" Control_L down
+  sleep 0.7
+  for d in "$@"; do
+    key_state CTRL "$d" down; sleep 0.05; key_state CTRL "$d" up
+    sleep "$pause"
+  done
+  key_state "" Control_L up
 }
-# Types as a person would.
-type_text() { focus_tono || return 1; wtype -d "${2:-55}" "$1"; }
+# Types into whatever in Tono has the keyboard, a key at a time, as a person would.
+type_text() {
+  focus_tono || return 1
+  local text=$1 delay=${2:-0.06} i char name
+  for ((i = 0; i < ${#text}; i++)); do
+    char=${text:i:1}
+    case $char in
+      ' ') name=space ;; '-') name=minus ;; '.') name=period ;; '/') name=slash ;;
+      *) name=$char ;;
+    esac
+    hyprctl dispatch "hl.dsp.send_shortcut({ mods = \"\", key = \"$name\", window = \"address:$(tono_window)\" })" >/dev/null 2>&1
+    sleep "$delay"
+  done
+}
+# Types into a terminal of the demo session through Rex, a character at a time: for shell
+# commands, which can hold any character. shell_type TAB-LABEL 'text'; shell_enter TAB-LABEL.
+shell_block() { rex window ls -s launch-day --json | jq -r --arg n "$1" '.windows[] | select(.label == $n) | .focused_block_id'; }
+shell_type() {
+  local block; block=$(cat "$DEMO/block-$1" 2>/dev/null)
+  local text=$2 i
+  for ((i = 0; i < ${#text}; i++)); do rex send -s launch-day -b "$block" "${text:i:1}" >/dev/null; sleep "${3:-0.03}"; done
+}
+shell_enter() { rex send-key -s launch-day -b "$(cat "$DEMO/block-$1")" enter >/dev/null; }
 
 # rec_start NAME ... rec_stop: one take, saved as $TAKES/NAME.mp4.
 rec_start() {
