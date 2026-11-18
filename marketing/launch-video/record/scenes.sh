@@ -67,13 +67,48 @@ scene_agents() {
 # The desktop's theme changes, and Tono with it.
 scene_theme() {
   local was; was=$(omarchy theme current 2>/dev/null | head -1)
-  key ctrl+2; sleep 1
+  # A shell with colour in it: the machine's logo and the theme's own swatches.
+  key ctrl+3; shell_run shell 'clear; fastfetch'; sleep 1.5
   rec_start theme; sleep 1.2
   for theme in "Tokyo Night" "Catppuccin Latte" "Gruvbox" "${was:-Retro 82}"; do
     omarchy theme set "$theme" >/dev/null 2>&1
     sleep 3
   done
   rec_stop
+  shell_run shell clear
+}
+
+# The same app in a browser, as a window with no browser around it. web.sh opens it.
+scene_web() {
+  use_window web
+  hyprctl dispatch "hl.dsp.window.fullscreen({ window = \"address:$(tono_window)\" })" >/dev/null; sleep 1.5
+  key ctrl+1; sleep 1
+  rec_start web; sleep 1.0
+  key ctrl+2; sleep 1.6
+  key ctrl+1; sleep 1.4
+  key ctrl+shift+p; sleep 0.8
+  type_text new 0.1; sleep 1.2
+  key Escape; sleep 0.8
+  rec_stop
+  hyprctl dispatch "hl.dsp.window.fullscreen({ window = \"address:$(tono_window)\" })" >/dev/null
+  use_window tono
+}
+
+# And narrow, as on a phone: the list of tabs, then the tab. The film crops to the window.
+scene_phone() {
+  use_window web
+  local w; w=$(tono_window)
+  hyprctl dispatch "hl.dsp.window.float({ window = \"address:$w\" })" >/dev/null; sleep 0.4
+  hyprctl dispatch "hl.dsp.window.resize({ x = 420, y = 840, window = \"address:$w\" })" >/dev/null; sleep 0.4
+  hyprctl dispatch "hl.dsp.window.move({ x = 558, y = 12, window = \"address:$w\" })" >/dev/null; sleep 1.5
+  hyprctl clients -j | jq -c --arg a "$w" '.[] | select(.address == $a) | {at, size, floating}' | tee "$DEMO/phone-geometry.json"
+  key ctrl+shift+slash; sleep 1.2      # the sidebar: in a narrow window it is shown instead of the terminal
+  rec_start phone; sleep 1.2
+  key ctrl+2; sleep 2.0
+  key ctrl+shift+slash; sleep 1.6
+  key ctrl+1; sleep 2.0
+  rec_stop
+  use_window tono
 }
 
 quiet_on

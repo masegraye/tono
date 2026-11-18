@@ -6,7 +6,9 @@ TAKES=$DEMO/takes
 mkdir -p "$TAKES"
 
 # The demo's own Tono window, as opposed to one the user has open.
-tono_window() { cat "$DEMO/window" 2>/dev/null; }
+tono_window() { cat "$DEMO/window${WINDOW_SUFFIX:-}" 2>/dev/null; }
+# Which window the keys go to: the desktop app (tono) or the browser's (web).
+use_window() { if [ "$1" = web ]; then WINDOW_SUFFIX=-web; else WINDOW_SUFFIX=; fi; }
 focus_tono() {
   # Focusing moves the pointer to the middle of the window, so it is done only when needed,
   # and the pointer is put away again afterwards.
