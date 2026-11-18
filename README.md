@@ -19,8 +19,7 @@ the keyboard.
 
 Tono is for people who use Rex and work on Omarchy. It helps most if your sessions are spread over several machines
 and you want them in one place, or if you run agents in terminals and want to know which one is waiting for you. It
-has no settings for colors or fonts, so it suits you if you want a terminal that matches your desktop without being
-configured.
+also suits you if you want your terminal to match your desktop without setting anything up.
 
 ## What it does
 
@@ -55,17 +54,19 @@ When Tono starts, it connects to all your Rex servers and puts you back where yo
 add the Rex servers it finds on your tailnet. A machine that goes to sleep turns red in the sidebar, and Tono
 reconnects to it when it wakes.
 
-## The opinions
+## What makes it opinionated
 
-- Tabs go down the side, in one list across every session and every machine. Control and a digit takes you to a tab
-  wherever it is.
-- There is no theme setting and no font setting. Tono uses Omarchy's.
-- Commands have the names and shortcuts they have in Rex's Mac app, with Control in place of Command. Keys you bind
-  in Rex's `init.lua` apply here as well.
-- A tab is named after the program running in it and that program's directory, as in `nvim ~/dev/rex`. If you name a
-  tab yourself, the name stays and shows in every client.
-- Machine names are small, and tabs are the brightest thing in the sidebar. Tono makes no sound about the tab you
-  are looking at.
+A few things Tono does its own way:
+
+- Tabs live in the sidebar, in one list covering every session on every machine. Ctrl plus a number jumps straight
+  to a tab, wherever it is.
+- Colors and the font come from your Omarchy theme. Tono doesn't have theme or font settings of its own.
+- Commands and shortcuts are the same as in Rex's Mac app, with Ctrl where the Mac uses Cmd. If you've bound keys in
+  Rex's `init.lua`, they work here too.
+- Tabs are named after what's running in them and where, like `nvim ~/dev/rex`. You can rename a tab, and that name
+  shows up on every client.
+- The sidebar keeps machine names small and tabs bright, since tabs are what you're looking for. Sounds only play
+  for tabs you aren't looking at.
 
 ## Try it
 
