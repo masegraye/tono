@@ -43,9 +43,13 @@ internal actual fun WatchControlKey(onChange: (held: Boolean) -> Unit) {
     }
 }
 
-internal actual suspend fun setClipboardText(text: String): String? = runCatching {
-    Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
-}.exceptionOrNull()?.let { it.message ?: it::class.simpleName ?: "the clipboard refused" }
+internal actual suspend fun setClipboardText(text: String): String? {
+    // A test must not replace the clipboard of whoever runs the tests.
+    if (runningUnderTests) return null
+    return runCatching {
+        Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
+    }.exceptionOrNull()?.let { it.message ?: it::class.simpleName ?: "the clipboard refused" }
+}
 
 internal actual fun pageHasFocus(): Boolean = true
 
@@ -82,6 +86,10 @@ internal fun soundCommand(id: String, program: (String) -> Path?, soundFile: (St
 }
 
 internal actual suspend fun playSound(id: String, log: (message: String, isError: Boolean) -> Unit) = withContext(Dispatchers.IO) {
+    if (runningUnderTests) {
+        log("didn't play $id: running under tests", false)
+        return@withContext
+    }
     val command = soundCommand(id, ::findProgram, ::findSound)
     if (command == null) {
         log("no way to play $id: it needs mpv, libcanberra, PipeWire or PulseAudio, and the freedesktop sound theme", true)
@@ -109,6 +117,11 @@ internal fun openCommand(url: String, osName: String, program: (String) -> Path?
     (if (osName.startsWith("Mac", ignoreCase = true)) Path.of("/usr/bin/open") else program("xdg-open"))?.let { listOf(it.toString(), url) }
 
 internal actual fun openUrl(url: String, log: (message: String, isError: Boolean) -> Unit) {
+    // A test that clicks a link must not open the real browser of whoever runs the tests.
+    if (runningUnderTests) {
+        log("didn't open $url: running under tests", false)
+        return
+    }
     val command = openCommand(url, System.getProperty("os.name").orEmpty(), ::findProgram)
     if (command == null) {
         log("couldn't open $url: there is no xdg-open", true)
@@ -131,6 +144,15 @@ internal fun runOpener(command: List<String>, url: String, log: (message: String
 }
 
 private const val OPEN_TIMEOUT_SECONDS = 10L
+
+/**
+ * Whether this is a test run: the JUnit platform is on the class path, which it never is in
+ * the app as shipped. Things that reach outside the app, such as opening the browser, are
+ * held back then.
+ */
+internal val runningUnderTests: Boolean by lazy {
+    runCatching { Class.forName("org.junit.platform.commons.JUnitException") }.isSuccess
+}
 
 /** Looks on PATH, in its absolute directories only, so nothing in the current folder is ever run. */
 private fun findProgram(name: String): Path? = System.getenv("PATH").orEmpty().split(':')
@@ -230,6 +252,11 @@ internal fun closeNotificationCommand(id: Long, program: (String) -> Path?): Lis
 }
 
 internal actual suspend fun showNotification(note: DesktopNote, log: (message: String, isError: Boolean) -> Unit, onClick: () -> Unit) = withContext(Dispatchers.IO) {
+    // Under tests, only to a notification service of the test's own ([notificationBus]), never the desktop's.
+    if (runningUnderTests && notificationBus == null) {
+        log("didn't show a notification: running under tests", false)
+        return@withContext
+    }
     val program = findProgram("notify-send")
     if (program == null) {
         log("no way to show a notification: it needs notify-send, which comes with libnotify", true)

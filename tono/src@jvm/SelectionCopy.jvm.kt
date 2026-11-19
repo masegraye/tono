@@ -16,6 +16,8 @@ private val systemSelection: Clipboard? by lazy { runCatching { Toolkit.getDefau
 internal actual fun primarySelection(): PrimarySelection = if (systemSelection != null) PrimarySelection.Desktop else PrimarySelection.None
 
 internal actual suspend fun setPrimarySelectionText(text: String): String? {
+    // A test must not replace the primary selection of whoever runs the tests.
+    if (runningUnderTests) return null
     val selection = systemSelection ?: return "this desktop has no primary selection"
     return runCatching { selection.setContents(StringSelection(text), null) }
         .exceptionOrNull()?.let { it.message ?: it::class.simpleName ?: "the primary selection refused" }
