@@ -44,7 +44,7 @@ The order proposed in inv-001, not yet agreed:
 | 014 | [Back and forward](backlog-014-navigation-history.md) | Panes, tabs and sessions | small | done |
 | 015 | [A menu on right-click](backlog-015-pane-menu.md) | Panes, tabs and sessions | small | done |
 | 016 | [Floating panes](backlog-016-floating-panes.md) | Panes, tabs and sessions | large | captured |
-| 017 | [Curly, double, dotted and dashed underlines, and overline](backlog-017-underline-styles-and-overline.md) | Drawing | small | captured |
+| 017 | [Curly, double, dotted and dashed underlines, and overline](backlog-017-underline-styles-and-overline.md) | Drawing | small | done |
 | 018 | [Draw box and block characters as shapes](backlog-018-box-drawing-as-shapes.md) | Drawing | medium | captured |
 | 019 | [Hold the frame while a program redraws](backlog-019-hold-the-frame-while-a-program-redraws.md) | Drawing | small | captured |
 | 020 | [Animated images](backlog-020-animated-images.md) | Drawing | medium | captured |
