@@ -415,6 +415,14 @@ internal fun clientActions(): List<ClientAction> = buildList {
     add(ClientAction("client.scroll.page_down", "Scroll Page Down", "Pane", "history scrollback", keys = listOf("shift+pagedown"), available = hasTerminal) {
         focusedTerminal?.let { terminal -> terminal.scroll((terminal.grid.value?.rows ?: 24) - 1) }
     })
+    // Rex.app has these on Command+Up and Command+Down. Control with an arrow is the
+    // program's (a shell moves by a word with it, an editor by a paragraph), so Shift is added.
+    add(ClientAction("client.prompt.previous", "Jump to Previous Prompt", "Pane", "jump scroll previous prompt command mark shell integration up back history", keys = listOf("ctrl+shift+up"), available = hasTerminal) {
+        focusedTerminal?.jumpToPrompt(older = true)
+    })
+    add(ClientAction("client.prompt.next", "Jump to Next Prompt", "Pane", "jump scroll next prompt command mark shell integration down forward", keys = listOf("ctrl+shift+down"), available = hasTerminal) {
+        focusedTerminal?.jumpToPrompt(older = false)
+    })
 
     // Find. Rex.app has these on Command+F, Command+G and Shift+Command+G. Control+F and
     // Control+G are a shell's, so Shift is added, and Find Previous, which has Shift

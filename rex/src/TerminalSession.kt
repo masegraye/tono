@@ -132,6 +132,7 @@ class TerminalSession internal constructor(
         /** Look for this from now on, or for nothing when it is null. */
         class Search(val query: String?) : Command
         class SearchStep(val forward: Boolean) : Command
+        class JumpToPrompt(val older: Boolean) : Command
     }
 
     /** Where the pointer is held to follow a link, or null. */
@@ -151,6 +152,14 @@ class TerminalSession internal constructor(
     fun scroll(rows: Int) { commands.trySend(Command.Scroll(rows)) }
 
     fun scrollToBottom() { commands.trySend(Command.ScrollToBottom) }
+
+    /**
+     * Moves the view to the shell prompt above its first row ([older]), or to the next one
+     * below it, putting that prompt on the first row; past the newest prompt is the live
+     * screen. Nothing is typed. A shell marks its prompts (OSC 133) when its integration
+     * is on; without marks, and at the oldest prompt, nothing moves.
+     */
+    fun jumpToPrompt(older: Boolean) { commands.trySend(Command.JumpToPrompt(older)) }
 
     /**
      * Something was typed or pasted into the terminal: the view returns to the live screen,
@@ -412,6 +421,7 @@ class TerminalSession internal constructor(
             is Command.ReadSelection -> command.text.complete(runCatching { selection.text(terminal) }.getOrDefault(""))
             is Command.Search -> searching.find(terminal, command.query)
             is Command.SearchStep -> searching.step(command.forward)
+            is Command.JumpToPrompt -> terminal.scrollByPrompts(if (command.older) -1 else 1)
         }
     }
 

@@ -108,6 +108,21 @@ class RexShortcutsTest {
     }
 
     @Test
+    fun `prompts are jumped between by Rex's names, with control, shift and up or down`() {
+        val actions = clientActions().associateBy { it.name }
+        val previous = actions.getValue("client.prompt.previous")
+        val next = actions.getValue("client.prompt.next")
+        assertEquals("Jump to Previous Prompt", previous.title)
+        assertEquals("Jump to Next Prompt", next.title)
+        assertTrue(previous.inPalette && next.inPalette)
+        // Rex.app's Command+Up and Command+Down. Control and an arrow alone is the program's.
+        assertEquals(listOf("ctrl+shift+up"), previous.keys)
+        assertEquals(listOf("ctrl+shift+down"), next.keys)
+        assertEquals(KeyChord.parse("ctrl+shift+up"), chord(KeyEvent.VK_UP, ctrl or shift))
+        assertEquals(KeyChord.parse("ctrl+shift+down"), chord(KeyEvent.VK_DOWN, ctrl or shift))
+    }
+
+    @Test
     fun `the browser says what choosing each row does`() {
         val typed = org.example.kotlintest.rex.PathRow("~/dev", "/home/dev/dev", org.example.kotlintest.rex.PathRow.Kind.Typed)
         val folder = org.example.kotlintest.rex.PathRow("src", "/home/dev/src", org.example.kotlintest.rex.PathRow.Kind.Folder)

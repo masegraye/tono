@@ -122,6 +122,10 @@ actual class GhosttyTerminal private constructor(internal val handle: MemorySegm
     /** Returns the view to the live screen. */
     actual fun scrollToBottom(): Unit = scroll(GhosttyVt.GHOSTTY_SCROLL_VIEWPORT_BOTTOM(), 0)
 
+    /** Moves the view by [count] shell prompts: negative is up, to older ones. Nothing moves without prompt marks. */
+    actual fun scrollByPrompts(count: Int): Unit = scroll(GhosttyVt.GHOSTTY_SCROLL_VIEWPORT_DELTA_PROMPT(), count.toLong())
+
+    // The value is a union of whole numbers the size of a pointer, so one setter serves every tag.
     private fun scroll(tag: Int, delta: Long) = Arena.ofConfined().use { arena ->
         val behavior = arena.allocate(GhosttyTerminalScrollViewport.layout())
         GhosttyTerminalScrollViewport.tag(behavior, tag)

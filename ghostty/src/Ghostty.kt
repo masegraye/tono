@@ -58,6 +58,14 @@ expect class GhosttyTerminal : AutoCloseable {
     fun scrollToBottom()
 
     /**
+     * Moves the view by [count] shell prompts: negative is up, to the prompts of older
+     * commands, and the prompt gone to becomes the view's first row, or as near it as the
+     * end of the history allows. A shell says where its prompts are (OSC 133); in a
+     * terminal whose shell hasn't, and when there is no prompt that way, nothing moves.
+     */
+    fun scrollByPrompts(count: Int)
+
+    /**
      * Whether the terminal's program asked for pasted text to be bracketed (mode 2004),
      * which lets it tell a paste from typing.
      */
