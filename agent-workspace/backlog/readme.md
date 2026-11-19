@@ -22,7 +22,7 @@ The order proposed in inv-001, not yet agreed:
 8. ~~backlog-012: Resize, balance, swap, move and rename panes~~ done
 9. ~~backlog-013: Move a tab by key, close others, mute, rename a session~~ done
 10. backlog-003: Paste or drop files and images
-11. backlog-023: Insert a path, and go to a directory
+11. ~~backlog-023: Insert a path, and go to a directory~~ done
 
 ## Everything
 
@@ -50,7 +50,7 @@ The order proposed in inv-001, not yet agreed:
 | 020 | [Animated images](backlog-020-animated-images.md) | Drawing | medium | captured |
 | 021 | [Program icons on tabs](backlog-021-program-icons.md) | Drawing | medium | captured |
 | 022 | [Key sequences and modes](backlog-022-key-sequences-and-modes.md) | Typing and keys | medium | captured |
-| 023 | [Insert a path, and go to a directory](backlog-023-insert-path-and-go-to-directory.md) | Typing and keys | medium | captured |
+| 023 | [Insert a path, and go to a directory](backlog-023-insert-path-and-go-to-directory.md) | Typing and keys | medium | done |
 | 024 | [Hosts over SSH](backlog-024-ssh-hosts.md) | Hosts and other clients | large | captured |
 | 025 | [Let other clients drive Tono](backlog-025-remote-control.md) | Hosts and other clients | medium | captured |
 | 026 | [Download a file from the terminal's machine](backlog-026-downloads.md) | Hosts and other clients | medium | captured (blocked: needs server API 13) |
