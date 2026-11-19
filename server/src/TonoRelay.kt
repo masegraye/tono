@@ -2,7 +2,6 @@ package org.example.kotlintest.server
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.header
 import io.ktor.client.request.unixSocket
 import io.ktor.client.request.url
@@ -19,10 +18,14 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readBytes
 import io.ktor.websocket.readText
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import org.example.kotlintest.rex.RexEndpoint
 import org.example.kotlintest.rex.local
+import org.example.kotlintest.rex.openWebSocket
 import java.net.URI
 import io.ktor.client.plugins.websocket.WebSockets as ClientWebSockets
 
@@ -55,17 +58,34 @@ fun Application.tonoRelay(path: String = "/api/tono/relay", localEndpoint: Strin
                     close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Not a Rex server this relay will connect to"))
                     return@webSocket
                 }
-                val upstream = runCatching {
-                    client.webSocketSession {
-                        when (target) {
-                            is RexEndpoint.UnixSocket -> {
-                                url("ws://localhost$socketPath")
-                                unixSocket(target.path)
+                // A page gives a server ten seconds to answer and then closes this socket. The
+                // attempt made for it ends with it, or a server that takes connections and
+                // answers none would keep one open here for every time the page tried.
+                val attempt = async {
+                    runCatching {
+                        client.openWebSocket {
+                            when (target) {
+                                is RexEndpoint.UnixSocket -> {
+                                    url("ws://localhost$socketPath")
+                                    unixSocket(target.path)
+                                }
+                                is RexEndpoint.Network -> url(target.baseUrl + socketPath)
                             }
-                            is RexEndpoint.Network -> url(target.baseUrl + socketPath)
+                            header(HttpHeaders.SecWebSocketProtocol, protocol)
                         }
-                        header(HttpHeaders.SecWebSocketProtocol, protocol)
                     }
+                }
+                val pageLeft = launch {
+                    runCatching { closeReason.await() }
+                    attempt.cancel()
+                }
+                val upstream = try {
+                    attempt.await()
+                } catch (cancelled: CancellationException) {
+                    coroutineContext.ensureActive()
+                    return@webSocket
+                } finally {
+                    pageLeft.cancel()
                 }.getOrElse {
                     // The page shows this as why the host isn't connected.
                     close(CloseReason(CloseReason.Codes.TRY_AGAIN_LATER, (it.message ?: "The server couldn't be reached").take(100)))
