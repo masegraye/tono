@@ -62,6 +62,11 @@ class TerminalSession internal constructor(
     sealed interface Status {
         data object Connecting : Status
         data object Live : Status
+        /**
+         * The server keeps refusing the stream for a [reason] that passes, so it is still
+         * being asked for, less and less often. Said only once the first few tries have failed.
+         */
+        data class Retrying(val reason: String) : Status
         /** The stream is over. [blockClosed] means the terminal itself is gone, so don't retry. */
         data class Ended(val reason: String, val blockClosed: Boolean = false) : Status
     }
@@ -274,7 +279,7 @@ class TerminalSession internal constructor(
         val searching = TerminalSearching(mutableSearch)
         try {
             loadGhostty() // in a browser the terminal library has to be fetched before its first use
-            stream = open()
+            stream = openPatiently()
             val snapshot = receiveSnapshot(stream)
             val restored = GhosttyTerminal.restore(snapshot)
             terminal = restored.terminal
@@ -368,6 +373,30 @@ class TerminalSession internal constructor(
         }
     }
 
+    /**
+     * Opens the stream, and asks again while the server refuses it for a reason that passes
+     * ([RexStreamRefused.passes]): for as long as this terminal is wanted, at longer and
+     * longer intervals. Each try takes a new ticket. The first few are made quietly.
+     */
+    private suspend fun openPatiently(): RexTerminalStream {
+        var tries = 0
+        while (true) {
+            try {
+                return open().also {
+                    if (tries > 0) log("stream opened on try ${tries + 1}")
+                    mutableStatus.value = Status.Connecting // its snapshot is still to come
+                }
+            } catch (refused: RexStreamRefused) {
+                if (!refused.passes) throw refused
+                val wait = RETRY_MILLIS[minOf(tries, RETRY_MILLIS.lastIndex)]
+                // Said once, and again when it stops being quiet: it may go on for as long as the tab is shown.
+                if (tries == 0 || tries == QUIET_TRIES) log("stream refused: ${refused.message}. Trying again")
+                if (++tries > QUIET_TRIES) mutableStatus.value = Status.Retrying(refused.message.orEmpty())
+                delay(wait)
+            }
+        }
+    }
+
     /** Collects stream bytes until the whole snapshot has arrived. More may follow it in the result. */
     private suspend fun receiveSnapshot(stream: RexTerminalStream): ByteArray {
         val received = ByteCollector()
@@ -442,5 +471,9 @@ class TerminalSession internal constructor(
         /** How long between rows while a selection is dragged past the top or bottom edge. */
         const val AUTOSCROLL_MILLIS = 30L
         const val SELECTION_TIMEOUT_MILLIS = 1_000L
+        /** How long to wait before asking again for a stream the server refused: the last one from then on. */
+        val RETRY_MILLIS = longArrayOf(50, 100, 200, 400, 800, 1_600, 3_000, 5_000)
+        /** How many refusals in a row go by, about a second and a half, before the pane says so. */
+        const val QUIET_TRIES = 5
     }
 }

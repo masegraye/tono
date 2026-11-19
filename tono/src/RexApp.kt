@@ -977,6 +977,7 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, a
                 )
                 when (val current = status) {
                     TerminalSession.Status.Connecting -> Notice("Restoring…")
+                    is TerminalSession.Status.Retrying -> Notice("${current.reason}. Trying again…")
                     is TerminalSession.Status.Ended -> Notice(current.reason)
                     TerminalSession.Status.Live -> {}
                 }

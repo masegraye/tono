@@ -22,6 +22,12 @@ dependencies@jvm:
 test-dependencies:
   - $libs.kotlinx.coroutines.test
 
+# A stand-in Rex server, for what only shows against one: how streams are opened and closed
+test-dependencies@jvm:
+  - $ktor.server.core
+  - $ktor.server.cio
+  - $ktor.server.websockets
+
 dependencies@wasmJs:
   - $libs.ktor.client.js
 

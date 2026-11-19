@@ -13,6 +13,41 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 
 /**
+ * The server answered a data connection's opening with a REJECT. [reason] is its code, as the
+ * server's own description of the protocol lists them (GET /llms.txt, "Handshake Messages"):
+ *
+ * 1. the ticket is unknown, expired, already used or someone else's, or its session is gone;
+ * 2. this client already has a connection to that block's stream, and may have only one;
+ * 3. the stream isn't available, such as when its block has closed;
+ * 4. opening it would pass a limit, so try again later;
+ * 5. the handshake was malformed or late;
+ * 6. the server failed;
+ * 7. the ticket was issued for another subprotocol.
+ */
+class RexStreamRefused(val reason: Int?) : RuntimeException("The server refused the terminal stream (reason $reason${explained(reason)})") {
+    /**
+     * Whether asking again a little later, with a new ticket, may be answered differently.
+     * A stream this client still has open (2) is one it is closing: a terminal left and come
+     * back to at once is opened again while the server hasn't yet taken the old stream down.
+     */
+    val passes: Boolean get() = reason == ALREADY_OPEN || reason == LIMIT
+
+    private companion object {
+        const val ALREADY_OPEN = 2
+        const val LIMIT = 4
+
+        fun explained(reason: Int?) = when (reason) {
+            1 -> ": the ticket wasn't accepted"
+            ALREADY_OPEN -> ": this client already has it open"
+            3 -> ": the terminal isn't available"
+            LIMIT -> ": too many are open"
+            6 -> ": the server failed"
+            else -> ""
+        }
+    }
+}
+
+/**
  * A data connection: the bytes one terminal block produces. The stream opens with a Ghostty
  * snapshot of the terminal, then carries everything its program writes, with the server's
  * own messages mixed in where they are safe to apply (see [RexStreamScanner]).
@@ -35,7 +70,7 @@ class RexTerminalStream private constructor(
 
                 val answer = (within(timeoutMillis) { socket.incoming.receive() } as? Frame.Binary)?.readBytes()
                     ?: error("The server didn't answer the data handshake")
-                if (answer.isNotEmpty() && answer[0] == REJECT) error("The server refused the terminal stream (reason ${answer.getOrNull(1)})")
+                if (answer.isNotEmpty() && answer[0] == REJECT) throw RexStreamRefused(answer.getOrNull(1)?.toInt()?.and(0xFF))
                 // WELCOME: 0x81, 16-byte reconnect token, 3 zero bytes, u32 resume window (ms), u64 nonce
                 check(answer.size == 32 && answer[0] == WELCOME) { "Unexpected data handshake answer of ${answer.size} bytes" }
                 RexTerminalStream(socket, nonce = littleEndian(answer, 24, 8).toULong())

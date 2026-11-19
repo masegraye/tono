@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
@@ -229,6 +231,8 @@ class RexHost(
     /** Work for the control connection, done one at a time in the order it was asked for. */
     private val actions = Channel<suspend (RexControl) -> Unit>(Channel.UNLIMITED)
     private val retryNow = Channel<Unit>(Channel.CONFLATED)
+    /** Held while the open terminals are changed: see [matchTerminals]. */
+    private val terminalsLock = Mutex()
     private val desiredGrids = concurrentMap<String, GridSize>()
     /** Blocks claimed on this connection, until the server's view says otherwise. */
     private val claimed = concurrentSet<String>()
@@ -896,7 +900,7 @@ class RexHost(
             statusRecords.clear()
             statusRead.clear()
             copies.forget()
-            mutableState.value.terminals.values.forEach { it.close() }
+            closeTerminals()
             mutableState.update { it.lost(reason) }
             val delayMillis = RETRY_DELAYS_MILLIS[minOf(attempt++, RETRY_DELAYS_MILLIS.lastIndex)]
             if (reason != lastFailure) log.add(saved.label, "not connected: $reason. Trying again every few seconds until it answers", isError = true)
@@ -1066,32 +1070,59 @@ class RexHost(
             // the session's active one takes its place, once: from then on that is the choice,
             // and another client going elsewhere doesn't move this one.
             val window = view.windows.firstOrNull { it.id == current.shownWindows[view.sessionId] } ?: view.activeWindow
-            val visible = window?.panes.orEmpty()
-                .filter { it.isTerminal && (window?.zoomedBlockId == null || it.blockId == window.zoomedBlockId) }
+            val shown = if (window != null) current.shownWindows + (view.sessionId to window.id) else current.shownWindows - view.sessionId
+            current.copy(views = views, shownWindows = shown)
+        }
+        if (view.sessionId == state.value.selectedSessionId) {
             // The server's word on who owns a block replaces this connection's own bookkeeping.
             claimed.removeAll { blockId ->
                 val owner = view.windows.firstNotNullOfOrNull { w -> w.panes.firstOrNull { it.blockId == blockId } }?.ownerClientId
                 owner != connection.clientId
             }
-            val terminals = HashMap<String, TerminalSession>()
-            for (pane in visible) {
-                val existing = current.terminals[pane.blockId]
-                val reusable = existing != null && existing.sessionId == view.sessionId &&
-                    existing.status.value !is TerminalSession.Status.Ended
-                terminals[pane.blockId] = if (existing != null && reusable) existing else {
-                    existing?.close()
-                    openTerminal(connection, endpoint, view.sessionId, pane.blockId)
-                }
-            }
-            current.terminals.filterKeys { it !in terminals }.values.forEach { it.close() }
-            val shown = if (window != null) current.shownWindows + (view.sessionId to window.id) else current.shownWindows - view.sessionId
-            current.copy(views = views, terminals = terminals, shownWindows = shown)
+            matchTerminals(connection, endpoint)
         }
         look() // the tab on screen may have changed, and a tab with a bell may be gone
         if (view.sessionId == state.value.selectedSessionId) {
             onTabShown(view.sessionId, state.value.shownWindows[view.sessionId])
             claimInFront(connection) // a tab just gone to, or a pane just opened, is on screen now
         }
+    }
+
+    /**
+     * Makes the open terminals the ones the tab on screen shows: opens those it lacks, and
+     * closes the rest.
+     *
+     * One at a time, and never inside an update of the state. Layouts arrive from three
+     * places at once (the session's events, what the user asked for, and the first reading of
+     * every session), and an update that loses to another is run again: a terminal opened in
+     * one was opened twice, and the one left over was never closed. It kept its stream, so
+     * the server refused that terminal to this client from then on (backlog-044).
+     */
+    private suspend fun matchTerminals(connection: RexControl, endpoint: RexEndpoint) = terminalsLock.withLock {
+        val current = state.value
+        val sessionId = current.selectedSessionId
+        val window = current.window
+        val visible = window?.panes.orEmpty()
+            .filter { it.isTerminal && (window?.zoomedBlockId == null || it.blockId == window.zoomedBlockId) }
+        val terminals = HashMap<String, TerminalSession>()
+        for (pane in visible) {
+            val existing = current.terminals[pane.blockId]
+            val reusable = existing != null && existing.sessionId == sessionId &&
+                existing.status.value !is TerminalSession.Status.Ended
+            terminals[pane.blockId] = if (existing != null && reusable) existing else {
+                existing?.close()
+                openTerminal(connection, endpoint, sessionId ?: continue, pane.blockId)
+            }
+        }
+        current.terminals.filterKeys { it !in terminals }.values.forEach { it.close() }
+        // Only what holds this lock changes the terminals, so nothing is lost by setting them.
+        mutableState.update { it.copy(terminals = terminals) }
+    }
+
+    /** Closes every open terminal: the session they were in is no longer shown. */
+    private suspend fun closeTerminals() = terminalsLock.withLock {
+        state.value.terminals.values.forEach { it.close() }
+        mutableState.update { it.copy(terminals = emptyMap()) }
     }
 
     private fun openTerminal(connection: RexControl, endpoint: RexEndpoint, sessionId: String, blockId: String) =
@@ -1167,8 +1198,8 @@ class RexHost(
                     // the one that came after it in the list, or the one before if it was last.
                     val was = before.indexOfFirst { it.id == current.selectedSessionId }
                     val neighbour = neighbourOf(before.map { it.id }, was, sessions.map { it.id })
-                    state.value.terminals.values.forEach { it.close() }
-                    mutableState.update { it.copy(selectedSessionId = null, terminals = emptyMap()) }
+                    mutableState.update { it.copy(selectedSessionId = null) }
+                    closeTerminals()
                     (neighbour ?: sessions.firstOrNull()?.id)?.let { attach(connection, it) }
                 }
                 for (session in sessions) readView(connection, session.id)
