@@ -40,7 +40,7 @@ import io.ktor.client.plugins.websocket.WebSockets as ClientWebSockets
  * messages both ways, unread.
  *
  * The two sockets a Rex client uses are relayed, at their own paths under [path]:
- * `/api/control` and `/api/data`, each with its subprotocol. `?endpoint=` names the server,
+ * `/api/control` and `/api/data`, each with its subprotocols. `?endpoint=` names the server,
  * written as it would be in a workspace.
  *
  * A page that vanishes closes nothing: a phone that sleeps, a lid that shuts, a network that
@@ -186,7 +186,12 @@ private const val CLOSED_ABNORMALLY: Short = 1006
 private const val LOCAL_NAME = "unix:///@local"
 
 /** The sockets a Rex client opens, and the subprotocol each speaks. */
-private val RELAYED = listOf("/api/control" to "rex.control.v1", "/api/data" to "rex.data.terminal.v1")
+private val RELAYED = listOf(
+    "/api/control" to "rex.control.v1",
+    "/api/data" to "rex.data.terminal.v1",
+    // Files on their way to a terminal's machine: the one stream whose bytes go from the page to the server.
+    "/api/data" to "rex.data.bytes.v1",
+)
 
 /**
  * How often a page is asked whether it is still there, and how long it has to answer: a page

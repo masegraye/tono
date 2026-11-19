@@ -242,6 +242,10 @@ class RexHost(
         log = { message, isError -> log.add(saved.label, message, isError) },
         deliver = { sessionId, blockId, text -> onProgramCopy(ProgramCopy(saved.label, sessionId, blockId, text)) },
     )
+    private val uploadIds = Counter()
+    private val mutableUploads = MutableStateFlow<List<Upload>>(emptyList())
+    /** Files on their way to this host's terminals, and uploads that failed and haven't been dismissed. */
+    val uploads: StateFlow<List<Upload>> get() = mutableUploads
     @Volatile private var terminalColors: TerminalColors? = null
     @Volatile private var control: RexControl? = null
     private val endpoint: RexEndpoint? = runCatching { RexEndpoint.parse(saved.endpoint) }.getOrNull()
@@ -659,6 +663,61 @@ class RexHost(
         val data = encodePaste(text, terminal.bracketedPaste).decodeToString()
         control.callBlock("$TERMINAL_CREATOR.write", sessionId, blockId, buildJsonObject { put("data", data) })
     }
+
+    /**
+     * Uploads files to the machine a block's terminal runs on. The server types their paths
+     * into the terminal, quoted, once every one has arrived; if any part fails nothing is
+     * typed, and [uploads] says why. The block is fixed now: a change of focus while the
+     * files are on their way doesn't move where the paths go. See Upload.kt.
+     */
+    fun upload(blockId: String, files: List<UploadFile>) {
+        if (files.isEmpty()) return
+        val id = uploadIds.next()
+        val total = files.sumOf { it.size }
+        mutableUploads.update { it + Upload(id, blockId, files.size, total, startedAtMillis = nowMillis()) }
+        val what = "${files.size} file${if (files.size == 1) "" else "s"} (${byteCount(total)}) to ${short(blockId)}"
+        scope.launch {
+            try {
+                val control = control ?: throw UploadFailed("Not connected to ${saved.label}")
+                val endpoint = endpoint ?: throw UploadFailed("Not connected to ${saved.label}")
+                val current = state.value
+                val sessionId = current.selectedSessionId
+                val terminal = current.terminals[blockId]
+                if (sessionId == null || terminal == null || terminal.status.value != TerminalSession.Status.Live) {
+                    throw UploadFailed("Files can be uploaded only to a live terminal")
+                }
+                // The paths will be typed, as a paste would be: the terminal is this client's to size.
+                act(null) { claim(it, sessionId, blockId) }
+                uploadBatch(
+                    files,
+                    control.apiRevision,
+                    begin = { args -> control.callBlock("$TERMINAL_CREATOR.upload_begin", sessionId, blockId, args) },
+                    send = { ticket, file, onSent -> http.sendUpload(endpoint, ticket, file, onSent) },
+                    onProgress = { sent -> mutableUploads.update { all -> all.map { if (it.id == id) it.copy(sentBytes = sent) else it } } },
+                )
+                terminal.typedInto()
+                mutableUploads.update { all -> all.filterNot { it.id == id } }
+                log.add(saved.label, "→ uploaded $what")
+            } catch (failed: UploadFailed) {
+                uploadFailed(id, failed.message ?: "The upload failed")
+                // Never the names: the log is something people paste elsewhere.
+                log.add(saved.label, "✗ upload of $what: ${failed.withoutName}", isError = true)
+            }
+        }
+    }
+
+    /** Says in a pane why files offered to it weren't uploaded, when that is known before anything is sent: a folder among them, say. */
+    fun uploadRefused(blockId: String, why: String) {
+        val id = uploadIds.next()
+        mutableUploads.update { it + Upload(id, blockId, 0, 0, startedAtMillis = nowMillis(), failure = why) }
+        log.add(saved.label, "✗ upload to ${short(blockId)} refused before it began", isError = true)
+    }
+
+    private fun uploadFailed(id: Long, why: String) =
+        mutableUploads.update { all -> all.map { if (it.id == id) it.copy(failure = why) else it } }
+
+    /** Forgets an upload that failed, once that has been read. */
+    fun dismissUpload(id: Long) = mutableUploads.update { all -> all.filterNot { it.id == id && it.failure != null } }
 
     /**
      * Types text into a block as it is, for text that didn't come from keys: what a keyboard

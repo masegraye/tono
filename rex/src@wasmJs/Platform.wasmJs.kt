@@ -38,18 +38,20 @@ fun pageUrl(path: String): String = pageOrigin().trimEnd('/') + "/" + path.trimS
 
 actual fun rexHttpClient(): HttpClient = HttpClient(Js) { install(WebSockets) }
 
-internal actual suspend fun HttpClient.rexWebSocket(endpoint: RexEndpoint, path: String, subprotocol: String): DefaultClientWebSocketSession {
-    // The relay is told where the connection is really going, in the form the endpoint was written.
+/** The relay's address for a connection to [path] on [endpoint]: it is told where the connection is really going, in the form the endpoint was written. */
+internal fun relayUrl(endpoint: RexEndpoint, path: String): String {
     val target = when (endpoint) {
         is RexEndpoint.UnixSocket -> "unix://" + endpoint.path
         is RexEndpoint.Network -> endpoint.baseUrl
     }
-    val relay = pageUrl("api/tono/relay$path").replaceFirst("http", "ws") + "?endpoint=" + target.encodeURLParameter()
-    return openWebSocket {
-        url(relay)
+    return pageUrl("api/tono/relay$path").replaceFirst("http", "ws") + "?endpoint=" + target.encodeURLParameter()
+}
+
+internal actual suspend fun HttpClient.rexWebSocket(endpoint: RexEndpoint, path: String, subprotocol: String): DefaultClientWebSocketSession =
+    openWebSocket {
+        url(relayUrl(endpoint, path))
         header(HttpHeaders.SecWebSocketProtocol, subprotocol)
     }
-}
 
 /** A page has one thread, so there is nothing to keep terminals apart from. */
 internal actual val terminalDispatcher: CoroutineDispatcher get() = Dispatchers.Default
