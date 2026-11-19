@@ -33,9 +33,31 @@ sealed interface HostConnection {
     data class Disconnected(val reason: String, val permanent: Boolean = false) : HostConnection
 }
 
+/**
+ * How far along reaching a host is, for showing next to it. [HostConnection] alone can't say:
+ * it is `Connecting` during the first attempt and during every one after, and `Disconnected`
+ * only in the pauses between them.
+ */
+enum class HostReach {
+    Connected,
+    /** The first attempt hasn't ended: nothing is known about the host yet. */
+    Connecting,
+    /** It was connected, the connection ended, and it is being tried again every few seconds. */
+    Reconnecting,
+    /** It has never answered, or its address can't be read. Tried again every few seconds unless the address is the trouble. */
+    Down,
+}
+
 /** Everything the app shows about one host. Replaced as a whole whenever something changes. */
 data class HostState(
     val connection: HostConnection = HostConnection.Connecting,
+    /**
+     * Whether the last attempt to reach the host failed or its connection ended. It stays
+     * set while the host is tried again, and is cleared only by connecting.
+     */
+    val failed: Boolean = false,
+    /** Whether the host has been connected at some time since the app started. */
+    val reached: Boolean = false,
     /** This app's identity on the server. Blocks it owns name it as their owner. */
     val clientId: String? = null,
     /** Identifies the machine and account the server runs as, whichever address reached it. */
@@ -72,6 +94,15 @@ data class HostState(
     /** The ids of the tabs in which a bell rang while they were out of sight, not looked at since. See [hasBell]. */
     val bells: Set<String> = emptySet(),
 ) {
+    /** How far along reaching the host is. A pause between two tries doesn't change it. */
+    val reach: HostReach
+        get() = when {
+            connection == HostConnection.Connected -> HostReach.Connected
+            !failed && connection == HostConnection.Connecting -> HostReach.Connecting
+            reached && (connection as? HostConnection.Disconnected)?.permanent != true -> HostReach.Reconnecting
+            else -> HostReach.Down
+        }
+
     /** The selected session's layout. */
     val view: SessionView? get() = views[selectedSessionId]
 
@@ -734,7 +765,7 @@ class RexHost(
         val endpoint = endpoint ?: run {
             val reason = runCatching { RexEndpoint.parse(saved.endpoint) }.exceptionOrNull()?.message ?: "Invalid endpoint"
             log.add(saved.label, reason, isError = true)
-            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason, permanent = true)) }
+            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason, permanent = true), failed = true) }
             return
         }
         var reconnectToken: String? = null
@@ -776,7 +807,7 @@ class RexHost(
             statusRead.clear()
             copies.forget()
             mutableState.value.terminals.values.forEach { it.close() }
-            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason), views = emptyMap(), terminals = emptyMap(), activity = emptyMap(), programs = emptyMap(), progress = emptyMap(), bells = emptySet()) }
+            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason), failed = true, views = emptyMap(), terminals = emptyMap(), activity = emptyMap(), programs = emptyMap(), progress = emptyMap(), bells = emptySet()) }
             val delayMillis = RETRY_DELAYS_MILLIS[minOf(attempt++, RETRY_DELAYS_MILLIS.lastIndex)]
             if (reason != lastFailure) log.add(saved.label, "not connected: $reason. Trying again every few seconds until it answers", isError = true)
             lastFailure = reason
@@ -799,6 +830,8 @@ class RexHost(
         mutableState.update {
             it.copy(
                 connection = HostConnection.Connected,
+                failed = false,
+                reached = true,
                 clientId = connection.clientId ?: boot.string("client_id"),
                 serverHostId = boot.obj("server_status")?.string("host_id"),
                 apiRevision = connection.apiRevision,

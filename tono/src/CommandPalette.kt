@@ -155,11 +155,8 @@ internal fun paletteItems(ui: RexUiState, commands: RexCommands, keymap: Keymap,
     if (mode != PaletteMode.Sessions) {
         for (host in hosts) {
             val state = host.state.value
-            val status = when (state.connection) {
-                HostConnection.Connected -> "${state.sessions.size} session${if (state.sessions.size == 1) "" else "s"}"
-                HostConnection.Connecting -> "connecting"
-                is HostConnection.Disconnected -> "not connected"
-            }
+            // In the sidebar's words, so a host being tried again isn't "connecting" here and down there.
+            val status = hostReachWords(state.reach) ?: "${state.sessions.size} session${if (state.sessions.size == 1) "" else "s"}"
             val prefix = if (mode == PaletteMode.Commands) "Switch to Host: " else ""
             add(PaletteItem("$prefix${host.saved.label}", status, keywords = "host server ${host.saved.endpoint}") {
                 ui.client.selectHost(host.saved.label)

@@ -1,6 +1,8 @@
 package org.example.kotlintest
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -97,6 +99,7 @@ import org.example.kotlintest.rex.hasBell
 import org.example.kotlintest.rex.hasNews
 import org.example.kotlintest.rex.progressOf
 import org.example.kotlintest.rex.HostConnection
+import org.example.kotlintest.rex.HostReach
 import androidx.compose.ui.platform.LocalWindowInfo
 import org.example.kotlintest.rex.HostState
 import org.example.kotlintest.rex.Keymap
@@ -333,7 +336,7 @@ private fun Sidebar(
                 val label = host.saved.label
                 val hostCollapsed = !activityOnly && label in ui.collapsedHosts
                 HostHeader(
-                    host = host,
+                    label = label,
                     state = state,
                     isHome = label == ui.client.homeLabel,
                     collapsed = hostCollapsed,
@@ -462,10 +465,20 @@ private fun Modifier.dragOutline(dragging: Boolean): Modifier =
 /**
  * A host: a heading over its sessions. Clicking it folds them away. With the pointer over
  * it, a plus appears that creates a session on this host.
+ *
+ * The heading says how far along reaching the host is ([HostReach]), each in a way of its own:
+ * - connected: the picture and the name in the quiet color, and nothing else;
+ * - being reached for the first time: both dimmed, the picture slowly breathing, and
+ *   "Connecting…" under the name, where "No sessions" would be. Without it the heading was
+ *   a connected host's with nothing under it for as long as the attempt took;
+ * - was connected and is being tried again: the picture steady in the error color, and
+ *   "Reconnecting…" under the name;
+ * - never answered: the picture steady in the error color, and no words. A machine that is
+ *   merely switched off shouldn't take a line of the list to say so.
  */
 @Composable
-private fun HostHeader(
-    host: RexHost,
+internal fun HostHeader(
+    label: String,
     state: HostState,
     /** Whether this is the machine the app is running on. */
     isHome: Boolean,
@@ -479,38 +492,43 @@ private fun HostHeader(
     val connection = state.connection
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
-    // A host that is down is tried again every few seconds. It stays marked as down between
-    // tries, so its dot doesn't blink for as long as it is.
-    var failed by remember(host) { mutableStateOf(false) }
-    when (connection) {
-        HostConnection.Connected -> failed = false
-        is HostConnection.Disconnected -> failed = true
-        HostConnection.Connecting -> {}
-    }
-    val connected = connection == HostConnection.Connected
+    // A host that is down is tried again every few seconds. Its state remembers that the last
+    // try failed, so it stays marked as down between tries and its picture doesn't blink for
+    // as long as it is.
+    val reach = state.reach
+    val connected = reach == HostReach.Connected
     // A host is a machine, and its heading has a picture of one: that is what makes where one
     // computer ends and the next begins show at a glance. Its name is quieter than a tab's,
-    // because tabs are what you are looking for and the heading only says where you are. The
-    // picture is also all a host says about its connection (why one can't be reached is in
-    // the debug log). A host that isn't connected has nothing under it to fold away.
+    // because tabs are what you are looking for and the heading only says where you are. Why
+    // a host can't be reached is in the debug log. A host that isn't connected has nothing
+    // under it to fold away.
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val faded = muted.copy(alpha = 0.55f)
     Column(
         Modifier.fillMaxWidth().hoverable(interaction)
             .clickable(enabled = connected, onClick = onClick)
+            .semantics { hostReachWords(reach)?.let { stateDescription = it } }
             .padding(start = 12.dp, end = 6.dp, top = 12.dp, bottom = 2.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            when {
-                connected -> MachineIcon(remote = !isHome, tint = muted)
+            when (reach) {
+                HostReach.Connected -> MachineIcon(remote = !isHome, tint = muted)
+                // Not known yet: dimmed, and breathing slowly, since something is going on.
+                HostReach.Connecting -> {
+                    val breath by rememberInfiniteTransition(label = "connecting").animateFloat(
+                        initialValue = 0.25f, targetValue = 0.7f,
+                        animationSpec = infiniteRepeatable(tween(durationMillis = CONNECTING_BREATH_MILLIS, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                        label = "breath",
+                    )
+                    MachineIcon(remote = !isHome, tint = muted.copy(alpha = breath))
+                }
                 // Down, and being tried again every few seconds: the same picture, in the
                 // error color. A warning sign would shout from the bottom of the list about
                 // a machine that is merely switched off.
-                failed -> MachineIcon(remote = !isHome, tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f))
-                else -> MachineIcon(remote = !isHome, tint = faded)
+                HostReach.Reconnecting, HostReach.Down -> MachineIcon(remote = !isHome, tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f))
             }
             Text(
-                host.saved.label,
+                label,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Medium,
                 color = if (connected) muted else faded,
@@ -522,17 +540,36 @@ private fun HostHeader(
             ActivityDots(activity)
             when {
                 connected -> {
-                    HeaderButton(Icons.Filled.Add, "New session on ${host.saved.label}", visible = hovered, onClick = onNewSession)
+                    HeaderButton(Icons.Filled.Add, "New session on $label", visible = hovered, onClick = onNewSession)
                     FoldMark(collapsed, visible = collapsed || hovered)
                 }
                 // One that is down is tried again every few seconds anyway; this tries it now.
                 // An address that can't be read will never connect, so there is nothing to try.
                 (connection as? HostConnection.Disconnected)?.permanent != true ->
-                    HeaderButton(Icons.Filled.Refresh, "Try ${host.saved.label} again now", visible = hovered, onClick = onRetry)
+                    HeaderButton(Icons.Filled.Refresh, "Try $label again now", visible = hovered, onClick = onRetry)
             }
         }
-        if (!collapsed && connected && state.sessions.isEmpty()) HintText("No sessions", Modifier.padding(top = 4.dp))
+        when (reach) {
+            HostReach.Connected -> if (!collapsed && state.sessions.isEmpty()) HintText("No sessions", Modifier.padding(top = 4.dp))
+            HostReach.Connecting -> HintText("Connecting…", Modifier.padding(top = 4.dp))
+            HostReach.Reconnecting -> HintText("Reconnecting…", Modifier.padding(top = 4.dp))
+            HostReach.Down -> {}
+        }
     }
+}
+
+/** How long the picture of a host being reached for the first time takes to go from dim to less dim, or back. */
+internal const val CONNECTING_BREATH_MILLIS = 1400
+
+/**
+ * How far along reaching a host is, in a word for a screen reader and for the palette's list
+ * of hosts. Nothing for a connected one: that is what a host is taken to be.
+ */
+internal fun hostReachWords(reach: HostReach): String? = when (reach) {
+    HostReach.Connected -> null
+    HostReach.Connecting -> "connecting"
+    HostReach.Reconnecting -> "reconnecting"
+    HostReach.Down -> "not connected"
 }
 
 /**
