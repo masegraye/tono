@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | promoted to spec-001 (phase 4) |
+| Status | done (spec-001, phase 4) |
 | Area | Connecting to servers |
 | Size | medium |
 | Source | Mase, 2026-11-19, comparing with Rex for Mac's Server settings |

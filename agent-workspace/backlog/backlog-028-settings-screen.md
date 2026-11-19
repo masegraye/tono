@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | promoted to spec-001 |
+| Status | done (spec-001) |
 | Area | The app |
 | Size | large |
 | Source | inv-001 |
