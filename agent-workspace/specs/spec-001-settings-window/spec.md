@@ -40,6 +40,34 @@ Settings are palette toggles today, each found only by knowing its name. Some ca
   - Both layouts scroll vertically and never horizontally.
 - **Look:** it follows the Omarchy theme and font and the window scale, as the main window does (`OmarchyWindowScale`).
 
+### What Rex for Mac's settings look like
+
+Mase supplied two screenshots of Rex for Mac's settings, kept in `designs/`:
+
+- **`designs/rex-mac-settings-sidebar.png`, the section list:**
+  - **Search Settings** is a field at the top.
+  - The first item is **Server**: the home server, with its state under it ("Running").
+  - Sections follow in groups separated by space: Interface and Themes; then Terminal, Shortcuts, Integrations, Notifications and Remote Hosts; then Developer.
+  - Each section has a small icon on a rounded, coloured square.
+- **`designs/rex-mac-settings-remote-hosts.png`, Remote Hosts:**
+  - The header has the section's name, with back and forward arrows beside it, as on the Mac.
+  - The hosts are one card of rows. Each row has a drag handle (≡), the host's icon, the label over its address in a quieter line, and the status at the right ("Connected", or "Couldn't connect" with an orange warning mark). An ⓘ button opens that host's details.
+  - **Add Remote Host…** is a button under the card, at the right.
+  - An SSH section follows; it's backlog-024's, not this spec's.
+
+Follow this layout, in Tono's theme, not the Mac's colours:
+
+- **Section list:**
+  - a search field at the top, which filters settings by name and keywords across sections;
+  - a **Server** item first: the home server's label and its state in the sidebar's words. It holds what About holds today: Tono's version, the workspace file, the home server's API revision, and where Rex's configuration file is. About becomes this item.
+  - then the sections, in the Mac's order where Tono has them: Terminal, Shortcuts, Notifications, Remote Hosts;
+  - icons on rounded squares, coloured from the Omarchy theme's palette, one colour per section.
+- **Names:**
+  - the section is called **Remote Hosts**, and its button **Add Remote Host…**, as on the Mac;
+  - a host that is down says **Couldn't connect**, with a warning mark in the theme's warning colour, and the reason in its details. The sidebar keeps 038's look.
+- **Host details:** the ⓘ opens them. That's where Edit (label, addresses, icon), Try Again Now, Remove, and "where it comes from" live. Rows stay as clean as the Mac's. On a phone the whole row opens the details, and there's no separate ⓘ.
+- **Navigation:** back and forward in the header, moving between sections and into and out of host details. In the narrow layout, back is the same control the Phones part describes.
+
 ### The web: a panel in the page
 
 A browser can't open a window that tiles. So the web app shows the same settings composable as a panel over the app: full height, the same width rules, and closed by Escape or a close button. There's no `window.open`.
@@ -92,8 +120,8 @@ The native iOS app (inv-002) isn't built yet. When it is, it shows the same sett
 3. **Terminal:**
    - Copy on Selection;
    - Primary Selection, with the web note: browsers have no primary selection, so there selecting copies to the clipboard.
-4. **Hosts** (phase 3; see below).
-5. **About:**
+4. **Remote Hosts** (phase 3; see below).
+5. **About** (shown as the **Server** item at the top of the section list; see "What Rex for Mac's settings look like"):
    - Tono's version, and the path of the workspace file;
    - the home server and its API revision;
    - where Rex's configuration file is, when the server says.
