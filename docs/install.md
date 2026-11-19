@@ -34,11 +34,16 @@ After installing, you don't need the checkout to run Tono.
 
 ```sh
 tono                    # or pick it in the app launcher
-tono --workspace FILE   # keep this window's state in another file
+tono --workspace FILE   # keep settings and state together in FILE, and leave the usual files alone
 ```
 
-Tono saves which machines are collapsed and which tab you were on in `~/.config/kotlin-test/workspace.json`. Its
-windows have the class `tono`, if you want to match them in a Hyprland window rule.
+Tono keeps what you chose in `~/.config/tono/settings.json`, and where you were (which machines are collapsed,
+which tab you were on) in `~/.local/state/tono/state.json`: see
+[Where Tono keeps its files](using-tono.md#where-tono-keeps-its-files). Its windows have the class `tono`, if you
+want to match them in a Hyprland window rule.
+
+If you used Tono when it kept everything in `~/.config/kotlin-test/workspace.json`, the first start after updating
+copies that file into the two new ones. The old file is left as it was, as a backup.
 
 ## Update
 
@@ -54,8 +59,13 @@ Quit Tono before you update, then open it again.
 task uninstall
 ```
 
-That removes the command, the app, the launcher entry and the icons. Your settings in `~/.config/kotlin-test` are
-left in place.
+That removes the command, the app, the launcher entry and the icons. Your settings and state are left in place.
+To remove them too:
+
+```sh
+rm -r ~/.config/tono ~/.local/state/tono
+rm -r ~/.config/kotlin-test   # only there if you used Tono before it kept its files under its own name
+```
 
 ## Run it without installing
 

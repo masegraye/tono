@@ -15,8 +15,8 @@ Tono right away.
 - To take a machine off the list, use Remove Host….
 - An address is `https://host` for a server on the network, or `unix:///path` for a socket. A Rex server with
   built-in Tailscale is a device on your tailnet, so its `https://` address works from any machine on that tailnet.
-- Tono also connects to any hosts listed in `~/.config/kotlin-test/workspace.json`. It only saves a host there when
-  there's no local server to keep it.
+- Tono also connects to any hosts listed in its [settings file](#where-tono-keeps-its-files). It only saves a host
+  there when there's no local server to keep it.
 - A machine has the icon the host list gives it, in the sidebar and in the Switch Host list. Set one with
   `rex hosts add NAME ADDRESS --icon ICON` or `rex hosts edit`. Tono draws `globe`, `server`, `cloud`, `laptop`,
   `mini`, `studio` and `desktop`, and reads the names Rex for Mac writes for them too (`server.rack`, `macbook`,
@@ -116,7 +116,8 @@ button, and never asks before that.
 
 Show System Notifications in the palette turns them all off and on, and Terminal Notifications does the same for the
 ones programs ask for. Each kind also has a switch of its own in [Settings](#settings), under Notifications. They
-are kept in `~/.config/kotlin-test/workspace.json`, which Tono reads when it starts:
+are kept in Tono's [settings file](#where-tono-keeps-its-files), `~/.config/tono/settings.json` on Linux, which
+Tono reads when it starts:
 
 ```json
 "notifications": {
@@ -277,8 +278,9 @@ way you can choose:
   Bold text stays bold.
 - Ctrl+=, Ctrl+- and Ctrl+0 change the size of the terminals' text, as before. The size is now remembered.
 
-What you choose is kept with your other settings, under `appearance` in `~/.config/kotlin-test/workspace.json`
-(in a browser, in that browser's storage), and only what you chose is written:
+What you choose is kept with your other settings, under `appearance` in the
+[settings file](#where-tono-keeps-its-files) (in a browser, in that browser's storage), and only what you chose is
+written:
 
 ```json
 "appearance": { "theme": "catppuccin-latte", "font_family": "Liberation Mono", "font_size": 14, "font_weight": 300 }
@@ -319,7 +321,8 @@ in any section:
     install`), or, if Rex isn't installed, a link to how to install it. Nothing runs until you press a button,
     and if the command fails you see what it printed;
   - **Client Info**: the label this Tono has in a server's list of clients (`rex client ls`), with **Edit…**;
-  - which Tono this is, and where its workspace file is.
+  - which Tono this is, and where its settings and its state are kept: see
+    [Where Tono keeps its files](#where-tono-keeps-its-files).
 - **Appearance** has the theme and the terminals' font: see [Themes and the terminal's font](#themes-and-the-terminals-font).
   The settings window is drawn in the theme you choose, as the main window is.
 - **Terminal** has Copy on Selection and Primary Selection.
@@ -339,7 +342,7 @@ in any section:
     follows that server shares; Rex's configuration file, which declares it; or Tono alone;
   - its addresses, in the order they're tried;
   - **Move Up** and **Move Down**. You can also drag a host by the ≡ at the start of its line. Rex's host list
-    has no order of its own, so the order is Tono's, kept in its workspace file, and the sidebar follows it;
+    has no order of its own, so the order is Tono's, kept in its settings file, and the sidebar follows it;
   - **Edit…**, which opens a form for its label, its addresses and its icon. Saving a host from the home
     server's list changes it for every device. Saving one the configuration file declares stores it in the list
     in place of the declared one; the file isn't written. If the server refuses, for a label another host has,
@@ -360,6 +363,39 @@ In a wide window the sections are listed down the left, and the arrows over a se
 the places you've been in. In a narrow one, such as a third of the screen, the list comes first and each section has
 a way back to it.
 
+## Where Tono keeps its files
+
+Tono keeps two small JSON files. **`settings.json`** holds what you chose: hosts Tono keeps itself and the order
+you arranged them in, the notification and sound switches, the selection switches, the shortcuts you changed, the
+theme and the terminals' font and its size, and this Tono's label. **`state.json`** holds where you were: the
+machine, session and tab showing, what's folded away in the sidebar, and the tabs you muted.
+
+| | Settings | State |
+|---|---|---|
+| Linux | `~/.config/tono/settings.json` | `~/.local/state/tono/state.json` |
+| macOS | `~/Library/Application Support/dev.mg.tono/settings.json` | `~/Library/Application Support/dev.mg.tono/state.json` |
+| Windows | `%APPDATA%\Tono\settings.json` | `%LOCALAPPDATA%\Tono\state.json` |
+| A browser | that browser's storage for the page's address, under `tono.settings` | the same, under `tono.state` |
+
+- On Linux the two follow `XDG_CONFIG_HOME` and `XDG_STATE_HOME` where those are set to an absolute path.
+- [Settings](#settings) shows both paths, under Server.
+- `settings.json` is written only when a setting changes. Switching tabs writes `state.json` alone, so a
+  settings file you keep by hand, or in a dotfiles repository, isn't rewritten as you move around.
+- Tono reads both when it starts. A change you make by hand while it's running is lost at the next change of a
+  setting, so edit the file with Tono closed.
+- You can delete `state.json` to start where a new Tono would. Nothing you chose is in it.
+- **A file Tono can't read is never overwritten.** If `settings.json` has a typo in it, Tono starts with its
+  defaults, says so in the debug log, in Settings under Server and on standard error, and saves no settings
+  until you've corrected the file and started Tono again.
+- Keys Tono doesn't know are left in the file when it writes it, so a newer Tono's settings survive an older one.
+- `tono --workspace FILE` keeps settings and state together in FILE and leaves these places alone. It's for
+  tests, demos and a second profile.
+
+Before this, everything was in one file, `~/.config/kotlin-test/workspace.json` (and in a browser under
+`tono.workspace`). The first time a newer Tono starts it copies that file's contents into the two new ones and
+leaves the old file as it was, as a backup, with a `moved.txt` beside it saying where things went. It never reads
+the old file again, and you can delete `~/.config/kotlin-test` whenever you like.
+
 ## Selecting and copying
 
 Drag across a terminal to select text. Double-click selects a word and triple-click a line, and dragging after
@@ -376,7 +412,7 @@ a program that clears the screen.
 ### Copy on selection, and pasting with the middle button
 
 Two settings change what selecting with the mouse does. Both are off until you turn them on, in the palette, in
-[Settings](#settings) under Terminal, or in `~/.config/kotlin-test/workspace.json`:
+[Settings](#settings) under Terminal, or in the [settings file](#where-tono-keeps-its-files):
 
 ```json
 "terminal": {

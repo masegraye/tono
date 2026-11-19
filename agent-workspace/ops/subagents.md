@@ -51,7 +51,14 @@ while the main checkout's server stayed up on 8080.
   REX_SERVER=unix:///tmp/<name>/rex.sock ...            # for the web server
   ```
 
-  For the desktop app, use a `--workspace` file whose only host is that socket. Give test
+  For the desktop app, use a `--workspace` file whose only host is that socket. `--workspace FILE` still keeps
+  settings and state together in FILE and touches nothing else (backlog-049). Without it the app uses Mase's own
+  `~/.config/tono/settings.json` and `~/.local/state/tono/state.json`, and on a first start would move his old
+  `~/.config/kotlin-test/workspace.json` there: never run it that way. A check of the default places or of the
+  move runs with `HOME`, `XDG_CONFIG_HOME` and `XDG_STATE_HOME` all pointing into a temporary directory, checked
+  before the app starts. A test page's storage is still seeded under `tono.workspace` (as `/tmp/tw.mjs` does) in a
+  fresh browser profile: the page moves it to `tono.settings` and `tono.state` when it loads. In a profile that
+  already has `tono.settings`, the old key is ignored, so seed the two new keys there. Give test
   pages a stubbed `/api/tono/tailnet` answer, so no real machine is one click away. Seen
   twice on 2026-11-19.
 

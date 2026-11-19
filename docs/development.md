@@ -47,8 +47,13 @@ Hot Reload doesn't pick up changes to dependencies or to `desktopApp/src/main.kt
 
 Inside a module, `src` holds code for every platform. `src@jvm` and `src@wasmJs` hold code for just that platform.
 
-The package is still `org.example.kotlintest` and the settings directory is still `~/.config/kotlin-test`, because
-the project was called kotlin-test before it was called Tono.
+The package is still `org.example.kotlintest`, because the project was called kotlin-test before it was called
+Tono. Tono's own files are under its name (`~/.config/tono/settings.json` and `~/.local/state/tono/state.json` on
+Linux: see [Where Tono keeps its files](using-tono.md#where-tono-keeps-its-files)). The old
+`~/.config/kotlin-test/workspace.json` is only ever read once, to move from.
+
+Run a build you're working on with `--workspace FILE`, as in `task desktop -- --workspace /tmp/tono-dev.json`, so
+that it keeps everything in that one file and leaves your own settings and state alone.
 
 ## Running as if Omarchy weren't there
 
