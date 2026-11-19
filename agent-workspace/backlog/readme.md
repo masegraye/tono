@@ -79,3 +79,4 @@ The order proposed in inv-001, not yet agreed:
 | 049 | [Keep Tono's files where each platform expects them](backlog-049-where-tono-keeps-its-files.md) | Shipping | medium | captured (inv-003) |
 | 050 | [A Mac app](backlog-050-a-mac-app.md) | Shipping | large | captured |
 | 051 | [An Android app](backlog-051-an-android-app.md) | Shipping | large | captured (low priority) |
+| 052 | [One look for every dialog's buttons, and a focus ring that hugs its button](backlog-052-one-look-for-every-dialogs-buttons.md) | The app | small | done |
