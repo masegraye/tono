@@ -107,6 +107,24 @@ reads when it starts:
 }
 ```
 
+## Arranging panes
+
+Drag the line between two panes to change their sizes; it lights up under the pointer. Neither pane can be squeezed
+below a tenth of the space the two share. The layout belongs to the session, so it changes for every client
+showing that tab.
+
+The rest is in the command palette:
+
+- **Resize Pane Left / Right / Up / Down** moves a border of the focused pane a twentieth of the way: the one on its
+  right or under it, or for a pane at the right or bottom edge, the one on its left or above it. It has no key,
+  as in Rex's Mac app. To give it one, bind `pane.resize` in Rex's configuration file, for example
+  `rex.bind("alt+shift+left", "pane.resize", { direction = "left" })`; an `amount` sets how far, in hundredths.
+- **Balance Splits** makes the panes in a row the same width and the panes in a column the same height.
+- **Move Pane Left / Right / Up / Down** trades the focused pane's place with its neighbour's.
+- **Move Pane to Tab…** sends the focused pane to another tab of the same session, and **Move Pane to New Tab**
+  gives it a tab of its own. The program in it carries on.
+- **Rename Pane…** names the focused pane. The name shows in the pane's top right corner, and on every client.
+
 ## The status line
 
 The line at the bottom of the window shows where you are: the machine, the session, the tab and the terminal's size.
@@ -130,6 +148,7 @@ place of Cmd, and with Shift added where Ctrl on its own already means something
 | Ctrl+Shift+D / Ctrl+Alt+D | Split the pane right / down |
 | Ctrl+Alt+arrows | Focus the pane in that direction |
 | Alt+] / Alt+[ | Focus the next / previous pane |
+| Ctrl+Alt+Shift+arrows | Move the pane: it trades places with the pane on that side |
 | Ctrl+Shift+Enter | Zoom the pane, or restore the layout |
 | Ctrl+Shift+W / Ctrl+Alt+W | Close the pane / the tab, after asking |
 | Ctrl+Shift+C / Ctrl+Shift+V | Copy the selected text / paste |

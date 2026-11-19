@@ -259,12 +259,13 @@ internal fun clientActions(): List<ClientAction> = buildList {
     add(ClientAction("pane.balance", "Balance Splits", "Pane", "equalize equalise evenly distribute resize layout same size", available = { (window?.panes?.count { !it.floating } ?: 0) > 1 }) {
         host?.balancePanes()
     })
-    add(ClientAction("pane.move_to_new_tab", "Move Pane to New Tab", "Pane", "block window detach break out", available = severalPanes) {
-        focusedBlockId?.let { host?.movePaneToNewTab(it) }
-    })
+    // Listed before the one for a new tab, so that typing its name in the palette finds it first.
     add(ClientAction("pane.move_to_tab", "Move Pane to Tab…", "Pane", "block window send other existing join", available = { focusedBlockId != null && (view?.windows?.size ?: 0) > 1 }) { args ->
         val windowId = args?.get("window_id")?.jsonPrimitive?.content
         if (windowId != null) focusedBlockId?.let { host?.movePaneToTab(it, windowId) } else palette = PaletteMode.MoveToTab
+    })
+    add(ClientAction("pane.move_to_new_tab", "Move Pane to New Tab", "Pane", "block window detach break out", available = severalPanes) {
+        focusedBlockId?.let { host?.movePaneToNewTab(it) }
     })
     add(ClientAction("pane.rename", "Rename Pane…", "Pane", "name label title block", available = hasPane) {
         val pane = window?.panes?.firstOrNull { it.blockId == focusedBlockId } ?: return@ClientAction

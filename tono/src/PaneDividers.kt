@@ -68,7 +68,8 @@ internal fun PaneDividerHandles(
     onDrag: (DividerDrag) -> Unit,
     onResize: (PaneDivider, Float) -> Unit,
 ) {
-    for (divider in window.dividers()) {
+    // Innermost first, so that where a line ends against another, the one that runs on is on top.
+    for (divider in window.dividers().asReversed()) {
         key(divider.key, divider.horizontal) {
             val current by rememberUpdatedState(divider)
             val dragging = drag?.takeIf { it.key == divider.key }

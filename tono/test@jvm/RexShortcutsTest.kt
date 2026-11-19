@@ -59,6 +59,18 @@ class RexShortcutsTest {
     }
 
     @Test
+    fun `panes are rearranged by Rex's names, and moved with control, alt, shift and an arrow`() {
+        val actions = clientActions().associateBy { it.name }
+        for (name in listOf("pane.move", "pane.resize", "pane.balance", "pane.move_to_tab", "pane.move_to_new_tab", "pane.rename")) assertNotNull(actions[name], name)
+        for (side in listOf("left", "right", "up", "down")) assertEquals(listOf("ctrl+alt+shift+$side"), actions.getValue("pane.move.$side").keys)
+        // Resizing takes a direction, so the palette lists it once for each.
+        val resize = actions.getValue("pane.resize")
+        assertEquals(false, resize.inPalette)
+        assertEquals(listOf("Resize Pane Left", "Resize Pane Right", "Resize Pane Up", "Resize Pane Down"), resize.variants.map { it.first })
+        assertEquals(listOf("\"left\"", "\"right\"", "\"up\"", "\"down\""), resize.variants.map { it.second["direction"].toString() })
+    }
+
+    @Test
     fun `action names are unique`() {
         val names = clientActions().map { it.name }
         assertEquals(names.size, names.toSet().size)
