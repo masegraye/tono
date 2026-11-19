@@ -596,7 +596,7 @@ private fun hoverFade(appearing: Boolean) = tween<Float>(durationMillis = if (ap
 
 /** A tab: what you go to. */
 @Composable
-private fun TabRow(
+internal fun TabRow(
     name: TabName,
     digit: Int?,
     digitAlpha: Float,
