@@ -349,7 +349,9 @@ private fun Sidebar(
                 )
                 // A host's sessions can be dragged into another order, and so can a session's
                 // tabs. Both orders are the server's, so they change for every client.
-                if (!hostCollapsed) HostSessions(host, state, selected, ui, tabs, digitAlpha, activityOnly)
+                // What a host that isn't connected last said about its sessions is stale, and
+                // their tabs are gone with the connection, so nothing is listed under it.
+                if (listsSessions(state, hostCollapsed)) HostSessions(host, state, selected, ui, tabs, digitAlpha, activityOnly)
             }
         }
     }
@@ -544,8 +546,9 @@ internal fun HostHeader(
                     FoldMark(collapsed, visible = collapsed || hovered)
                 }
                 // One that is down is tried again every few seconds anyway; this tries it now.
-                // An address that can't be read will never connect, so there is nothing to try.
-                (connection as? HostConnection.Disconnected)?.permanent != true ->
+                // An address that can't be read will never connect, so there is nothing to try,
+                // and neither is there while the first attempt is still under way.
+                offersRetry(state) ->
                     HeaderButton(Icons.Filled.Refresh, "Try $label again now", visible = hovered, onClick = onRetry)
             }
         }
@@ -557,6 +560,13 @@ internal fun HostHeader(
         }
     }
 }
+
+/** Whether a host's sessions are listed under its heading: only while it is connected and not folded away. */
+internal fun listsSessions(state: HostState, collapsed: Boolean): Boolean = !collapsed && state.reach == HostReach.Connected
+
+/** Whether a host's heading offers to try it again now: when a try has failed and another could do better. */
+internal fun offersRetry(state: HostState): Boolean =
+    (state.reach == HostReach.Reconnecting || state.reach == HostReach.Down) && (state.connection as? HostConnection.Disconnected)?.permanent != true
 
 /** How long the picture of a host being reached for the first time takes to go from dim to less dim, or back. */
 internal const val CONNECTING_BREATH_MILLIS = 1400

@@ -8,6 +8,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
@@ -19,6 +21,7 @@ import dev.mg.omarchy.theme.compose.omarchyShapes
 import org.example.kotlintest.rex.ActivityState
 import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.HostState
+import org.example.kotlintest.rex.SessionSummary
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.Image
 import java.io.File
@@ -52,7 +55,8 @@ class HostHeaderRenderTest {
     private val rowHeight = 56
     private val width = 240
 
-    private fun draw(atMillis: Long, name: String): Bitmap {
+    /** [hover] is the row the pointer rests on, if any, long enough for its button to have faded in. */
+    private fun draw(atMillis: Long, name: String, hover: Int? = null): Bitmap {
         val scene = ImageComposeScene(width = width, height = rowHeight * rows.size, density = Density(1f)) {
             MaterialTheme(colorScheme = scheme, shapes = omarchyShapes()) {
                 Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -71,6 +75,11 @@ class HostHeaderRenderTest {
         }
         try {
             scene.render(0)
+            if (hover != null) {
+                scene.sendPointerEvent(PointerEventType.Move, Offset(width / 2f, hover * rowHeight + 20f))
+                // The heading hears of the pointer in one frame and its button fades in over the next ones.
+                for (millis in 16 until atMillis step 16) scene.render(millis * 1_000_000)
+            }
             val image: Image = scene.render(atMillis * 1_000_000)
             File(outputDir, "$name.png").writeBytes(image.encodeToData()!!.bytes)
             return Bitmap.makeFromImage(image)
@@ -130,6 +139,37 @@ class HostHeaderRenderTest {
         for (row in listOf(0, 2, 3)) assertEquals(dim.pictureStrength(row), bright.pictureStrength(row), "row $row is steady")
         // A host that has failed once doesn't go back to breathing while it is tried again.
         assertEquals(dim.picture(3), bright.picture(3))
+    }
+
+    /** Whether anything is drawn at the right end of a heading's row, where its buttons are. */
+    private fun Bitmap.hasButton(row: Int): Boolean =
+        (row * rowHeight + 12 until row * rowHeight + 34).any { y -> (width - 30 until width - 6).any { x -> far(getColor(x, y), scheme.surfaceContainerLow) > 24 } }
+
+    @Test
+    fun `under the pointer, a host that failed offers another try and one still on its first does not`() {
+        for (row in rows.indices) assertTrue(!draw(atMillis = 0, name = "host-headings").hasButton(row), "row $row, with no pointer")
+        fun hovered(row: Int) = draw(atMillis = 600, name = "host-headings-hover-$row", hover = row).hasButton(row)
+        assertTrue(hovered(0), "a connected host offers a new session")
+        assertTrue(!hovered(1), "a first attempt has nothing to try again")
+        assertTrue(hovered(2), "a lost host can be tried now")
+        assertTrue(hovered(3), "and so can one that never answered")
+        assertTrue(!offersRetry(HostState(connection = HostConnection.Disconnected("Invalid endpoint", permanent = true), failed = true)), "not an address that can't be read")
+    }
+
+    @Test
+    fun `sessions are listed only under a host that is connected`() {
+        val sessions = listOf(SessionSummary("s", "work"))
+        val up = connected.copy(sessions = sessions)
+        assertTrue(listsSessions(up, collapsed = false))
+        assertTrue(!listsSessions(up, collapsed = true))
+        // Lost: what it last said is kept in its state and not shown, between tries and during them.
+        val lost = up.copy(connection = HostConnection.Disconnected("it went away"), failed = true)
+        assertEquals(sessions, lost.sessions)
+        assertTrue(!listsSessions(lost, collapsed = false))
+        assertTrue(!listsSessions(lost.copy(connection = HostConnection.Connecting), collapsed = false))
+        assertTrue(!listsSessions(down.copy(sessions = sessions), collapsed = false))
+        // Back: listed again.
+        assertTrue(listsSessions(lost.copy(connection = HostConnection.Connected, failed = false), collapsed = false))
     }
 
     @Test
