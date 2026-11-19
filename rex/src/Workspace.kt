@@ -22,6 +22,40 @@ interface WorkspaceStorage {
 data class SavedHost(val label: String, val endpoint: String)
 
 /**
+ * Which things the desktop is asked to show a notification for. They are told apart as Rex
+ * Rune tells them, and are written to the workspace under its names.
+ *
+ * @param desktop whether any are shown at all; the rest say which
+ * @param blocked a program in a tab out of view started waiting for the user
+ * @param error one failed
+ * @param done one finished
+ * @param programMessages a program asked for one itself, with OSC 9 or OSC 777
+ */
+data class NotificationSwitches(
+    val desktop: Boolean = true,
+    val blocked: Boolean = true,
+    val error: Boolean = true,
+    val done: Boolean = true,
+    val programMessages: Boolean = true,
+) {
+    internal fun toJson(): JsonObject = buildJsonObject {
+        put("system_notifications", desktop)
+        put("blocked", blocked)
+        put("error", error)
+        put("done", done)
+        put("program_messages", programMessages)
+    }
+
+    companion object {
+        /** Reads what [toJson] writes. A switch that is missing, or isn't a yes or a no, is on. */
+        internal fun parse(json: JsonObject?): NotificationSwitches {
+            fun on(key: String) = (json?.get(key) as? JsonPrimitive)?.content != "false"
+            return NotificationSwitches(on("system_notifications"), on("blocked"), on("error"), on("done"), on("program_messages"))
+        }
+    }
+}
+
+/**
  * What the app remembers between runs: the hosts to connect to, and where the user was.
  * Stored as JSON, in the same shape Rex Rune uses for these fields.
  */
@@ -41,6 +75,8 @@ class Workspace(
     tabs: Map<String, String> = emptyMap(),
     /** Whether to play a sound when a program in a tab out of view wants the user, fails, or finishes. */
     var sounds: Boolean = true,
+    /** What to show a desktop notification for. */
+    var notifications: NotificationSwitches = NotificationSwitches(),
 ) {
     val tabs: MutableMap<String, String> = tabs.toMutableMap()
     var hosts: List<SavedHost> = hosts
@@ -60,6 +96,8 @@ class Workspace(
                 lastHost?.let { put("last_host", it) }
                 putJsonObject("sessions") { for ((host, session) in sessions) put(host, session) }
                 if (!sounds) put("sounds", false)
+                // Always written, every switch: until there is a settings screen, this file is where they are found.
+                put("notifications", notifications.toJson())
                 if (tabs.isNotEmpty()) putJsonObject("tabs") { for ((session, tab) in tabs.entries.sortedBy { it.key }) put(session, tab) }
                 if (collapsedHosts.isNotEmpty()) put("collapsed_hosts", buildJsonArray { collapsedHosts.sorted().forEach { add(JsonPrimitive(it)) } })
                 if (collapsedSessions.isNotEmpty()) put("collapsed_sessions", buildJsonArray { collapsedSessions.sorted().forEach { add(JsonPrimitive(it)) } })
@@ -86,6 +124,7 @@ class Workspace(
             fun strings(key: String) = (root[key] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.takeIf { value -> value.isString }?.content }.toSet()
             return Workspace(storage, hosts, root.string("last_host"), sessions, strings("collapsed_hosts"), strings("collapsed_sessions"), map("tabs"),
                 sounds = (root["sounds"] as? JsonPrimitive)?.content != "false",
+                notifications = NotificationSwitches.parse(root.obj("notifications")),
             )
         }
     }

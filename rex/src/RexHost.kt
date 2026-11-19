@@ -159,10 +159,10 @@ class RexHost(
     /** Called when the tab shown in a session changes, with null when there is no longer one to remember. */
     private val onTabShown: (sessionId: String, windowId: String?) -> Unit = { _, _ -> },
     /**
-     * Called when a program in a terminal nobody is looking at starts waiting for the user,
-     * fails, or finishes, with [ActivityState.Blocked], [ActivityState.Error] or [ActivityState.Done].
+     * Called with what happens in a tab nobody is looking at: a program there starts waiting
+     * for the user, fails or finishes, or asks to tell the user something. See [TabNews].
      */
-    private val onActivityNews: (blockId: String, state: ActivityState) -> Unit = { _, _ -> },
+    private val onNews: (TabNews) -> Unit = {},
     /** Called for the server's own events, such as `keymap_changed`, and with `connected` after each connect. */
     private val onServerEvent: (type: String) -> Unit = {},
     /** Called with text a program copied in the terminal in use here, for this machine's clipboard. */
@@ -791,7 +791,7 @@ class RexHost(
             before == ActivityState.Working && now == ActivityState.Idle -> ActivityState.Done
             else -> null
         }
-        if (isNews && news != null && !isBeingWatched(blockId)) onActivityNews(blockId, news)
+        if (isNews && news != null && !isBeingWatched(blockId)) onNews(TabNews.Activity(state.value.placeOf(saved.label, blockId), news))
     }
 
     /** Whether a terminal is in the tab on screen while the app's window has focus. */
@@ -867,6 +867,7 @@ class RexHost(
                     "clipboard_written" -> event.sessionId?.let { sessionId -> copies.written(sessionId, blockId, fields) }
                     "bell" -> event.sessionId?.let { sessionId -> mutableState.update { it.rang(sessionId, blockId, inFront) } }
                     "progress_report" -> mutableState.update { it.reported(blockId, fields) }
+                    "desktop_notification" -> if (!isBeingWatched(blockId)) TabNews.message(state.value.placeOf(saved.label, blockId), fields)?.let(onNews)
                 }
             }
             "block_closed" -> event.payload.string("block_id")?.let { blockId ->

@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
 import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.HostState
+import org.example.kotlintest.rex.NotificationSwitches
 import org.example.kotlintest.rex.ProgramCopy
 import org.example.kotlintest.rex.RexClient
 import org.example.kotlintest.rex.RexHost
@@ -76,6 +77,22 @@ class RexUiState(val client: RexClient) {
 
     /** Plays the sounds. Set once the app's window exists. */
     var sounds: Sounds? = null
+
+    /** What to show a desktop notification for. Remembered between runs. */
+    var notifications: NotificationSwitches
+        get() = notificationSwitches
+        set(switches) {
+            notificationSwitches = switches
+            client.workspace.notifications = switches
+            client.workspace.save()
+        }
+    private var notificationSwitches by mutableStateOf(client.workspace.notifications)
+
+    /** Shows the notifications. */
+    internal val notifier = Notifier(this)
+
+    /** Whether to ask if the browser may show notifications: there has been something to show, and it hasn't been asked. */
+    var notificationQuestion by mutableStateOf(false)
 
     /** Where actions start work they don't wait for. Set once the app's window exists. */
     var scope: CoroutineScope? = null

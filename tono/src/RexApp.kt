@@ -88,6 +88,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.example.kotlintest.rex.ActivityState
+import org.example.kotlintest.rex.TabNews
 import org.example.kotlintest.rex.TerminalProgress
 import org.example.kotlintest.rex.hasBell
 import org.example.kotlintest.rex.hasNews
@@ -118,15 +119,26 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
     val selected = hosts.firstOrNull { it.saved.label == selectedLabel } ?: hosts.firstOrNull()
 
     // The client in use is the one terminals take their size from, so say when that is this one.
+    // A page in a browser can be told its window has focus while another page is in front of
+    // it, so the page is asked too. Otherwise a tab would count as watched, and its news
+    // would go unannounced, exactly when nobody is there.
     val windowFocused = LocalWindowInfo.current.isWindowFocused
-    LaunchedEffect(windowFocused) { ui.client.setWindowFocused(windowFocused) }
+    var pageFocused by remember { mutableStateOf(pageHasFocus()) }
+    WatchPageFocus { pageFocused = it }
+    val inFront = windowFocused && pageFocused
+    LaunchedEffect(inFront) { ui.client.setWindowFocused(inFront) }
 
-    // A sound for what programs in tabs out of view have just done, if sounds are on.
+    // A sound and a notification for what has just happened in tabs out of view, each if it is on.
     LaunchedEffect(ui) {
         val player = Sounds(this) { message, isError -> ui.client.log.add("sound", message, isError = isError) }
         ui.sounds = player
-        ui.client.activityNews.collect { if (ui.soundsEnabled) player.request(it) }
+        ui.client.tabNews.collect { news ->
+            if (!announces(news)) return@collect
+            if (news is TabNews.Activity && ui.soundsEnabled) player.request(news.state)
+            ui.notifier.announce(news)
+        }
     }
+    CloseSeenNotifications(ui, selected, inFront)
 
     // What a program copies in the terminal in use goes on this machine's clipboard. Only the
     // newest counts: one that arrives while the last is still being written takes its place.
@@ -207,6 +219,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
                         }
                     }
                 }
+                NotificationQuestion(ui)
                 if (ui.debugLogVisible) {
                     DebugLogPanel(
                         log = ui.client.log,

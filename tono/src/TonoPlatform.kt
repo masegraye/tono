@@ -99,3 +99,33 @@ internal fun openLink(url: String, log: (message: String, isError: Boolean) -> U
  * it came from. Returns at once. [url] is to have been through [openableLink].
  */
 internal expect fun openUrl(url: String, log: (message: String, isError: Boolean) -> Unit)
+
+/** Whether notifications can be shown here, as things stand. On the desktop that is whether there is a program to show them with. */
+internal expect fun notificationAccess(): NotificationAccess
+
+/**
+ * Has a browser ask its user whether this page may show notifications, and says what they
+ * answered. It must be called while a click or a key press is being handled. On the desktop
+ * nobody is asked, and the answer is [notificationAccess].
+ */
+internal expect suspend fun requestNotificationAccess(): NotificationAccess
+
+/**
+ * Shows a notification, in place of the last one shown with the same tag if that is still
+ * up, and says in [log] how that went. [onClick] is called if it is clicked, on any thread.
+ * Never throws.
+ */
+internal expect suspend fun showNotification(note: DesktopNote, log: (message: String, isError: Boolean) -> Unit, onClick: () -> Unit)
+
+/** Takes down the notification last shown with a tag, if it is still up. Returns at once. */
+internal expect fun closeNotification(tag: String)
+
+/**
+ * Asks for the app's window to be in front and have the keyboard, as after a click on one
+ * of its notifications. The desktop or the browser may decline.
+ */
+internal expect fun bringWindowToFront()
+
+/** Says whether the page has the browser's focus, as [pageHasFocus] does, whenever that changes. Says nothing on the desktop. */
+@Composable
+internal expect fun WatchPageFocus(onChange: (focused: Boolean) -> Unit)

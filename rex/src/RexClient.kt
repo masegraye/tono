@@ -75,13 +75,14 @@ class RexClient(
     /** What each key does. Starts as the app's defaults, then follows the home server's configuration. */
     val keymap: StateFlow<Keymap> get() = mutableKeymap
 
-    private val mutableActivityNews = MutableSharedFlow<ActivityState>(extraBufferCapacity = 16, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    private val mutableTabNews = MutableSharedFlow<TabNews>(extraBufferCapacity = 16, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     /**
-     * What programs in tabs nobody is looking at have just done that someone would want to
-     * know: started waiting for them, failed, or finished. On any host.
+     * What has just happened in tabs nobody is looking at that someone would want to know:
+     * a program started waiting for them, failed or finished, or asked to tell them
+     * something. On any host.
      */
-    val activityNews: SharedFlow<ActivityState> get() = mutableActivityNews
+    val tabNews: SharedFlow<TabNews> get() = mutableTabNews
 
     private val mutableProgramCopies = MutableSharedFlow<ProgramCopy>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
@@ -286,7 +287,7 @@ class RexClient(
             workspace.sessions[saved.label] = sessionId
             workspace.save()
         },
-        onActivityNews = { _, state -> mutableActivityNews.tryEmit(state) },
+        onNews = { mutableTabNews.tryEmit(it) },
         onProgramCopy = { mutableProgramCopies.tryEmit(it) },
         rememberedTabs = workspace.tabs.toMap(),
         onTabShown = { sessionId, windowId ->

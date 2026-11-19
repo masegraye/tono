@@ -145,3 +145,176 @@ private fun findSound(id: String): Path? {
         .map { Path.of(it, "sounds/freedesktop/stereo/$id.oga") }
         .firstOrNull(Files::isRegularFile)
 }
+
+@Composable
+internal actual fun WatchPageFocus(onChange: (focused: Boolean) -> Unit) = Unit
+
+/*
+ * Notifications, shown by the desktop's notification service (the freedesktop one, which
+ * every Linux desktop has: mako, dunst, GNOME's, KDE's, Omarchy's shell). It is reached with
+ * `notify-send`, the program that comes with the service's own library, rather than by
+ * speaking D-Bus from here. Each notification has a `notify-send` of its own that stays for
+ * as long as the notification is up: it is told the notification's number, is told if the
+ * notification is clicked, and ends when the notification is closed.
+ */
+
+/** A notification that is up: the `notify-send` waiting on it, and the number the service gave it. */
+private class ShownNotification(val process: Process, val id: Long?)
+
+private val shownNotifications = java.util.concurrent.ConcurrentHashMap<String, ShownNotification>()
+
+/** One notification is handed over at a time, so that the second of two for a tab replaces the first. */
+private val notifying = kotlinx.coroutines.sync.Mutex()
+
+private val endNotifiersOnExit by lazy {
+    // The notifications stay; only the programs waiting on them go, so none outlives the app.
+    Runtime.getRuntime().addShutdownHook(Thread { shownNotifications.values.forEach { it.process.destroy() } })
+}
+
+internal actual fun notificationAccess(): NotificationAccess =
+    if (findProgram("notify-send") != null) NotificationAccess.Granted else NotificationAccess.Unavailable
+
+internal actual suspend fun requestNotificationAccess(): NotificationAccess = notificationAccess()
+
+/**
+ * The command that shows a notification and waits on it. It prints the notification's
+ * number, then `default` if the notification is clicked, and ends when it is closed.
+ *
+ * The title and the text are whatever a server or a program said. They are handed over as
+ * arguments of their own, after `--`, so nothing in them is read as an option, and no shell
+ * is involved. The text is escaped, because services read it as markup.
+ *
+ * @param replaces the number of the notification this one takes the place of, if there is one
+ */
+internal fun notifyCommand(program: Path, note: DesktopNote, replaces: Long?): List<String> = buildList {
+    add(program.toString())
+    add("--app-name=$APP_NAME")
+    // The app's own icon, and the entry it was installed with, for desktops that group by app.
+    add("--icon=tono")
+    add("--hint=string:desktop-entry:tono")
+    add("--urgency=${if (note.urgent) "critical" else "normal"}")
+    add("--print-id")
+    // An action called `default` is the one a desktop carries out when the notification itself is clicked.
+    add("--action=default=Show")
+    add("--wait")
+    if (replaces != null) add("--replace-id=$replaces")
+    add("--")
+    add(note.title.ifBlank { APP_NAME })
+    if (note.body.isNotBlank()) add(markupEscaped(note.body))
+}
+
+/** Text as a notification service that reads markup will show it: as written. */
+internal fun markupEscaped(text: String): String = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+/**
+ * The command that closes a notification by its number, with whichever of GLib's and
+ * systemd's D-Bus tools is installed. Null if neither is.
+ */
+internal fun closeNotificationCommand(id: Long, program: (String) -> Path?): List<String>? {
+    val service = "org.freedesktop.Notifications"
+    val path = "/org/freedesktop/Notifications"
+    program("gdbus")?.let { return listOf(it.toString(), "call", "--session", "--dest", service, "--object-path", path, "--method", "$service.CloseNotification", id.toString()) }
+    program("busctl")?.let { return listOf(it.toString(), "--user", "call", service, path, service, "CloseNotification", "u", id.toString()) }
+    return null
+}
+
+internal actual suspend fun showNotification(note: DesktopNote, log: (message: String, isError: Boolean) -> Unit, onClick: () -> Unit) = withContext(Dispatchers.IO) {
+    val program = findProgram("notify-send")
+    if (program == null) {
+        log("no way to show a notification: it needs notify-send, which comes with libnotify", true)
+        return@withContext
+    }
+    runCatching {
+        notifying.lock()
+        try {
+            endNotifiersOnExit
+            val before = shownNotifications[note.tag]
+            val process = ProcessBuilder(notifyCommand(program, note, before?.id)).redirectError(ProcessBuilder.Redirect.DISCARD).start()
+            process.outputStream.close()
+            val output = process.inputStream.bufferedReader()
+            // The first line is the number. A service that isn't there ends the program without one.
+            val id = output.readLine()?.trim()?.toLongOrNull()
+            if (id == null) {
+                process.destroy()
+                log("the desktop didn't take the notification: is a notification service running?", true)
+                return@runCatching
+            }
+            val shown = ShownNotification(process, id)
+            shownNotifications[note.tag] = shown
+            // The one before has been replaced under the same number, and its program would wait for ever.
+            before?.process?.destroy()
+            keepWithinLimit()
+            log(if (before?.id == id) "replaced notification $id" else "showed notification $id", false)
+            // Follows the notification until it is closed, on a thread of its own: it may be up for hours.
+            Thread({
+                val clicked = runCatching { output.lineSequence().any { it.trim() == "default" } }.getOrDefault(false)
+                // Clicked or not, this notification is over; a later one for its tab starts afresh.
+                shownNotifications.remove(note.tag, shown)
+                process.destroy()
+                if (clicked) {
+                    closeNotificationNumbered(id) // some desktops leave a clicked notification up
+                    runCatching { onClick() }
+                }
+            }, "tono-notification-$id").apply { isDaemon = true }.start()
+        } finally {
+            notifying.unlock()
+        }
+    }.onFailure { log("couldn't show a notification: ${it.message}", true) }
+    Unit
+}
+
+/** Stops waiting on the oldest notifications when there are a great many up. They stay where they are, and can no longer be clicked through. */
+private fun keepWithinLimit() {
+    val over = shownNotifications.size - MAX_NOTIFICATIONS
+    if (over <= 0) return
+    shownNotifications.entries.sortedBy { it.value.id ?: 0 }.take(over).forEach { (tag, shown) ->
+        if (shownNotifications.remove(tag, shown)) shown.process.destroy()
+    }
+}
+
+internal actual fun closeNotification(tag: String) {
+    val shown = shownNotifications.remove(tag) ?: return
+    Thread({
+        shown.id?.let(::closeNotificationNumbered)
+        shown.process.destroy()
+    }, "tono-notification-close").apply { isDaemon = true }.start()
+}
+
+/** Asks the desktop to close a notification, and waits a moment for it. One already closed is no trouble. */
+private fun closeNotificationNumbered(id: Long) {
+    val command = closeNotificationCommand(id, ::findProgram) ?: return
+    runCatching {
+        val closing = ProcessBuilder(command).redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start()
+        closing.outputStream.close()
+        if (!closing.waitFor(CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) closing.destroyForcibly()
+    }
+}
+
+/**
+ * A window can't take the keyboard on Wayland just by asking: the toolkit's request marks it
+ * as wanting attention at most. Hyprland, which is what Omarchy runs, will focus a program's
+ * window when told to, which also goes to the workspace it is on. So both are tried.
+ */
+internal actual fun bringWindowToFront() {
+    java.awt.EventQueue.invokeLater {
+        java.awt.Window.getWindows().firstOrNull { it is java.awt.Frame && it.isShowing }?.let { window ->
+            runCatching {
+                window.toFront()
+                window.requestFocus()
+            }
+        }
+    }
+    if (System.getenv("HYPRLAND_INSTANCE_SIGNATURE").isNullOrEmpty()) return
+    val hyprctl = findProgram("hyprctl") ?: return
+    Thread({
+        runCatching {
+            val asking = ProcessBuilder(hyprctl.toString(), "dispatch", "focuswindow", "pid:${ProcessHandle.current().pid()}")
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start()
+            asking.outputStream.close()
+            if (!asking.waitFor(CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) asking.destroyForcibly()
+        }
+    }, "tono-window-forward").apply { isDaemon = true }.start()
+}
+
+private const val MAX_NOTIFICATIONS = 32
+private const val CLOSE_TIMEOUT_SECONDS = 3L

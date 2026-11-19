@@ -292,6 +292,42 @@ internal fun clientActions(): List<ClientAction> = buildList {
         // Turning them on plays one, so you know what to listen for and that it works here.
         if (soundsEnabled) sounds?.request(ActivityState.Done)
     })
+    // The switches for the kinds of news a program's own state makes (waiting, failed, done) are
+    // in the workspace file until there is a settings screen. These two are Rex.app's actions.
+    add(ClientAction(
+        "client.setting.notifications.activity.system_notifications", "Show System Notifications", "Notifications",
+        "desktop notification notify alert popup banner program finished blocked error needs allow permission",
+        state = {
+            when {
+                !notifications.desktop -> "off"
+                else -> when (notificationAccess()) {
+                    NotificationAccess.Granted -> "on"
+                    NotificationAccess.Undecided -> "on, once the browser allows it"
+                    NotificationAccess.Refused -> "blocked in the browser's settings"
+                    NotificationAccess.Unavailable -> "on, with nothing here to show them"
+                }
+            }
+        },
+    ) {
+        // On, and the browser not asked yet: what is wanted is the question, not turning them off.
+        val ask = notificationAccess() == NotificationAccess.Undecided
+        if (!(notifications.desktop && ask)) notifications = notifications.copy(desktop = !notifications.desktop)
+        client.log.add("notify", "notifications ${if (notifications.desktop) "on" else "off"}")
+        when {
+            !notifications.desktop -> notificationQuestion = false
+            ask -> notifier.askAccess() // this runs from a key or a click, which is when a browser will ask
+            else -> notifier.showExample()
+        }
+    })
+    add(ClientAction(
+        // Rex.app files this one under macOS, where it is the system that shows them. The name is kept, so a key bound to it means the same here.
+        "client.setting.notifications.macos.terminal_notifications", "Terminal Notifications", "Notifications",
+        "desktop notification notify program message osc 9 777 terminal asks",
+        state = { if (notifications.programMessages) "on" else "off" },
+    ) {
+        notifications = notifications.copy(programMessages = !notifications.programMessages)
+        client.log.add("notify", "notifications that programs ask for ${if (notifications.programMessages) "on" else "off"}")
+    })
     // Only where the app is what asks for it, which is a browser. There it is also the way to
     // get every key: a browser keeps some for itself in a tab, and gives them up in full screen.
     fullScreen?.let { screen ->

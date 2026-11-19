@@ -266,3 +266,94 @@ internal actual fun openUrl(url: String, log: (message: String, isError: Boolean
         .onSuccess { log("asked the browser to open $url", false) }
         .onFailure { log("couldn't open $url: the browser refused", true) }
 }
+
+/** Starts watching whether the page has the browser's focus, and returns the function that stops. */
+private fun watchPageFocus(report: (Boolean) -> Unit): JsAny = js(
+    """(() => {
+        const say = () => report(document.hasFocus() && document.visibilityState === 'visible');
+        addEventListener('focus', say);
+        addEventListener('blur', say);
+        document.addEventListener('visibilitychange', say);
+        return () => {
+            removeEventListener('focus', say);
+            removeEventListener('blur', say);
+            document.removeEventListener('visibilitychange', say);
+        };
+    })()""",
+)
+
+@Composable
+internal actual fun WatchPageFocus(onChange: (focused: Boolean) -> Unit) {
+    val report by rememberUpdatedState(onChange)
+    DisposableEffect(Unit) {
+        val watching = watchPageFocus { report(it) }
+        onDispose { stop(watching) }
+    }
+}
+
+/*
+ * Notifications, shown by the browser, which shows them only for a page its user has said
+ * may. A page not served securely has none to ask for, and neither does a browser on a
+ * phone, where only a service worker can show one.
+ */
+
+private fun notificationPermission(): String = js("(typeof Notification === 'undefined' || !isSecureContext) ? 'unavailable' : Notification.permission")
+
+private fun askNotificationPermission(): Promise<JsAny?> =
+    js("(typeof Notification === 'undefined') ? Promise.resolve('unavailable') : Promise.resolve(Notification.requestPermission()).catch(() => 'unavailable')")
+
+private fun accessNamed(permission: String?): NotificationAccess = when (permission) {
+    "granted" -> NotificationAccess.Granted
+    "default" -> NotificationAccess.Undecided
+    "denied" -> NotificationAccess.Refused
+    else -> NotificationAccess.Unavailable
+}
+
+internal actual fun notificationAccess(): NotificationAccess = accessNamed(notificationPermission())
+
+internal actual suspend fun requestNotificationAccess(): NotificationAccess =
+    runCatching { accessNamed((askNotificationPermission().await<JsAny?>() as? JsString)?.toString()) }.getOrElse { notificationAccess() }
+
+/**
+ * Shows a notification and keeps it by its tag, so it can be taken down. The browser itself
+ * puts one in the place of another with the same tag; `renotify` has it say so again, where
+ * the browser knows the word. Returns null once it is shown, and otherwise why it wasn't.
+ */
+private fun notify(tag: String, title: String, body: String, urgent: Boolean, icon: String, clicked: () -> Unit): String? = js(
+    """(() => {
+        try {
+            const up = globalThis.tonoNotifications || (globalThis.tonoNotifications = new Map());
+            const note = new Notification(title, { body, tag, icon, renotify: true, requireInteraction: urgent });
+            note.onclick = () => { try { window.focus(); } catch (error) {} note.close(); clicked(); };
+            note.onclose = () => { if (up.get(tag) === note) up.delete(tag); };
+            up.set(tag, note);
+            return null;
+        } catch (error) {
+            return String(error && error.message ? error.message : error);
+        }
+    })()""",
+)
+
+private fun closeNotificationTagged(tag: String): Unit = js(
+    """{
+        const up = globalThis.tonoNotifications;
+        const note = up && up.get(tag);
+        if (note) { up.delete(tag); note.close(); }
+    }""",
+)
+
+internal actual suspend fun showNotification(note: DesktopNote, log: (message: String, isError: Boolean) -> Unit, onClick: () -> Unit) {
+    val refusal = runCatching { notify(note.tag, note.title, note.body, note.urgent, pageUrl("icon-192.png"), onClick) }.getOrElse { "the browser refused" }
+    if (refusal == null) log("showed a notification", false) else log("couldn't show a notification: $refusal", true)
+}
+
+internal actual fun closeNotification(tag: String) {
+    runCatching { closeNotificationTagged(tag) }
+}
+
+/** A page may bring its window forward only as a notification of its own is clicked, which is done there. */
+internal actual fun bringWindowToFront() {
+    runCatching { focusWindow() }
+}
+
+private fun focusWindow(): Unit = js("window.focus()")
