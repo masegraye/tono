@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | captured |
+| Status | done (commits `04e3c6c`, `97fc662`, 2026-11-18) |
 | Area | Typing and keys |
 | Size | small |
 | Source | found while building backlog-012 |
@@ -22,3 +22,23 @@ The `available` checks on `pane.focus.*` and `pane.move.*` in `tono/src/RexActio
 ## Promote when
 
 Any time; small.
+
+## What was built
+
+A key bound to one of Tono's actions is Tono's whether or not the action can run just now (`takesKey` in
+`tono/src/RexActions.kt`). Before, a key whose action wasn't on offer fell through to the terminal. Built with
+backlog-013.
+
+Checked in the web app, in headless Chromium: in a scratch tab with one pane, Ctrl+Alt+arrows,
+Ctrl+Alt+Shift+arrows, Alt+] and Alt+[ left the terminal exactly as it was, and typing still reached it.
+`tono/test@jvm/RexShortcutsTest.kt` covers the rule.
+
+Decisions made while building, none of them asked for:
+
+- **The rule is general, not a change to these eight actions.** The `available` checks stay as they were, so the
+  palette still doesn't offer Focus Pane Left in a tab with one pane. It also covers Alt+] and Alt+[, which leaked
+  the same way and started an escape sequence in the shell.
+- A key handed to the server (`client.key.forward`) and a key bound only to a server action that can't run still
+  go to the terminal, as before.
+
+Not checked: the desktop app in a real window. The leak itself was not reproduced on the old build first.
