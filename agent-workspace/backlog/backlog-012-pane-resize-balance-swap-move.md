@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | done (commits `275ab20`, `4026e49`, `120eab6`, 2026-11-18) |
+| Status | done (commits `c3e8c81`, `9c8f0c3`, `677d04e`, 2026-11-18) |
 | Area | Panes, tabs and sessions |
 | Size | medium |
 | Source | inv-001 |
