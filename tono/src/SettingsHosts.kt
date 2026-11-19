@@ -185,11 +185,7 @@ private fun HostList(ui: RexUiState, wide: Boolean) {
             }
         }
     }
-    Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            if (movable.size > 1) "The order is $APP_NAME's own, and the sidebar follows it." else "",
-            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f).padding(start = 6.dp, end = 8.dp),
-        )
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
         CardButton("Add Remote Host…") { state.form = SettingsForm.AddHost }
     }
 }
@@ -324,7 +320,7 @@ private fun HostDetails(ui: RexUiState, label: String) {
     val movable = ordered.map { it.first.saved.label }.filter { it != home }
     val at = movable.indexOf(label)
     if (movable.size > 1) {
-        SettingsGroup("Place in the List", note = "The order is $APP_NAME's own: Rex's host list has none. The sidebar follows it.") {
+        SettingsGroup("Place in the List") {
             Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("${at + 1} of ${movable.size}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f).padding(start = 8.dp))
                 TextButton(enabled = at > 0, modifier = Modifier.heightIn(min = TOUCH_TARGET), onClick = { client.setHostOrder(hostOrderAfterStep(movable, label, up = true)) }) { Text("Move Up") }
