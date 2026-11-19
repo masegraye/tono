@@ -463,7 +463,7 @@ class RexHost(
         val sessionId = current.selectedSessionId ?: return@act
         if (key.action != RexKey.Action.Release) {
             claim(control, sessionId, blockId)
-            current.terminals[blockId]?.scrollToBottom()
+            current.terminals[blockId]?.typedInto()
         }
         // Not awaited, so typing never waits on the network. Keys still arrive in order.
         control.request("client.key", buildJsonObject {
@@ -480,7 +480,7 @@ class RexHost(
         val sessionId = current.selectedSessionId ?: return@act
         val terminal = current.terminals[blockId] ?: return@act
         claim(control, sessionId, blockId)
-        terminal.scrollToBottom()
+        terminal.typedInto()
         val data = encodePaste(text, terminal.bracketedPaste).decodeToString()
         control.callBlock("$TERMINAL_CREATOR.write", sessionId, blockId, buildJsonObject { put("data", data) })
     }
@@ -494,7 +494,7 @@ class RexHost(
         val current = state.value
         val sessionId = current.selectedSessionId ?: return@act
         claim(control, sessionId, blockId)
-        current.terminals[blockId]?.scrollToBottom()
+        current.terminals[blockId]?.typedInto()
         control.callBlock("$TERMINAL_CREATOR.write", sessionId, blockId, buildJsonObject { put("data", text) })
     }
 

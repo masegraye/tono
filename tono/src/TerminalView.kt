@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import org.example.kotlintest.ghostty.SelectedCells
 import org.example.kotlintest.ghostty.TerminalCursor
 import org.example.kotlintest.ghostty.TerminalFrame
 import org.example.kotlintest.ghostty.TerminalRow
@@ -142,12 +143,7 @@ fun TerminalView(
 
     fun report(event: PointerEvent, action: MouseAction, button: MouseButton?, scrollRows: Int = 0) {
         val position = event.changes.firstOrNull()?.position ?: return
-        val grid = terminal.grid.value ?: return
-        // Only over the terminal itself: the pane can be larger than a terminal sized by another client.
-        if (position.x < 0f || position.y < 0f || position.x >= grid.columns * cell.width || position.y >= grid.rows * cell.height) {
-            if (scrollRows != 0) terminal.scroll(scrollRows)
-            return
-        }
+        // Wherever it is: the terminal knows its own edges, and a selection is dragged past them.
         val modifiers = event.keyboardModifiers
         // The encoder counts in whole pixels and cells are drawn a fraction wide, so the
         // position is restated on a whole-pixel grid, where it falls in the same cell.
@@ -261,6 +257,7 @@ fun TerminalView(
             drawRow(row, rowIndex, cell, layouts.of(row, measurer, style))
         }
         current.images.forEach { if (it.layer == TerminalImagePlacement.Layer.AboveText) drawImage(it, current, cell, pictures) }
+        current.selection.forEach { drawSelection(it, current, cell) }
         current.cursor?.let { drawCursor(it, current, cell, active = focused && (hasKeyboard || screenKeyboard)) }
     }
     // A keyboard that has real keys as well (a tablet's) sends them here while this has the focus.
@@ -372,6 +369,23 @@ private fun DrawScope.drawRow(row: TerminalRow, rowIndex: Int, cell: CellSize, l
         layouts[index]?.let { drawText(it, topLeft = Offset(left, top)) }
     }
 }
+
+/**
+ * Marks selected cells with a wash of the foreground color over them, so that the text
+ * keeps its own colors and stays readable whatever they are.
+ */
+private fun DrawScope.drawSelection(cells: SelectedCells, frame: TerminalFrame, cell: CellSize) {
+    val left = (cells.firstColumn * cell.width).toInt().toFloat()
+    // Whole pixels, and up to the next cell's edge, so that rows and neighbors meet without seams.
+    val right = ceil((cells.lastColumn + 1) * cell.width)
+    drawRect(
+        color = Color(0xFF000000 or frame.foreground.toLong()).copy(alpha = SELECTION_ALPHA),
+        topLeft = Offset(left, cells.row * cell.height),
+        size = Size(right - left, cell.height),
+    )
+}
+
+private const val SELECTION_ALPHA = 0.3f
 
 private fun DrawScope.drawCursor(cursor: TerminalCursor, frame: TerminalFrame, cell: CellSize, active: Boolean) {
     val color = Color(0xFF000000 or (cursor.color ?: frame.foreground).toLong())

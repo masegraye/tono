@@ -19,7 +19,12 @@ class TerminalFrame(
     /** The size of a cell in the terminal's own pixels, which image sizes are given in. Zero if it was never told one. */
     val cellWidthPx: Int = 0,
     val cellHeightPx: Int = 0,
+    /** The selected cells that are on screen, top to bottom. */
+    val selection: List<SelectedCells> = emptyList(),
 )
+
+/** The cells of one visible row that are selected: columns [firstColumn] to [lastColumn], both included. */
+data class SelectedCells(val row: Int, val firstColumn: Int, val lastColumn: Int)
 
 /**
  * One row, as the runs of cells that have something to draw. A row object is reused from

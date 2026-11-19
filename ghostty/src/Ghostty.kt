@@ -102,6 +102,53 @@ expect class GhosttyMouse() : AutoCloseable {
 }
 
 /**
+ * Selecting text with the pointer. libghostty-vt knows what a press, a drag and a second or
+ * third press select (cells, a word, a line), and each function here hands it one such
+ * event and makes the answer the terminal's selection. From then on the terminal keeps the
+ * selection itself: it stays on the same text as output scrolls it or the terminal is
+ * resized, and a [GhosttyRenderer] reports which cells are in it.
+ *
+ * Positions are [MouseInput]s, of which only the position and cell size are read. One
+ * outside the terminal counts as the nearest cell at its edge. One of these serves one
+ * terminal, and is closed before it. Not thread-safe, like the terminal.
+ */
+expect class GhosttySelection() : AutoCloseable {
+    /**
+     * The left button went down. A press on its own selects nothing and drops what was
+     * selected; a second soon after it, in the same place, selects the word there, and a
+     * third the line. [timeMillis] is when, on any clock that only goes forward.
+     */
+    fun press(terminal: GhosttyTerminal, at: MouseInput, timeMillis: Long)
+
+    /**
+     * The pointer moved with the button held. Returns whether it is now at or past the top
+     * or bottom edge, where [autoscroll] should be called every so often until it says to stop.
+     */
+    fun drag(terminal: GhosttyTerminal, at: MouseInput): Boolean
+
+    fun release(terminal: GhosttyTerminal, at: MouseInput)
+
+    /**
+     * Scrolls a row towards the edge the pointer is held at, which is at [at], and extends
+     * the selection to there. Returns whether to go on calling it.
+     */
+    fun autoscroll(terminal: GhosttyTerminal, at: MouseInput): Boolean
+
+    /** Selects everything in the terminal, its scrollback included. */
+    fun selectAll(terminal: GhosttyTerminal)
+
+    fun clear(terminal: GhosttyTerminal)
+
+    /**
+     * The selected text, as it is copied: a line the terminal wrapped is one line, and the
+     * blanks after the end of a line are left out. Empty when nothing is selected.
+     */
+    fun text(terminal: GhosttyTerminal): String
+
+    override fun close()
+}
+
+/**
  * Makes pasted text safe to send to a terminal: characters that could end the paste early
  * are replaced with spaces, and the text is wrapped in bracketed-paste markers when
  * [bracketed] is true, or has its newlines turned into carriage returns when it isn't.

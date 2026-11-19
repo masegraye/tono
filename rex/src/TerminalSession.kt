@@ -3,6 +3,7 @@ package org.example.kotlintest.rex
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readBytes
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
@@ -10,6 +11,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -20,6 +23,7 @@ import org.example.kotlintest.ghostty.GhosttyMouse
 import org.example.kotlintest.ghostty.loadGhostty
 import kotlin.concurrent.Volatile
 import org.example.kotlintest.ghostty.GhosttyRenderer
+import org.example.kotlintest.ghostty.GhosttySelection
 import org.example.kotlintest.ghostty.MouseAction
 import org.example.kotlintest.ghostty.MouseButton
 import org.example.kotlintest.ghostty.MouseInput
@@ -79,9 +83,15 @@ class TerminalSession internal constructor(
     private sealed interface Command {
         class SetColors(val colors: TerminalColors) : Command
         class Scroll(val rows: Int) : Command
-        class Mouse(val input: MouseInput, val scrollRows: Int) : Command
+        class Mouse(val input: MouseInput, val scrollRows: Int, val timeMillis: Long) : Command
         data object ScrollToBottom : Command
+        data object SelectAll : Command
+        data object ClearSelection : Command
+        class ReadSelection(val text: CompletableDeferred<String>) : Command
     }
+
+    /** When to scroll the next row, while a selection is dragged past the top or bottom edge. */
+    private var scrollNextMillis = 0L
 
     private val commands = Channel<Command>(Channel.UNLIMITED)
     private var colors: TerminalColors? = colors
@@ -96,16 +106,47 @@ class TerminalSession internal constructor(
     fun scrollToBottom() { commands.trySend(Command.ScrollToBottom) }
 
     /**
-     * Tells the terminal's program what the pointer did, if it asked to know. A turn of the
-     * wheel over a program that hasn't asked scrolls through the history instead, by
-     * [scrollRows]: negative is up, towards older output.
+     * Something was typed or pasted into the terminal: the view returns to the live screen,
+     * where it will show, and what was selected is let go, as Ghostty does.
      */
-    fun mouse(input: MouseInput, scrollRows: Int = 0) { commands.trySend(Command.Mouse(input, scrollRows)) }
+    fun typedInto() {
+        commands.trySend(Command.ScrollToBottom)
+        commands.trySend(Command.ClearSelection)
+    }
+
+    /**
+     * Tells the terminal's program what the pointer did, if it asked to know. Over a program
+     * that hasn't asked, the left button selects text, and a turn of the wheel scrolls
+     * through the history, by [scrollRows]: negative is up, towards older output. With Shift
+     * held, the left button selects whatever the program asked.
+     *
+     * The position may be outside the terminal, which matters while selecting: dragging
+     * past an edge selects up to it, and past the top or bottom scrolls.
+     */
+    fun mouse(input: MouseInput, scrollRows: Int = 0) { commands.trySend(Command.Mouse(input, scrollRows, nowMillis())) }
+
+    /** Selects everything in the terminal, its scrollback included. */
+    fun selectAll() { commands.trySend(Command.SelectAll) }
+
+    fun clearSelection() { commands.trySend(Command.ClearSelection) }
+
+    /**
+     * The selected text, as it is copied: a line the terminal wrapped is one line, and the
+     * blanks after the end of a line are left out. Empty when nothing is selected, or the
+     * terminal isn't there to ask.
+     */
+    suspend fun selectedText(): String {
+        val text = CompletableDeferred<String>()
+        if (!commands.trySend(Command.ReadSelection(text)).isSuccess) return ""
+        return withTimeoutOrNull(SELECTION_TIMEOUT_MILLIS) { text.await() } ?: ""
+    }
 
     fun close() = job.cancel()
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     private suspend fun run() {
         var terminal: GhosttyTerminal? = null
+        var selection: GhosttySelection? = null
         var renderer: GhosttyRenderer? = null
         var mouse: GhosttyMouse? = null
         var stream: RexTerminalStream? = null
@@ -117,6 +158,8 @@ class TerminalSession internal constructor(
             terminal = restored.terminal
             renderer = GhosttyRenderer()
             mouse = GhosttyMouse()
+            selection = GhosttySelection()
+            val pointer = TerminalPointer(mouse, selection)
             colors?.let(terminal::setColors)
             mutableGrid.value = GridSize(terminal.columns, terminal.rows)
             log("restored from a ${restored.snapshotBytes}-byte snapshot at ${terminal.columns}×${terminal.rows}")
@@ -146,8 +189,16 @@ class TerminalSession internal constructor(
                         true
                     }
                     commands.onReceive { command ->
-                        handleCommand(live, renderer, mouse, command)
+                        handleCommand(live, renderer, pointer, selection, command)
                         true
+                    }
+                    // Held past the top or bottom edge while selecting: a row at a time, until it isn't.
+                    if (pointer.scrollingAt != null) {
+                        onTimeout((scrollNextMillis - nowMillis()).coerceAtLeast(0)) {
+                            scrollNextMillis = nowMillis() + AUTOSCROLL_MILLIS
+                            pointer.scroll(live)
+                            true
+                        }
                     }
                 }
                 if (!more) break
@@ -171,6 +222,7 @@ class TerminalSession internal constructor(
             withContext(NonCancellable) { stream?.close() }
             renderer?.close()
             mouse?.close()
+            selection?.close() // before the terminal, which it lets go of
             terminal?.close()
         }
     }
@@ -213,7 +265,7 @@ class TerminalSession internal constructor(
         }
     }
 
-    private fun handleCommand(terminal: GhosttyTerminal, renderer: GhosttyRenderer, mouse: GhosttyMouse, command: Command) {
+    private fun handleCommand(terminal: GhosttyTerminal, renderer: GhosttyRenderer, pointer: TerminalPointer, selection: GhosttySelection, command: Command) {
         when (command) {
             is Command.SetColors -> {
                 colors = command.colors
@@ -223,14 +275,16 @@ class TerminalSession internal constructor(
             is Command.Scroll -> terminal.scrollViewport(command.rows)
             is Command.Mouse -> {
                 val input = command.input
-                val report = mouse.encode(terminal, input)
-                when {
-                    // A click claims the terminal as a key press does; passing over it doesn't.
-                    report.isNotEmpty() -> onInput(report.latin1(), input.action == MouseAction.Press && input.button != MouseButton.WheelUp && input.button != MouseButton.WheelDown)
-                    command.scrollRows != 0 -> terminal.scrollViewport(command.scrollRows)
-                }
+                val wasScrolling = pointer.scrollingAt != null
+                val report = pointer.handle(terminal, input, command.scrollRows, command.timeMillis)
+                if (!wasScrolling) scrollNextMillis = nowMillis() + AUTOSCROLL_MILLIS
+                // A click claims the terminal as a key press does; passing over it doesn't.
+                if (report.isNotEmpty()) onInput(report.latin1(), input.action == MouseAction.Press && input.button != MouseButton.WheelUp && input.button != MouseButton.WheelDown)
             }
             Command.ScrollToBottom -> terminal.scrollToBottom()
+            Command.SelectAll -> selection.selectAll(terminal)
+            Command.ClearSelection -> selection.clear(terminal)
+            is Command.ReadSelection -> command.text.complete(runCatching { selection.text(terminal) }.getOrDefault(""))
         }
     }
 
@@ -240,5 +294,8 @@ class TerminalSession internal constructor(
         const val FRAME_INTERVAL_MILLIS = 4L
         const val DRAIN_BYTES = 4 shl 20
         const val CLOSE_BLOCK_CLOSED: Short = 4000
+        /** How long between rows while a selection is dragged past the top or bottom edge. */
+        const val AUTOSCROLL_MILLIS = 30L
+        const val SELECTION_TIMEOUT_MILLIS = 1_000L
     }
 }

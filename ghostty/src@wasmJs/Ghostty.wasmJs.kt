@@ -45,6 +45,20 @@ private fun glueMouseEncode(
     x: Float, y: Float, cellWidth: Int, cellHeight: Int, anyButtonDown: Boolean,
 ): String = js("globalThis.GhosttyGlue.mouseEncode(encoder, event, terminal, action, button, mods, x, y, cellWidth, cellHeight, anyButtonDown)")
 
+private fun glueSelectionNew(): Int = js("globalThis.GhosttyGlue.selectionNew()")
+private fun glueSelectionFree(gesture: Int): Unit = js("globalThis.GhosttyGlue.selectionFree(gesture)")
+private fun glueSelectionPress(gesture: Int, terminal: Int, x: Float, y: Float, cellWidth: Int, cellHeight: Int, timeMillis: Double): Unit =
+    js("globalThis.GhosttyGlue.selectionPress(gesture, terminal, x, y, cellWidth, cellHeight, timeMillis)")
+private fun glueSelectionDrag(gesture: Int, terminal: Int, x: Float, y: Float, cellWidth: Int, cellHeight: Int): Boolean =
+    js("globalThis.GhosttyGlue.selectionDrag(gesture, terminal, x, y, cellWidth, cellHeight)")
+private fun glueSelectionRelease(gesture: Int, terminal: Int, x: Float, y: Float, cellWidth: Int, cellHeight: Int): Unit =
+    js("globalThis.GhosttyGlue.selectionRelease(gesture, terminal, x, y, cellWidth, cellHeight)")
+private fun glueSelectionAutoscroll(gesture: Int, terminal: Int, x: Float, y: Float, cellWidth: Int, cellHeight: Int): Boolean =
+    js("globalThis.GhosttyGlue.selectionAutoscroll(gesture, terminal, x, y, cellWidth, cellHeight)")
+private fun glueSelectionAll(terminal: Int): Unit = js("globalThis.GhosttyGlue.selectionAll(terminal)")
+private fun glueSelectionClear(terminal: Int): Unit = js("globalThis.GhosttyGlue.selectionClear(terminal)")
+private fun glueSelectionText(terminal: Int): String = js("globalThis.GhosttyGlue.selectionText(terminal)")
+
 /** Bytes as a string of one character each. */
 private fun ByteArray.toBinary(offset: Int = 0, length: Int = size - offset): String =
     CharArray(length) { (this[offset + it].toInt() and 0xFF).toChar() }.concatToString()
@@ -184,6 +198,10 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
             )
         }
         readImages(terminal, header[4])
+        val selection = header[5].takeIf { it.isNotEmpty() }?.split(';')?.map { cells ->
+            val (row, first, last) = cells.split(',')
+            SelectedCells(row.toInt(), first.toInt(), last.toInt())
+        }
         return TerminalFrame(
             columns = header[0].toInt(),
             rows = shown,
@@ -193,6 +211,7 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
             images = placements,
             cellWidthPx = terminal.cellWidthPx,
             cellHeightPx = terminal.cellHeightPx,
+            selection = selection ?: emptyList(),
         )
     }
 
@@ -283,6 +302,30 @@ actual class GhosttyMouse actual constructor() : AutoCloseable {
     private companion object {
         val EMPTY = ByteArray(0)
     }
+}
+
+actual class GhosttySelection actual constructor() : AutoCloseable {
+    private val gesture = glueSelectionNew()
+
+    actual fun press(terminal: GhosttyTerminal, at: MouseInput, timeMillis: Long) =
+        glueSelectionPress(gesture, terminal.handle, at.x, at.y, at.cellWidth, at.cellHeight, timeMillis.toDouble())
+
+    actual fun drag(terminal: GhosttyTerminal, at: MouseInput): Boolean =
+        glueSelectionDrag(gesture, terminal.handle, at.x, at.y, at.cellWidth, at.cellHeight)
+
+    actual fun release(terminal: GhosttyTerminal, at: MouseInput) =
+        glueSelectionRelease(gesture, terminal.handle, at.x, at.y, at.cellWidth, at.cellHeight)
+
+    actual fun autoscroll(terminal: GhosttyTerminal, at: MouseInput): Boolean =
+        glueSelectionAutoscroll(gesture, terminal.handle, at.x, at.y, at.cellWidth, at.cellHeight)
+
+    actual fun selectAll(terminal: GhosttyTerminal) = glueSelectionAll(terminal.handle)
+
+    actual fun clear(terminal: GhosttyTerminal) = glueSelectionClear(terminal.handle)
+
+    actual fun text(terminal: GhosttyTerminal): String = glueSelectionText(terminal.handle).binaryToBytes().decodeToString()
+
+    actual override fun close() = glueSelectionFree(gesture)
 }
 
 actual fun encodePaste(text: String, bracketed: Boolean): ByteArray =

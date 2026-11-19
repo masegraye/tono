@@ -27,7 +27,11 @@
     if (!event.ctrlKey && !event.altKey && !functionKey) return true;
     const control = event.ctrlKey && !event.altKey;
     // Editing in a text field: copy, cut, paste, select all, undo, redo.
-    if (control && ['KeyC', 'KeyX', 'KeyV', 'KeyA', 'KeyZ', 'KeyY'].includes(event.code)) return true;
+    if (control && ['KeyC', 'KeyX', 'KeyV', 'KeyA', 'KeyZ', 'KeyY'].includes(event.code)) {
+      // With Shift, C and A are the app's, for copying from a terminal and selecting all of
+      // it, and a browser has other uses for them: Chromium inspects the page and searches tabs.
+      return !(event.shiftKey && ['KeyC', 'KeyA'].includes(event.code));
+    }
     // Reloading the page, which is the way out when something has gone wrong, and the
     // developer tools. A terminal that has the keyboard takes these first, as it should.
     if (event.key === 'F5' || (control && event.code === 'KeyR')) return true;

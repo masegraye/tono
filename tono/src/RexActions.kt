@@ -239,6 +239,20 @@ internal fun clientActions(): List<ClientAction> = buildList {
         // A browser hands the clipboard over only when it is ready to, so this doesn't wait.
         scope?.launch { clipboardText()?.takeIf { it.isNotEmpty() }?.let { owner.paste(blockId, it) } }
     })
+    add(ClientAction("pane.copy", "Copy from Pane", "Pane", "copy selection clipboard text terminal", keys = listOf("ctrl+shift+c"), available = hasTerminal) {
+        val terminal = focusedTerminal ?: return@ClientAction
+        scope?.launch {
+            val text = terminal.selectedText()
+            // Nothing selected leaves the clipboard as it was.
+            if (text.isEmpty()) return@launch
+            val refusal = setClipboardText(text)
+            if (refusal == null) client.log.add("clipboard", "copied ${text.length} characters from the terminal")
+            else client.log.add("clipboard", "couldn't copy from the terminal: $refusal", isError = true)
+        }
+    })
+    add(ClientAction("pane.select_all", "Select All in Pane", "Pane", "select all selection text terminal scrollback", keys = listOf("ctrl+shift+a"), available = hasTerminal) {
+        focusedTerminal?.selectAll()
+    })
     add(ClientAction("client.scroll.page_up", "Scroll Page Up", "Pane", "history scrollback", keys = listOf("shift+pageup"), available = hasTerminal) {
         focusedTerminal?.let { terminal -> terminal.scroll(-((terminal.grid.value?.rows ?: 24) - 1)) }
     })

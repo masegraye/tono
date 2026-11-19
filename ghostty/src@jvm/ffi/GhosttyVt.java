@@ -642,6 +642,909 @@ public class GhosttyVt extends GhosttyVt$shared {
     public static int GHOSTTY_STYLE_COLOR_TAG_MAX_VALUE() {
         return GHOSTTY_STYLE_COLOR_TAG_MAX_VALUE;
     }
+    private static final int GHOSTTY_POINT_TAG_ACTIVE = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_POINT_TAG_ACTIVE = 0
+     * }
+     */
+    public static int GHOSTTY_POINT_TAG_ACTIVE() {
+        return GHOSTTY_POINT_TAG_ACTIVE;
+    }
+    private static final int GHOSTTY_POINT_TAG_VIEWPORT = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_POINT_TAG_VIEWPORT = 1
+     * }
+     */
+    public static int GHOSTTY_POINT_TAG_VIEWPORT() {
+        return GHOSTTY_POINT_TAG_VIEWPORT;
+    }
+    private static final int GHOSTTY_POINT_TAG_SCREEN = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_POINT_TAG_SCREEN = 2
+     * }
+     */
+    public static int GHOSTTY_POINT_TAG_SCREEN() {
+        return GHOSTTY_POINT_TAG_SCREEN;
+    }
+    private static final int GHOSTTY_POINT_TAG_HISTORY = (int)3L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_POINT_TAG_HISTORY = 3
+     * }
+     */
+    public static int GHOSTTY_POINT_TAG_HISTORY() {
+        return GHOSTTY_POINT_TAG_HISTORY;
+    }
+    private static final int GHOSTTY_POINT_TAG_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_POINT_TAG_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_POINT_TAG_MAX_VALUE() {
+        return GHOSTTY_POINT_TAG_MAX_VALUE;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_NONE = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_NONE = 0
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_NONE() {
+        return GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_NONE;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_UP = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_UP = 1
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_UP() {
+        return GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_UP;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_DOWN = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_DOWN = 2
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_DOWN() {
+        return GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_DOWN;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_MAX_VALUE() {
+        return GHOSTTY_SELECTION_GESTURE_AUTOSCROLL_MAX_VALUE;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_DATA_CLICK_COUNT = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_DATA_CLICK_COUNT = 0
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_DATA_CLICK_COUNT() {
+        return GHOSTTY_SELECTION_GESTURE_DATA_CLICK_COUNT;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_DATA_DRAGGED = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_DATA_DRAGGED = 1
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_DATA_DRAGGED() {
+        return GHOSTTY_SELECTION_GESTURE_DATA_DRAGGED;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_DATA_AUTOSCROLL = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_DATA_AUTOSCROLL = 2
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_DATA_AUTOSCROLL() {
+        return GHOSTTY_SELECTION_GESTURE_DATA_AUTOSCROLL;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_DATA_BEHAVIOR = (int)3L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_DATA_BEHAVIOR = 3
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_DATA_BEHAVIOR() {
+        return GHOSTTY_SELECTION_GESTURE_DATA_BEHAVIOR;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_DATA_ANCHOR = (int)4L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_DATA_ANCHOR = 4
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_DATA_ANCHOR() {
+        return GHOSTTY_SELECTION_GESTURE_DATA_ANCHOR;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_DATA_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_DATA_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_DATA_MAX_VALUE() {
+        return GHOSTTY_SELECTION_GESTURE_DATA_MAX_VALUE;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_PRESS = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_PRESS = 0
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_PRESS() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_PRESS;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_RELEASE = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_RELEASE = 1
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_RELEASE() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_RELEASE;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_DRAG = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_DRAG = 2
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_DRAG() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_DRAG;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_AUTOSCROLL_TICK = (int)3L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_AUTOSCROLL_TICK = 3
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_AUTOSCROLL_TICK() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_AUTOSCROLL_TICK;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_DEEP_PRESS = (int)4L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_DEEP_PRESS = 4
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_DEEP_PRESS() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_DEEP_PRESS;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_MAX_VALUE() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_MAX_VALUE;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REF = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REF = 0
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REF() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REF;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_POSITION = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_OPT_POSITION = 1
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_POSITION() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_OPT_POSITION;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REPEAT_DISTANCE = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REPEAT_DISTANCE = 2
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REPEAT_DISTANCE() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REPEAT_DISTANCE;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_TIME_NS = (int)3L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_OPT_TIME_NS = 3
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_TIME_NS() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_OPT_TIME_NS;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REPEAT_INTERVAL_NS = (int)4L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REPEAT_INTERVAL_NS = 4
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REPEAT_INTERVAL_NS() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REPEAT_INTERVAL_NS;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_WORD_BOUNDARY_CODEPOINTS = (int)5L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_OPT_WORD_BOUNDARY_CODEPOINTS = 5
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_WORD_BOUNDARY_CODEPOINTS() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_OPT_WORD_BOUNDARY_CODEPOINTS;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_BEHAVIORS = (int)6L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_OPT_BEHAVIORS = 6
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_BEHAVIORS() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_OPT_BEHAVIORS;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_RECTANGLE = (int)7L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_OPT_RECTANGLE = 7
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_RECTANGLE() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_OPT_RECTANGLE;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_GEOMETRY = (int)8L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_OPT_GEOMETRY = 8
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_GEOMETRY() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_OPT_GEOMETRY;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_VIEWPORT = (int)9L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_OPT_VIEWPORT = 9
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_VIEWPORT() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_OPT_VIEWPORT;
+    }
+    private static final int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SELECTION_GESTURE_EVENT_OPT_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_SELECTION_GESTURE_EVENT_OPT_MAX_VALUE() {
+        return GHOSTTY_SELECTION_GESTURE_EVENT_OPT_MAX_VALUE;
+    }
+
+    private static class ghostty_selection_gesture_event_new {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_INT
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_selection_gesture_event_new");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_event_new(const GhosttyAllocator *allocator, GhosttySelectionGestureEvent *out_event, GhosttySelectionGestureEventType type)
+     * }
+     */
+    public static FunctionDescriptor ghostty_selection_gesture_event_new$descriptor() {
+        return ghostty_selection_gesture_event_new.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_event_new(const GhosttyAllocator *allocator, GhosttySelectionGestureEvent *out_event, GhosttySelectionGestureEventType type)
+     * }
+     */
+    public static MethodHandle ghostty_selection_gesture_event_new$handle() {
+        return ghostty_selection_gesture_event_new.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_event_new(const GhosttyAllocator *allocator, GhosttySelectionGestureEvent *out_event, GhosttySelectionGestureEventType type)
+     * }
+     */
+    public static MemorySegment ghostty_selection_gesture_event_new$address() {
+        return ghostty_selection_gesture_event_new.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_event_new(const GhosttyAllocator *allocator, GhosttySelectionGestureEvent *out_event, GhosttySelectionGestureEventType type)
+     * }
+     */
+    public static int ghostty_selection_gesture_event_new(MemorySegment allocator, MemorySegment out_event, int type) {
+        var mh$ = ghostty_selection_gesture_event_new.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_selection_gesture_event_new", allocator, out_event, type);
+            }
+            return (int)mh$.invokeExact(allocator, out_event, type);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_selection_gesture_event_free {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_selection_gesture_event_free");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void ghostty_selection_gesture_event_free(GhosttySelectionGestureEvent event)
+     * }
+     */
+    public static FunctionDescriptor ghostty_selection_gesture_event_free$descriptor() {
+        return ghostty_selection_gesture_event_free.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void ghostty_selection_gesture_event_free(GhosttySelectionGestureEvent event)
+     * }
+     */
+    public static MethodHandle ghostty_selection_gesture_event_free$handle() {
+        return ghostty_selection_gesture_event_free.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void ghostty_selection_gesture_event_free(GhosttySelectionGestureEvent event)
+     * }
+     */
+    public static MemorySegment ghostty_selection_gesture_event_free$address() {
+        return ghostty_selection_gesture_event_free.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void ghostty_selection_gesture_event_free(GhosttySelectionGestureEvent event)
+     * }
+     */
+    public static void ghostty_selection_gesture_event_free(MemorySegment event) {
+        var mh$ = ghostty_selection_gesture_event_free.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_selection_gesture_event_free", event);
+            }
+            mh$.invokeExact(event);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_selection_gesture_event_set {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_selection_gesture_event_set");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_event_set(GhosttySelectionGestureEvent event, GhosttySelectionGestureEventOption option, const void *value)
+     * }
+     */
+    public static FunctionDescriptor ghostty_selection_gesture_event_set$descriptor() {
+        return ghostty_selection_gesture_event_set.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_event_set(GhosttySelectionGestureEvent event, GhosttySelectionGestureEventOption option, const void *value)
+     * }
+     */
+    public static MethodHandle ghostty_selection_gesture_event_set$handle() {
+        return ghostty_selection_gesture_event_set.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_event_set(GhosttySelectionGestureEvent event, GhosttySelectionGestureEventOption option, const void *value)
+     * }
+     */
+    public static MemorySegment ghostty_selection_gesture_event_set$address() {
+        return ghostty_selection_gesture_event_set.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_event_set(GhosttySelectionGestureEvent event, GhosttySelectionGestureEventOption option, const void *value)
+     * }
+     */
+    public static int ghostty_selection_gesture_event_set(MemorySegment event, int option, MemorySegment value) {
+        var mh$ = ghostty_selection_gesture_event_set.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_selection_gesture_event_set", event, option, value);
+            }
+            return (int)mh$.invokeExact(event, option, value);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_selection_gesture_event {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_selection_gesture_event");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_event(GhosttySelectionGesture gesture, GhosttyTerminal terminal, GhosttySelectionGestureEvent event, GhosttySelection *out_selection)
+     * }
+     */
+    public static FunctionDescriptor ghostty_selection_gesture_event$descriptor() {
+        return ghostty_selection_gesture_event.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_event(GhosttySelectionGesture gesture, GhosttyTerminal terminal, GhosttySelectionGestureEvent event, GhosttySelection *out_selection)
+     * }
+     */
+    public static MethodHandle ghostty_selection_gesture_event$handle() {
+        return ghostty_selection_gesture_event.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_event(GhosttySelectionGesture gesture, GhosttyTerminal terminal, GhosttySelectionGestureEvent event, GhosttySelection *out_selection)
+     * }
+     */
+    public static MemorySegment ghostty_selection_gesture_event$address() {
+        return ghostty_selection_gesture_event.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_event(GhosttySelectionGesture gesture, GhosttyTerminal terminal, GhosttySelectionGestureEvent event, GhosttySelection *out_selection)
+     * }
+     */
+    public static int ghostty_selection_gesture_event(MemorySegment gesture, MemorySegment terminal, MemorySegment event, MemorySegment out_selection) {
+        var mh$ = ghostty_selection_gesture_event.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_selection_gesture_event", gesture, terminal, event, out_selection);
+            }
+            return (int)mh$.invokeExact(gesture, terminal, event, out_selection);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_selection_gesture_new {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_selection_gesture_new");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_new(const GhosttyAllocator *allocator, GhosttySelectionGesture *out_gesture)
+     * }
+     */
+    public static FunctionDescriptor ghostty_selection_gesture_new$descriptor() {
+        return ghostty_selection_gesture_new.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_new(const GhosttyAllocator *allocator, GhosttySelectionGesture *out_gesture)
+     * }
+     */
+    public static MethodHandle ghostty_selection_gesture_new$handle() {
+        return ghostty_selection_gesture_new.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_new(const GhosttyAllocator *allocator, GhosttySelectionGesture *out_gesture)
+     * }
+     */
+    public static MemorySegment ghostty_selection_gesture_new$address() {
+        return ghostty_selection_gesture_new.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_new(const GhosttyAllocator *allocator, GhosttySelectionGesture *out_gesture)
+     * }
+     */
+    public static int ghostty_selection_gesture_new(MemorySegment allocator, MemorySegment out_gesture) {
+        var mh$ = ghostty_selection_gesture_new.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_selection_gesture_new", allocator, out_gesture);
+            }
+            return (int)mh$.invokeExact(allocator, out_gesture);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_selection_gesture_free {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_selection_gesture_free");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void ghostty_selection_gesture_free(GhosttySelectionGesture gesture, GhosttyTerminal terminal)
+     * }
+     */
+    public static FunctionDescriptor ghostty_selection_gesture_free$descriptor() {
+        return ghostty_selection_gesture_free.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void ghostty_selection_gesture_free(GhosttySelectionGesture gesture, GhosttyTerminal terminal)
+     * }
+     */
+    public static MethodHandle ghostty_selection_gesture_free$handle() {
+        return ghostty_selection_gesture_free.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void ghostty_selection_gesture_free(GhosttySelectionGesture gesture, GhosttyTerminal terminal)
+     * }
+     */
+    public static MemorySegment ghostty_selection_gesture_free$address() {
+        return ghostty_selection_gesture_free.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void ghostty_selection_gesture_free(GhosttySelectionGesture gesture, GhosttyTerminal terminal)
+     * }
+     */
+    public static void ghostty_selection_gesture_free(MemorySegment gesture, MemorySegment terminal) {
+        var mh$ = ghostty_selection_gesture_free.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_selection_gesture_free", gesture, terminal);
+            }
+            mh$.invokeExact(gesture, terminal);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_selection_gesture_reset {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_selection_gesture_reset");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void ghostty_selection_gesture_reset(GhosttySelectionGesture gesture, GhosttyTerminal terminal)
+     * }
+     */
+    public static FunctionDescriptor ghostty_selection_gesture_reset$descriptor() {
+        return ghostty_selection_gesture_reset.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void ghostty_selection_gesture_reset(GhosttySelectionGesture gesture, GhosttyTerminal terminal)
+     * }
+     */
+    public static MethodHandle ghostty_selection_gesture_reset$handle() {
+        return ghostty_selection_gesture_reset.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void ghostty_selection_gesture_reset(GhosttySelectionGesture gesture, GhosttyTerminal terminal)
+     * }
+     */
+    public static MemorySegment ghostty_selection_gesture_reset$address() {
+        return ghostty_selection_gesture_reset.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void ghostty_selection_gesture_reset(GhosttySelectionGesture gesture, GhosttyTerminal terminal)
+     * }
+     */
+    public static void ghostty_selection_gesture_reset(MemorySegment gesture, MemorySegment terminal) {
+        var mh$ = ghostty_selection_gesture_reset.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_selection_gesture_reset", gesture, terminal);
+            }
+            mh$.invokeExact(gesture, terminal);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_selection_gesture_get {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_selection_gesture_get");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_get(GhosttySelectionGesture gesture, GhosttyTerminal terminal, GhosttySelectionGestureData data, void *value)
+     * }
+     */
+    public static FunctionDescriptor ghostty_selection_gesture_get$descriptor() {
+        return ghostty_selection_gesture_get.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_get(GhosttySelectionGesture gesture, GhosttyTerminal terminal, GhosttySelectionGestureData data, void *value)
+     * }
+     */
+    public static MethodHandle ghostty_selection_gesture_get$handle() {
+        return ghostty_selection_gesture_get.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_get(GhosttySelectionGesture gesture, GhosttyTerminal terminal, GhosttySelectionGestureData data, void *value)
+     * }
+     */
+    public static MemorySegment ghostty_selection_gesture_get$address() {
+        return ghostty_selection_gesture_get.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_selection_gesture_get(GhosttySelectionGesture gesture, GhosttyTerminal terminal, GhosttySelectionGestureData data, void *value)
+     * }
+     */
+    public static int ghostty_selection_gesture_get(MemorySegment gesture, MemorySegment terminal, int data, MemorySegment value) {
+        var mh$ = ghostty_selection_gesture_get.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_selection_gesture_get", gesture, terminal, data, value);
+            }
+            return (int)mh$.invokeExact(gesture, terminal, data, value);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_terminal_select_all {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_terminal_select_all");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_select_all(GhosttyTerminal terminal, GhosttySelection *out_selection)
+     * }
+     */
+    public static FunctionDescriptor ghostty_terminal_select_all$descriptor() {
+        return ghostty_terminal_select_all.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_select_all(GhosttyTerminal terminal, GhosttySelection *out_selection)
+     * }
+     */
+    public static MethodHandle ghostty_terminal_select_all$handle() {
+        return ghostty_terminal_select_all.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_select_all(GhosttyTerminal terminal, GhosttySelection *out_selection)
+     * }
+     */
+    public static MemorySegment ghostty_terminal_select_all$address() {
+        return ghostty_terminal_select_all.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_select_all(GhosttyTerminal terminal, GhosttySelection *out_selection)
+     * }
+     */
+    public static int ghostty_terminal_select_all(MemorySegment terminal, MemorySegment out_selection) {
+        var mh$ = ghostty_terminal_select_all.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_terminal_select_all", terminal, out_selection);
+            }
+            return (int)mh$.invokeExact(terminal, out_selection);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_terminal_selection_format_alloc {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER,
+            GhosttyTerminalSelectionFormatOptions.layout(),
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_terminal_selection_format_alloc");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_selection_format_alloc(GhosttyTerminal terminal, const GhosttyAllocator *allocator, GhosttyTerminalSelectionFormatOptions options, uint8_t **out_ptr, size_t *out_len)
+     * }
+     */
+    public static FunctionDescriptor ghostty_terminal_selection_format_alloc$descriptor() {
+        return ghostty_terminal_selection_format_alloc.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_selection_format_alloc(GhosttyTerminal terminal, const GhosttyAllocator *allocator, GhosttyTerminalSelectionFormatOptions options, uint8_t **out_ptr, size_t *out_len)
+     * }
+     */
+    public static MethodHandle ghostty_terminal_selection_format_alloc$handle() {
+        return ghostty_terminal_selection_format_alloc.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_selection_format_alloc(GhosttyTerminal terminal, const GhosttyAllocator *allocator, GhosttyTerminalSelectionFormatOptions options, uint8_t **out_ptr, size_t *out_len)
+     * }
+     */
+    public static MemorySegment ghostty_terminal_selection_format_alloc$address() {
+        return ghostty_terminal_selection_format_alloc.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_selection_format_alloc(GhosttyTerminal terminal, const GhosttyAllocator *allocator, GhosttyTerminalSelectionFormatOptions options, uint8_t **out_ptr, size_t *out_len)
+     * }
+     */
+    public static int ghostty_terminal_selection_format_alloc(MemorySegment terminal, MemorySegment allocator, MemorySegment options, MemorySegment out_ptr, MemorySegment out_len) {
+        var mh$ = ghostty_terminal_selection_format_alloc.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_terminal_selection_format_alloc", terminal, allocator, options, out_ptr, out_len);
+            }
+            return (int)mh$.invokeExact(terminal, allocator, options, out_ptr, out_len);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
     private static final int GHOSTTY_KITTY_IMAGE_FORMAT_RGB = (int)0L;
     /**
      * {@snippet lang=c :
@@ -1052,6 +1955,15 @@ public class GhosttyVt extends GhosttyVt$shared {
      */
     public static int GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_SHARED_MEM() {
         return GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_MEDIUM_SHARED_MEM;
+    }
+    private static final int GHOSTTY_TERMINAL_OPT_SELECTION = (int)21L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_TERMINAL_OPT_SELECTION = 21
+     * }
+     */
+    public static int GHOSTTY_TERMINAL_OPT_SELECTION() {
+        return GHOSTTY_TERMINAL_OPT_SELECTION;
     }
     private static final int GHOSTTY_TERMINAL_DATA_INVALID = (int)0L;
     /**
@@ -1874,6 +2786,68 @@ public class GhosttyVt extends GhosttyVt$shared {
                 traceDowncall("ghostty_terminal_get", terminal, data, out);
             }
             return (int)mh$.invokeExact(terminal, data, out);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_terminal_grid_ref {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyPoint.layout(),
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_terminal_grid_ref");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_grid_ref(GhosttyTerminal terminal, GhosttyPoint point, GhosttyGridRef *out_ref)
+     * }
+     */
+    public static FunctionDescriptor ghostty_terminal_grid_ref$descriptor() {
+        return ghostty_terminal_grid_ref.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_grid_ref(GhosttyTerminal terminal, GhosttyPoint point, GhosttyGridRef *out_ref)
+     * }
+     */
+    public static MethodHandle ghostty_terminal_grid_ref$handle() {
+        return ghostty_terminal_grid_ref.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_grid_ref(GhosttyTerminal terminal, GhosttyPoint point, GhosttyGridRef *out_ref)
+     * }
+     */
+    public static MemorySegment ghostty_terminal_grid_ref$address() {
+        return ghostty_terminal_grid_ref.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_grid_ref(GhosttyTerminal terminal, GhosttyPoint point, GhosttyGridRef *out_ref)
+     * }
+     */
+    public static int ghostty_terminal_grid_ref(MemorySegment terminal, MemorySegment point, MemorySegment out_ref) {
+        var mh$ = ghostty_terminal_grid_ref.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_terminal_grid_ref", terminal, point, out_ref);
+            }
+            return (int)mh$.invokeExact(terminal, point, out_ref);
         } catch (Error | RuntimeException ex) {
            throw ex;
         } catch (Throwable ex$) {

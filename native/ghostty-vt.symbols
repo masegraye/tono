@@ -65,3 +65,18 @@ ghostty_kitty_graphics_image(_get)?
 GHOSTTY_KITTY_IMAGE_(DATA|FORMAT)_.*
 ghostty_build_info
 GHOSTTY_BUILD_INFO_KITTY_GRAPHICS
+
+# Selecting text: turning presses and drags into a selection, which the terminal then keeps
+# in step with its text, reading which cells of a row are in it, and copying it out
+ghostty_selection_gesture_(new|free|reset|get|event)
+ghostty_selection_gesture_event_(new|free|set)
+ghostty_terminal_(grid_ref|select_all|selection_format_alloc)
+GhosttySelection(GestureGeometry)?
+GhosttyGridRef
+GhosttyPoint(Value|Coordinate)?
+GhosttySurfacePosition
+GhosttyTerminalSelectionFormatOptions
+GhosttyRenderStateRowSelection
+GHOSTTY_SELECTION_GESTURE_(EVENT_TYPE|EVENT_OPT|DATA|AUTOSCROLL)_.*
+GHOSTTY_POINT_TAG_.*
+GHOSTTY_TERMINAL_OPT_SELECTION

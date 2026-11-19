@@ -90,6 +90,7 @@
     while (memory[end]) end++;
     T = JSON.parse(new TextDecoder().decode(memory.subarray(json, end))).types;
     slots = ex.ghostty_wasm_alloc(1280);
+    selecting = ex.ghostty_wasm_alloc(128);
   }
 
   // --- Terminals ---
@@ -268,9 +269,11 @@
   /**
    * Describes what to draw, as one string.
    *
-   * The first record is "columns US background US foreground US cursor US images", where
-   * cursor is empty when it is hidden and otherwise "column,row,shape,blinking,color" (color
-   * -1 for the foreground), and images is as `describeImages` says. Then one record per visible row, top to bottom: "=" and the row's id when
+   * The first record is "columns US background US foreground US cursor US images US
+   * selection", where cursor is empty when it is hidden and otherwise
+   * "column,row,shape,blinking,color" (color -1 for the foreground), images is as
+   * `describeImages` says, and selection is the selected cells on screen, "row,first
+   * column,last column" for each row that has some, with ";" between. Then one record per visible row, top to bottom: "=" and the row's id when
    * the row is unchanged since the last frame, or "+" and its id followed by its runs, each
    * six fields: column, cells, foreground, background (-1 for none), flags (1 bold, 2 italic,
    * 4 underline, 8 strikethrough) and text. A row keeps its id as it scrolls.
@@ -300,7 +303,15 @@
     const rowGet = (data, out) => check('render_state_row_get', ex.ghostty_render_state_row_get(iterator, E('GhosttyRenderStateRowData', data), out));
     const out = [];
     const known = new Set();
+    const selected = [];
+    const rowSelection = slots + SLOT.c;
     while (ex.ghostty_render_state_row_iterator_next(iterator)) {
+      // Asked of every row, changed or not: selecting changes no row's content.
+      view().setUint32(rowSelection, sizeOf('GhosttyRenderStateRowSelection'), true);
+      if (ex.ghostty_render_state_row_get(iterator, E('GhosttyRenderStateRowData', 'SELECTION'), rowSelection) === OK) {
+        selected.push(out.length + ',' + view().getUint16(rowSelection + F('GhosttyRenderStateRowSelection', 'start_x'), true) +
+          ',' + view().getUint16(rowSelection + F('GhosttyRenderStateRowSelection', 'end_x'), true));
+      }
       rowGet('ID', slots + SLOT.b);
       const id = view().getBigUint64(slots + SLOT.b, true).toString(36) + '.' + view().getBigUint64(slots + SLOT.b + 8, true).toString(36);
       rowGet('DIRTY', slots + SLOT.a);
@@ -328,7 +339,7 @@
       : '';
     const images = describeImages(state, renderer);
     check('render_state_clean', ex.ghostty_render_state_clean(state));
-    return [columns, background, foreground, cursorText, images].join(US) + (out.length ? RS + out.join(RS) : '');
+    return [columns, background, foreground, cursorText, images, selected.join(';')].join(US) + (out.length ? RS + out.join(RS) : '');
   }
 
   /**
@@ -541,7 +552,165 @@
     return take(buffer, view().getUint32(slots + SLOT.a, true));
   }
 
+  // --- Selecting text ---
+  //
+  // The library turns presses and drags into a selection, and the terminal then keeps it:
+  // see ghostty/src@jvm/GhosttySelection.kt, which this mirrors.
+
+  let selecting = 0; // memory for what an event is told, laid out as SEL says
+  const SEL = { point: 0, cell: 24, position: 40, geometry: 56, selection: 72, number: 104, options: 112 };
+  /** How soon a press has to follow the last to make a double or triple click. */
+  const REPEAT_CLICK_NS = 500000000n;
+  const selections = new Map(); // by gesture: its events, and the terminal it was last used with
+
+  function selectionNew() {
+    check('selection_gesture_new', ex.ghostty_selection_gesture_new(0, slots + SLOT.a));
+    const gesture = view().getUint32(slots + SLOT.a, true);
+    const event = (type) => {
+      check('selection_gesture_event_new', ex.ghostty_selection_gesture_event_new(0, slots + SLOT.a, E('GhosttySelectionGestureEventType', type)));
+      return view().getUint32(slots + SLOT.a, true);
+    };
+    selections.set(gesture, { press: event('PRESS'), drag: event('DRAG'), release: event('RELEASE'), tick: event('AUTOSCROLL_TICK'), terminal: 0 });
+    return gesture;
+  }
+
+  /** Frees a gesture. The terminal it was last used with must still be there. */
+  function selectionFree(gesture) {
+    const held = selections.get(gesture);
+    if (!held) return;
+    ex.ghostty_selection_gesture_free(gesture, held.terminal);
+    for (const event of [held.press, held.drag, held.release, held.tick]) ex.ghostty_selection_gesture_event_free(event);
+    selections.delete(gesture);
+  }
+
+  /**
+   * Fills in where a position is: the cell under it, the position in pixels, and the
+   * terminal's size. One outside the terminal counts as the nearest cell at its edge.
+   */
+  function selectionAim(held, terminal, x, y, cellWidth, cellHeight) {
+    if (cellWidth <= 0 || cellHeight <= 0) return false;
+    const columns = terminalColumns(terminal);
+    const rows = terminalRows(terminal);
+    if (columns <= 0 || rows <= 0) return false;
+    held.terminal = terminal;
+    const clamp = (value, most) => Math.min(Math.max(Math.trunc(value), 0), most);
+    const point = selecting + SEL.point;
+    bytes().fill(0, point, point + sizeOf('GhosttyPoint'));
+    const coordinate = point + F('GhosttyPoint', 'value') + F('GhosttyPointValue', 'coordinate');
+    view().setInt32(point + F('GhosttyPoint', 'tag'), E('GhosttyPointTag', 'VIEWPORT'), true);
+    view().setUint16(coordinate + F('GhosttyPointCoordinate', 'x'), clamp(x / cellWidth, columns - 1), true);
+    view().setUint32(coordinate + F('GhosttyPointCoordinate', 'y'), clamp(y / cellHeight, rows - 1), true);
+    const cell = selecting + SEL.cell;
+    view().setUint32(cell, sizeOf('GhosttyGridRef'), true);
+    if (ex.ghostty_terminal_grid_ref(terminal, point, cell) !== OK) return false;
+    view().setFloat64(selecting + SEL.position + F('GhosttySurfacePosition', 'x'), x, true);
+    view().setFloat64(selecting + SEL.position + F('GhosttySurfacePosition', 'y'), y, true);
+    const geometry = selecting + SEL.geometry;
+    view().setUint32(geometry + F('GhosttySelectionGestureGeometry', 'columns'), columns, true);
+    view().setUint32(geometry + F('GhosttySelectionGestureGeometry', 'cell_width'), cellWidth, true);
+    view().setUint32(geometry + F('GhosttySelectionGestureGeometry', 'padding_left'), 0, true);
+    view().setUint32(geometry + F('GhosttySelectionGestureGeometry', 'screen_height'), rows * cellHeight, true);
+    return true;
+  }
+  const selectionSet = (event, option, value) =>
+    check('selection_gesture_event_set', ex.ghostty_selection_gesture_event_set(event, E('GhosttySelectionGestureEventOption', option), value));
+  /** The terminal takes the selection over from here, and moves it with its text. 0 for none. */
+  const selectionInstall = (terminal, selection) =>
+    check('terminal_set', ex.ghostty_terminal_set(terminal, E('GhosttyTerminalOption', 'SELECTION'), selection));
+  /** Gives the gesture an event, and makes what it says is selected the terminal's selection. */
+  function selectionApply(gesture, terminal, event, clearWhenNone) {
+    const selection = selecting + SEL.selection;
+    view().setUint32(selection, sizeOf('GhosttySelection'), true);
+    const result = ex.ghostty_selection_gesture_event(gesture, terminal, event, selection);
+    if (result === OK) selectionInstall(terminal, selection);
+    else if (result !== E('GhosttyResult', 'NO_VALUE')) check('selection_gesture_event', result);
+    else if (clearWhenNone) selectionInstall(terminal, 0);
+  }
+  function selectionWantsScrolling(gesture, terminal) {
+    const number = selecting + SEL.number;
+    return ex.ghostty_selection_gesture_get(gesture, terminal, E('GhosttySelectionGestureData', 'AUTOSCROLL'), number) === OK &&
+      view().getInt32(number, true) !== E('GhosttySelectionGestureAutoscroll', 'NONE');
+  }
+
+  /** The left button went down. `timeMillis` tells a second press from a first. */
+  function selectionPress(gesture, terminal, x, y, cellWidth, cellHeight, timeMillis) {
+    const held = selections.get(gesture);
+    if (!selectionAim(held, terminal, x, y, cellWidth, cellHeight)) return;
+    const number = selecting + SEL.number;
+    selectionSet(held.press, 'REF', selecting + SEL.cell);
+    selectionSet(held.press, 'POSITION', selecting + SEL.position);
+    view().setFloat64(number, cellWidth, true);
+    selectionSet(held.press, 'REPEAT_DISTANCE', number);
+    view().setBigUint64(number, BigInt(Math.round(timeMillis)) * 1000000n, true);
+    selectionSet(held.press, 'TIME_NS', number);
+    view().setBigUint64(number, REPEAT_CLICK_NS, true);
+    selectionSet(held.press, 'REPEAT_INTERVAL_NS', number);
+    selectionApply(gesture, terminal, held.press, true);
+  }
+
+  /** The pointer moved with the button held. Returns whether to start scrolling (`selectionAutoscroll`). */
+  function selectionDrag(gesture, terminal, x, y, cellWidth, cellHeight) {
+    const held = selections.get(gesture);
+    if (!selectionAim(held, terminal, x, y, cellWidth, cellHeight)) return false;
+    selectionSet(held.drag, 'REF', selecting + SEL.cell);
+    selectionSet(held.drag, 'POSITION', selecting + SEL.position);
+    selectionSet(held.drag, 'GEOMETRY', selecting + SEL.geometry);
+    selectionApply(gesture, terminal, held.drag, true);
+    return selectionWantsScrolling(gesture, terminal);
+  }
+
+  function selectionRelease(gesture, terminal, x, y, cellWidth, cellHeight) {
+    const held = selections.get(gesture);
+    if (!selectionAim(held, terminal, x, y, cellWidth, cellHeight)) return;
+    selectionSet(held.release, 'REF', selecting + SEL.cell);
+    selectionApply(gesture, terminal, held.release, false);
+  }
+
+  /** Scrolls a row towards the edge the pointer is held at, and extends the selection. Returns whether to go on. */
+  function selectionAutoscroll(gesture, terminal, x, y, cellWidth, cellHeight) {
+    const held = selections.get(gesture);
+    if (!selectionAim(held, terminal, x, y, cellWidth, cellHeight)) return false;
+    selectionSet(held.tick, 'VIEWPORT', selecting + SEL.point + F('GhosttyPoint', 'value') + F('GhosttyPointValue', 'coordinate'));
+    selectionSet(held.tick, 'POSITION', selecting + SEL.position);
+    selectionSet(held.tick, 'GEOMETRY', selecting + SEL.geometry);
+    selectionApply(gesture, terminal, held.tick, false);
+    return selectionWantsScrolling(gesture, terminal);
+  }
+
+  function selectionAll(terminal) {
+    const selection = selecting + SEL.selection;
+    view().setUint32(selection, sizeOf('GhosttySelection'), true);
+    if (ex.ghostty_terminal_select_all(terminal, selection) === OK) selectionInstall(terminal, selection);
+  }
+
+  const selectionClear = (terminal) => selectionInstall(terminal, 0);
+
+  /**
+   * The selected text as it is copied, as UTF-8 bytes: a line the terminal wrapped is one
+   * line, and the blanks after the end of a line are left out. Empty when nothing is selected.
+   */
+  function selectionText(terminal) {
+    const options = selecting + SEL.options;
+    bytes().fill(0, options, options + sizeOf('GhosttyTerminalSelectionFormatOptions'));
+    view().setUint32(options, sizeOf('GhosttyTerminalSelectionFormatOptions'), true);
+    view().setInt32(options + F('GhosttyTerminalSelectionFormatOptions', 'emit'), E('GhosttyFormatterFormat', 'PLAIN'), true);
+    bytes()[options + F('GhosttyTerminalSelectionFormatOptions', 'unwrap')] = 1;
+    bytes()[options + F('GhosttyTerminalSelectionFormatOptions', 'trim')] = 1;
+    const result = ex.ghostty_terminal_selection_format_alloc(terminal, 0, options, slots + SLOT.a, slots + SLOT.b);
+    if (result === E('GhosttyResult', 'NO_VALUE')) return '';
+    check('terminal_selection_format_alloc', result);
+    const pointer = view().getUint32(slots + SLOT.a, true);
+    const length = view().getUint32(slots + SLOT.b, true);
+    if (!pointer || !length) return '';
+    try {
+      return take(pointer, length);
+    } finally {
+      ex.ghostty_free(0, pointer, length);
+    }
+  }
+
   globalThis.GhosttyGlue = {
+    selectionNew, selectionFree, selectionPress, selectionDrag, selectionRelease, selectionAutoscroll, selectionAll, selectionClear, selectionText,
     init, terminalNew, terminalRestore, terminalFree, terminalWrite, terminalResize, terminalColumns, terminalRows,
     terminalWidthPx, terminalHeightPx, terminalSetColors, terminalScrollBy, terminalScrollToBottom, terminalBracketedPaste,
     pasteEncode, rendererNew, rendererFree, rendererInvalidate, render, imageRead, mouseNew, mouseFree, mouseEncode,

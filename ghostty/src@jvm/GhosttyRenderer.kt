@@ -3,6 +3,7 @@ package org.example.kotlintest.ghostty
 import org.example.kotlintest.ghostty.ffi.GhosttyColorRgb
 import org.example.kotlintest.ghostty.ffi.GhosttyRenderStateColors
 import org.example.kotlintest.ghostty.ffi.GhosttyRenderStateCursor
+import org.example.kotlintest.ghostty.ffi.GhosttyRenderStateRowSelection
 import org.example.kotlintest.ghostty.ffi.GhosttyStyle
 import org.example.kotlintest.ghostty.ffi.GhosttyVt
 import java.lang.foreign.Arena
@@ -39,6 +40,7 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
     private val styleOut = arena.allocate(GhosttyStyle.layout())
     private val cursorOut = arena.allocate(GhosttyRenderStateCursor.layout())
     private val colorsOut = arena.allocate(GhosttyRenderStateColors.layout())
+    private val selectionOut = arena.allocate(GhosttyRenderStateRowSelection.layout())
     private var codepointsCapacity = 16
     private var codepointsOut = arena.allocate(JAVA_INT, codepointsCapacity.toLong())
 
@@ -69,6 +71,7 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
         GhosttyStyle.size(styleOut, GhosttyStyle.sizeof())
         GhosttyRenderStateCursor.size(cursorOut, GhosttyRenderStateCursor.sizeof())
         GhosttyRenderStateColors.size(colorsOut, GhosttyRenderStateColors.sizeof())
+        GhosttyRenderStateRowSelection.size(selectionOut, GhosttyRenderStateRowSelection.sizeof())
     }
 
     /** Forgets the cached rows, so the next [render] rebuilds every one. Call it after changing colors. */
@@ -96,7 +99,17 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
         check("render_state_get", GhosttyVt.ghostty_render_state_get(state, GhosttyVt.GHOSTTY_RENDER_STATE_DATA_ROW_ITERATOR(), iteratorRef))
         val rows = ArrayList<TerminalRow>()
         val nextCache = HashMap<RowId, TerminalRow>()
+        var selection: ArrayList<SelectedCells>? = null
         while (GhosttyVt.ghostty_render_state_row_iterator_next(iterator)) {
+            // Asked of every row, changed or not: selecting changes no row's content.
+            if (GhosttyVt.ghostty_render_state_row_get(iterator, GhosttyVt.GHOSTTY_RENDER_STATE_ROW_DATA_SELECTION(), selectionOut) == GhosttyVt.GHOSTTY_SUCCESS()) {
+                val cells = SelectedCells(
+                    row = rows.size,
+                    firstColumn = GhosttyRenderStateRowSelection.start_x(selectionOut).toInt() and 0xFFFF,
+                    lastColumn = GhosttyRenderStateRowSelection.end_x(selectionOut).toInt() and 0xFFFF,
+                )
+                (selection ?: ArrayList<SelectedCells>().also { selection = it }) += cells
+            }
             // A row keeps its id as it scrolls, so an unchanged row is found again wherever it moved to.
             rowGet(GhosttyVt.GHOSTTY_RENDER_STATE_ROW_DATA_ID(), rowIdOut)
             val id = RowId(rowIdOut.get(JAVA_LONG, 0), rowIdOut.get(JAVA_LONG, 8))
@@ -118,7 +131,7 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
         val cursor = readCursor(cursorColor)
         readImages(terminal)
         check("render_state_clean", GhosttyVt.ghostty_render_state_clean(state))
-        return TerminalFrame(columns, rows, background, foreground, cursor, placements, terminal.cellWidthPx, terminal.cellHeightPx)
+        return TerminalFrame(columns, rows, background, foreground, cursor, placements, terminal.cellWidthPx, terminal.cellHeightPx, selection ?: emptyList())
     }
 
     /**
