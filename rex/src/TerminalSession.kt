@@ -335,6 +335,14 @@ class TerminalSession internal constructor(
                     }
                     commands.onReceive { command ->
                         handleCommand(live, renderer, pointer, selection, searching, command)
+                        // And whatever else was asked for meanwhile, so that it is all drawn once. A wheel
+                        // turned fast asks many times in the time one frame takes: taken one to a frame,
+                        // thirty turns went on scrolling for a fifth of a second after the wheel had stopped.
+                        var budget = DRAIN_COMMANDS
+                        while (budget-- > 0) {
+                            val next = commands.tryReceive().getOrNull() ?: break
+                            handleCommand(live, renderer, pointer, selection, searching, next)
+                        }
                         true
                     }
                     // A long history is searched a little at a time, between frames.
@@ -482,6 +490,8 @@ class TerminalSession internal constructor(
         /** A short pause after each frame lets output that arrives in pieces be drawn together. */
         const val FRAME_INTERVAL_MILLIS = 4L
         const val DRAIN_BYTES = 4 shl 20
+        /** How many things asked of the terminal are done before a frame is drawn, when that many are waiting. */
+        const val DRAIN_COMMANDS = 256
         const val CLOSE_BLOCK_CLOSED: Short = 4000
         /** How long between rows while a selection is dragged past the top or bottom edge. */
         const val AUTOSCROLL_MILLIS = 30L
