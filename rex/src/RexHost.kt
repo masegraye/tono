@@ -203,6 +203,15 @@ class RexHost(
     private val mutableState = MutableStateFlow(HostState(shownWindows = rememberedTabs))
     val state: StateFlow<HostState> get() = mutableState
 
+    /**
+     * How many requests to show another session or tab are waiting or under way. Until they
+     * are done, the tab on screen may be one that is only being passed through: asked for
+     * twice in a row, the second tab shows at once, then the first as its session is
+     * attached, then the second again.
+     */
+    val moving: StateFlow<Int> get() = mutableMoving
+    private val mutableMoving = MutableStateFlow(0)
+
     /** Work for the control connection, done one at a time in the order it was asked for. */
     private val actions = Channel<suspend (RexControl) -> Unit>(Channel.UNLIMITED)
     private val retryNow = Channel<Unit>(Channel.CONFLATED)
@@ -244,7 +253,7 @@ class RexHost(
     // What the user can do. Each is queued and runs in order on the control connection.
 
     /** Shows another session. */
-    fun selectSession(sessionId: String) = act("select session") { attach(it, sessionId) }
+    fun selectSession(sessionId: String) = act("select session", moves = true) { attach(it, sessionId) }
 
     /**
      * Shows a tab of any session, selecting the session if it isn't the one showing.
@@ -255,7 +264,7 @@ class RexHost(
      */
     fun showTab(sessionId: String, windowId: String) {
         setShown(sessionId, windowId)
-        act("show tab") { control ->
+        act("show tab", moves = true) { control ->
             // Going to a tab claims its terminals afresh, as in Rex.app: whatever another
             // client did with them since this one last had them, the tab is in use here now.
             state.value.views[sessionId]?.windows?.firstOrNull { it.id == windowId }?.panes?.forEach { claimedInFront.remove(it.blockId) }
@@ -702,13 +711,16 @@ class RexHost(
     fun close() = scope.cancel()
 
     /** Queues work for the connection. [what] names it in the log; null keeps it out (typing, resizing). */
-    private fun act(what: String?, action: suspend (RexControl) -> Unit) {
+    private fun act(what: String?, moves: Boolean = false, action: suspend (RexControl) -> Unit) {
+        if (moves) mutableMoving.update { it + 1 }
         actions.trySend { control ->
             try {
                 action(control)
                 if (what != null) log.add(saved.label, "→ $what")
             } catch (refused: RexError) {
                 log.add(saved.label, "✗ ${what ?: "request"}: ${refused.message}", isError = true)
+            } finally {
+                if (moves) mutableMoving.update { it - 1 }
             }
         }
     }

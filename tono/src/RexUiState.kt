@@ -321,7 +321,8 @@ class RexUiState(val client: RexClient) {
     fun observeNavigation() {
         val hosts = statesByLabel()
         history.retain { isStillThere(it, hosts) }
-        placeShown?.let(history::observe)
+        // A host still working through what it was asked to show may be showing a place on the way.
+        if (host?.moving?.value == 0) placeShown?.let(history::observe)
     }
 
     /** Whether there is a tab to go back, or forward, to. */
@@ -349,7 +350,7 @@ class RexUiState(val client: RexClient) {
         observeNavigation()
         history.heading(stop)
         show(stop)
-        observeNavigation() // already there, as often as not: a tab of the session showing changes at once
+        observeNavigation()
     }
 
     private fun show(stop: NavigationStop) {

@@ -160,6 +160,8 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
         if (hosts.isEmpty()) return@LaunchedEffect
         combine(hosts.map { it.state }) { states -> states.map { Triple(it.connection, it.selectedSessionId to it.window?.id, it.sessions.map { s -> s.id } to it.views.mapValues { (_, view) -> view.windows.map { w -> w.id } }) } }
             .combine(ui.client.selectedHost) { states, label -> states to label }
+            // A host passes through other tabs on its way to the one asked for, and says when it is done.
+            .combine(combine(hosts.map { it.moving }) { moving -> moving.map { it == 0 } }) { places, settled -> places to settled }
             .distinctUntilChanged()
             .collect { ui.observeNavigation() }
     }
