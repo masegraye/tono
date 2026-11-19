@@ -39,7 +39,7 @@ A TestFlight build of the existing showcase app could go up within an hour of ha
 |---|---|---|
 | this one (omarchy) | Linux | no Xcode; can't build iOS at all |
 | neocrypter | macOS, on the tailnet | SSH refused (port 22 closed) |
-| spacepandaiii | macOS, on the tailnet | answers SSH, but its host key isn't in `known_hosts` here; not tried further |
+| spacepandaiii | macOS, on the tailnet; 12 cores, 96 GB, Xcode 16.3 | **the build Mac.** Tono is checked out at `~/dev/tono` (2026-11-18). SSH doesn't accept omwork's key; drive it with `rex -S spacepandaiii` in a scratch `kt-*` session, using `--shell=none -- /bin/zsh -lc '…'`, since an interactive shell stops at oh-my-zsh's update question. It has git, mise, brew, gh and task, but no Zig (mise can install it) |
 | ipad172, iphone182 | iOS, on the tailnet | offline for weeks; would be test devices |
 
 Either Mac would do once Remote Login is on and Xcode is installed. GitHub Actions' macOS runners are the alternative for CI. The repository is `masegraye/tono` on GitHub.
