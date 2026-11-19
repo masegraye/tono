@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | done (commits `bd7287d`, `45fed5d`, 2026-11-18) |
+| Status | done (commits `c98bc66`, `1d98638`, `613bbce`, 2026-11-18) |
 | Area | The sidebar |
 | Size | small |
 | Source | noticed while fixing a host that stayed "connected" after its machine went away |
@@ -56,6 +56,21 @@ worker.
   web app in headless Chromium: a host at a tailnet address that never answers was dimmed,
   pulsing and "Connecting…" for about ten seconds and then red; with the page's relay stopped,
   the local host, which had been connected, went red with "Reconnecting…".
+
+Two things were added after a first review:
+
+- **Nothing is listed under a host that isn't connected**, as the guide already said. Its old
+  session headings used to stay, each over no tabs and counting "0". Its state still holds
+  the sessions, and they are listed again, folded as they were, when it connects. Rex Rune's
+  code keeps an offline host's session rows; none of its documents say that is meant, and a
+  session row there is something to switch to, where a heading here is only a title over tabs
+  that are gone.
+- **The "Try again now" button is not offered during a first attempt**, when there is nothing
+  to try again. A host that is down or reconnecting keeps it.
+
+Both are in the render test, and were seen in the web app: with the relay stopped, the local
+host had nothing under it; with it started again the sessions were back, the folded ones
+still folded.
 
 Decisions made while building, none of them asked for:
 
