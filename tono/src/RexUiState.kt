@@ -22,6 +22,7 @@ import org.example.kotlintest.rex.RexHost
 import org.example.kotlintest.rex.SessionView
 import org.example.kotlintest.rex.TailnetServer
 import org.example.kotlintest.rex.TerminalSession
+import org.example.kotlintest.rex.ShortcutTarget
 import org.example.kotlintest.rex.WindowView
 import org.example.kotlintest.rex.hasDefaultLabel
 import org.example.kotlintest.rex.hasNews
@@ -39,6 +40,8 @@ enum class PaletteMode {
     InsertPath,
     /** Browsing it for a folder, to type `cd` and its path. */
     GoToDirectory,
+    /** Choosing which action's shortcut to change: every action, with its keys and where they come from. */
+    Shortcuts,
 }
 
 /**
@@ -100,12 +103,15 @@ class RexUiState(val client: RexClient) {
     var renamingPane: PaneRename? by mutableStateOf(null)
     var renamingSession: SessionRename? by mutableStateOf(null)
 
+    /** The action whose shortcut is being changed, while the keys for it are being recorded: see ChangeShortcut.kt. */
+    var shortcutEdit: ShortcutTarget? by mutableStateOf(null)
+
     /** The menu of a pane, while it is open: see PaneMenu.kt. */
     var paneMenu: PaneMenu? by mutableStateOf(null)
 
     /** Opens the menu of a pane, which is given the keyboard if it doesn't have it, since that is the pane actions act on. */
     fun openPaneMenu(host: RexHost, blockId: String, at: androidx.compose.ui.geometry.Offset?) {
-        if (palette != null || renamingAnything || confirmation != null) return
+        if (palette != null || renamingAnything || confirmation != null || shortcutEdit != null) return
         if (hostState?.window?.keyboardBlockId != blockId) host.focusBlock(blockId)
         paneMenu = PaneMenu(host, blockId, at)
     }
@@ -229,7 +235,7 @@ class RexUiState(val client: RexClient) {
         private set
 
     /** Whether something is open over the terminals and has the keyboard: the palette, a dialog, or a pane's menu. */
-    val overlayOpen: Boolean get() = palette != null || renamingAnything || confirmation != null || paneMenu != null
+    val overlayOpen: Boolean get() = palette != null || renamingAnything || confirmation != null || paneMenu != null || shortcutEdit != null
 
     /**
      * Whether text a program copied should go on the clipboard: see [takesCopy].

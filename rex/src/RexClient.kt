@@ -75,6 +75,11 @@ class RexClient(
     /** What each key does. Starts as the app's defaults, then follows the home server's configuration. */
     val keymap: StateFlow<Keymap> get() = mutableKeymap
 
+    private val mutableShortcuts = MutableStateFlow(workspace.shortcuts)
+
+    /** The shortcuts changed in this app: its own layer of the keymap, above the configuration file. */
+    val shortcuts: StateFlow<ShortcutOverrides> get() = mutableShortcuts
+
     private val mutableTabNews = MutableSharedFlow<TabNews>(extraBufferCapacity = 16, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     /**
@@ -238,22 +243,84 @@ class RexClient(
     fun declareKeymap(actions: List<RexAction>, defaults: List<KeyBinding>) {
         declaredActions = actions
         defaultBindings = defaults
-        // Until the server answers, and whenever it can't be reached: the defaults as they are.
-        // Later bindings sit above earlier ones, and the keymap lists the top first.
-        mutableKeymap.value = Keymap(defaults.reversed())
+        // Until the server answers, and whenever it can't be reached: the defaults as they
+        // are, with the shortcuts changed in this app.
+        mutableKeymap.value = resolveLocally(defaults, mutableShortcuts.value)
+        resolvedShortcuts = mutableShortcuts.value
         keymapRefresh.trySend(Unit)
     }
 
     private suspend fun resolveKeymap() {
-        val home = home ?: return
-        if (home.state.value.connection != HostConnection.Connected || declaredActions.isEmpty()) return
-        runCatching { home.keymap(declaredActions, defaultBindings) }
+        if (declaredActions.isEmpty()) return
+        val overrides = mutableShortcuts.value
+        val home = home?.takeIf { it.state.value.connection == HostConnection.Connected }
+        if (home == null) {
+            // Nobody to ask. A change made meanwhile still applies, over the defaults alone.
+            if (resolvedShortcuts != overrides) mutableKeymap.value = resolveLocally(defaultBindings, overrides)
+            resolvedShortcuts = overrides
+            return
+        }
+        runCatching { home.keymap(declaredActions, defaultBindings, overrides) }
             .onSuccess { resolved ->
                 mutableKeymap.value = resolved
-                val configured = resolved.bindings.count { it.source != "default" }
-                log.add("keys", "keymap from ${home.saved.label}: ${resolved.bindings.size} bindings, $configured from the configuration file, ${resolved.serverActions.size} server actions")
+                resolvedShortcuts = overrides
+                val recorded = resolved.bindings.count { it.source == SHORTCUT_LAYER }
+                val configured = resolved.bindings.count { it.source != "default" && it.source != SHORTCUT_LAYER }
+                log.add("keys", "keymap from ${home.saved.label}: ${resolved.bindings.size} bindings, $configured from the configuration file, $recorded bound and ${overrides.removals.size} removed in this app, ${resolved.serverActions.size} server actions")
+                // Only what is wrong with this app's own layer. A person can put that right here.
+                for (problem in resolved.diagnostics.filter { it.source == SHORTCUT_LAYER }) {
+                    log.add("keys", "shortcuts changed in this app: ${problem.message}", isError = problem.severity == "error")
+                }
             }
             .onFailure { log.add("keys", "couldn't read the keymap: ${it.message}", isError = true) }
+    }
+
+    /** The layer the keymap on show was resolved with. */
+    @Volatile private var resolvedShortcuts: ShortcutOverrides? = null
+
+    /**
+     * Each of [targets] with the keys it has now and where they come from: the defaults, the
+     * configuration file, or this app.
+     */
+    fun shortcutList(targets: List<ShortcutTarget>): List<Shortcut> = shortcutList(targets, mutableKeymap.value, mutableShortcuts.value)
+
+    /** What else a key is bound to now. [setShortcut] takes those off it, so ask before calling it when there are any. */
+    fun shortcutConflicts(action: String, args: JsonObject?, chord: KeyChord): List<KeyBinding> =
+        mutableShortcuts.value.conflicts(action, args, chord, mutableKeymap.value)
+
+    /** Gives an action one shortcut, for this app alone, in place of whatever it had. Applies at once, and is remembered. */
+    fun setShortcut(action: String, args: JsonObject?, chord: KeyChord) {
+        changeShortcuts("$action${args.shown()} set to ${chord.toWire()}") { it.set(action, args, chord, mutableKeymap.value) }
+    }
+
+    /** Leaves an action with no shortcut in this app, so that its keys reach the terminal. */
+    fun removeShortcut(action: String, args: JsonObject?) {
+        changeShortcuts("$action${args.shown()} left with no shortcut") { it.remove(action, args, mutableKeymap.value) }
+    }
+
+    /** The keys an action has when nothing has changed them, as this app declares them. */
+    fun defaultShortcuts(action: String, args: JsonObject?): List<KeyBinding> = defaultBindings.filter { it.isFor(action, args) }
+
+    /** The bindings made in this app that sit on an action's default keys. [resetShortcut] takes them off. */
+    fun shortcutResetConflicts(action: String, args: JsonObject?): List<ShortcutBinding> =
+        mutableShortcuts.value.resetConflicts(action, args, defaultBindings)
+
+    /** Forgets what was changed in this app about an action, so it has its default keys, or the configuration file's. */
+    fun resetShortcut(action: String, args: JsonObject?) {
+        changeShortcuts("$action${args.shown()} reset") { it.reset(action, args, defaultBindings) }
+    }
+
+    private fun JsonObject?.shown() = this?.takeIf { it.isNotEmpty() }?.let { " $it" }.orEmpty()
+
+    private fun changeShortcuts(what: String, change: (ShortcutOverrides) -> ShortcutOverrides) {
+        val before = mutableShortcuts.value
+        val after = change(before)
+        if (after == before) return
+        mutableShortcuts.value = after
+        workspace.shortcuts = after
+        workspace.save()
+        log.add("keys", "shortcut changed: $what")
+        keymapRefresh.trySend(Unit)
     }
 
     fun selectHost(label: String) {

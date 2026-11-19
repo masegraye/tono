@@ -81,7 +81,30 @@ data class KeyBinding(
     val args: JsonObject? = null,
     /** Where the binding came from: a layer name such as `default`, or a file and line. */
     val source: String? = null,
+    /**
+     * The keys as the server spelled them, where that isn't how [KeyChord.toWire] spells them
+     * (`ctrl+[KeyK]`). A removal has to use the same spelling to take the binding off.
+     */
+    val spelled: List<String>? = null,
+) {
+    /** The keys as a removal names them. */
+    val wireKeys: List<String> get() = spelled ?: keys.map { it.toWire() }
+
+    /** Whether this binds [action] with these arguments exactly. No arguments and empty ones are the same. */
+    fun isFor(action: String, args: JsonObject?): Boolean = this.action == action && sameArgs(this.args, args)
+}
+
+/** A problem the server found in the keymap, such as a binding to an action that doesn't exist. */
+data class KeymapDiagnostic(
+    val severity: String,
+    val message: String,
+    /** The layer or `file:line` it is about, if known. */
+    val source: String? = null,
+    val action: String? = null,
+    val key: String? = null,
 )
+
+internal fun sameArgs(one: JsonObject?, other: JsonObject?): Boolean = one?.takeIf { it.isNotEmpty() } == other?.takeIf { it.isNotEmpty() }
 
 /**
  * What each key does, as the server resolved it: this client's default bindings with the
@@ -92,6 +115,8 @@ class Keymap(
     val bindings: List<KeyBinding>,
     /** Actions the server performs, such as clearing a terminal, that keys can be bound to. */
     val serverActions: List<RexAction> = emptyList(),
+    /** What the server found wrong with the keymap. */
+    val diagnostics: List<KeymapDiagnostic> = emptyList(),
 ) {
     /** The bindings on a single key press, in the order to try them. Sequences aren't supported yet. */
     fun bindingsFor(chord: KeyChord): List<KeyBinding> = bindings.filter { it.keys.size == 1 && it.keys[0] == chord }
@@ -99,10 +124,16 @@ class Keymap(
     /** The key to show beside an action in a menu, if it has one. */
     fun shortcutFor(action: String, args: JsonObject? = null): KeyChord? =
         bindings.firstOrNull { it.keys.size == 1 && it.action == action && (args == null || it.args == args) }?.keys?.first()
+
+    /** Every binding of an action with exactly these arguments, topmost first. */
+    fun bindingsOf(action: String, args: JsonObject? = null): List<KeyBinding> = bindings.filter { it.isFor(action, args) }
 }
 
-/** The `client.keymap` request that declares this client's actions and default bindings. */
-internal fun keymapRequest(actions: List<RexAction>, defaults: List<KeyBinding>): JsonObject = buildJsonObject {
+/**
+ * The `client.keymap` request that declares this client's actions and default bindings, and
+ * the shortcuts changed in this app, which the server lays over its configuration file.
+ */
+internal fun keymapRequest(actions: List<RexAction>, defaults: List<KeyBinding>, overrides: ShortcutOverrides = ShortcutOverrides()): JsonObject = buildJsonObject {
     put("actions", buildJsonArray {
         for (action in actions) add(buildJsonObject {
             put("name", action.name)
@@ -124,6 +155,8 @@ internal fun keymapRequest(actions: List<RexAction>, defaults: List<KeyBinding>)
             })
         })
     })
+    // Left out when nothing was changed: an empty layer would only be something to name.
+    if (!overrides.isEmpty) put("overrides", buildJsonArray { add(overrides.toLayer()) })
     put("server_actions", "all")
 }
 
@@ -134,7 +167,12 @@ internal fun parseKeymap(result: JsonObject): Keymap {
         if (binding.string("mode") != null) return@mapNotNull null
         val keys = (binding["keys"] as? JsonArray).orEmpty().map { (it as? JsonPrimitive)?.content?.let(KeyChord::parse) }
         if (keys.isEmpty() || keys.any { it == null }) return@mapNotNull null
-        KeyBinding(keys.filterNotNull(), binding.string("action") ?: return@mapNotNull null, binding["args"] as? JsonObject, binding.string("source"))
+        val chords = keys.filterNotNull()
+        val written = (binding["keys"] as JsonArray).map { (it as JsonPrimitive).content }
+        KeyBinding(
+            chords, binding.string("action") ?: return@mapNotNull null, binding["args"] as? JsonObject, binding.string("source"),
+            spelled = written.takeIf { it != chords.map(KeyChord::toWire) },
+        )
     }
     val actions = (result["actions"] as? JsonArray).orEmpty().mapNotNull { element ->
         val action = element as? JsonObject ?: return@mapNotNull null
@@ -142,5 +180,9 @@ internal fun parseKeymap(result: JsonObject): Keymap {
         val title = action.string("title") ?: return@mapNotNull null
         RexAction(action.string("name") ?: return@mapNotNull null, title, action.string("category") ?: "Actions", action.string("keywords").orEmpty(), action.string("kind") ?: "lua")
     }
-    return Keymap(bindings, actions)
+    val diagnostics = (result["diagnostics"] as? JsonArray).orEmpty().mapNotNull { element ->
+        val problem = element as? JsonObject ?: return@mapNotNull null
+        KeymapDiagnostic(problem.string("severity") ?: "warning", problem.string("message") ?: return@mapNotNull null, problem.string("source"), problem.string("action"), problem.string("key"))
+    }
+    return Keymap(bindings, actions, diagnostics)
 }

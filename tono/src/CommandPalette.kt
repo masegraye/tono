@@ -117,6 +117,17 @@ internal fun paletteItems(ui: RexUiState, commands: RexCommands, keymap: Keymap,
             })
         }
     }
+    if (mode == PaletteMode.Shortcuts) {
+        // Every action, whether or not it can run just now: its key is the same either way.
+        for (shortcut in ui.client.shortcutList(commands.shortcutTargets(keymap))) {
+            val target = shortcut.target
+            val keys = shortcut.keysShown()
+            add(PaletteItem(target.title, listOf(target.category, shortcut.sourceShown()).filter { it.isNotEmpty() }.joinToString(" · "), keys, "${target.keywords} ${keys.orEmpty()}") {
+                ui.shortcutEdit = target
+            })
+        }
+        return@buildList
+    }
     if (mode == PaletteMode.AddHost) {
         // The Rex servers on the tailnet that aren't hosts yet. One that is down can still be
         // added: it connects when it comes up.
@@ -250,7 +261,8 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
     var selected by remember(mode) { mutableIntStateOf(0) }
     // Listed once per opening: the palette shows the moment it was opened.
     val tailnet = ui.tailnetServers
-    val all = remember(mode, keymap, tailnet) { paletteItems(ui, commands, keymap, mode) }
+    val recorded by ui.client.shortcuts.collectAsState()
+    val all = remember(mode, keymap, tailnet, recorded) { paletteItems(ui, commands, keymap, mode) }
     val shown = remember(all, query) {
         filterPalette(all, query) + listOfNotNull(if (mode == PaletteMode.AddHost) typedHostItem(ui, query) else null)
     }
@@ -286,6 +298,7 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
                         PaletteMode.AddHost -> "Add a server from your tailnet, or type an address"
                         PaletteMode.RemoveHost -> "Remove a host"
                         PaletteMode.MoveToTab -> "Move this pane to a tab"
+                        PaletteMode.Shortcuts -> "Change the shortcut of an action"
                         PaletteMode.InsertPath, PaletteMode.GoToDirectory -> "" // drawn by PathBrowser
                     },
                 )

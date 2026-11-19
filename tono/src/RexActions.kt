@@ -9,6 +9,10 @@ import org.example.kotlintest.rex.ActivityState
 import kotlinx.coroutines.launch
 import org.example.kotlintest.rex.KeyBinding
 import org.example.kotlintest.rex.KeyChord
+import org.example.kotlintest.rex.Keymap
+import org.example.kotlintest.rex.FORWARDED_KEY
+import org.example.kotlintest.rex.ShortcutTarget
+import kotlinx.serialization.json.JsonPrimitive
 import org.example.kotlintest.rex.PaneSide
 import org.example.kotlintest.rex.RESIZE_STEP_PERCENT
 import kotlinx.serialization.json.doubleOrNull
@@ -53,10 +57,7 @@ class RexCommands(private val ui: RexUiState) {
     /** Declares the actions and their default keys to Rex, which answers with the keymap to use. */
     fun declare() = ui.client.declareKeymap(
         actions = actions.map { RexAction(it.name, it.title, it.category, it.keywords) },
-        defaults = actions.flatMap { action ->
-            action.keys.map { KeyBinding(listOf(KeyChord.parse(it)!!), action.name) } +
-                action.argKeys.map { (keys, args) -> KeyBinding(listOf(KeyChord.parse(keys)!!), action.name, args) }
-        },
+        defaults = defaultKeyBindings(actions),
     )
 
     /**
@@ -91,6 +92,44 @@ class RexCommands(private val ui: RexUiState) {
 
     fun isAvailable(action: ClientAction): Boolean = action.available(ui)
 
+    /**
+     * Everything a key can be bound to, for Change Shortcut… and a settings window: this
+     * app's actions, each with the arguments it is offered or bound with, then the server's,
+     * then whatever else the keymap binds (an action with arguments in the configuration file).
+     */
+    fun shortcutTargets(keymap: Keymap): List<ShortcutTarget> {
+        val listed = buildList {
+            for (action in actions) {
+                if (action.inPalette) add(ShortcutTarget(action.name, null, action.title, action.category, action.keywords))
+                for ((title, args) in action.variants) add(ShortcutTarget(action.name, args, title, action.category, action.keywords))
+                for ((_, args) in action.argKeys) add(ShortcutTarget(action.name, args, "${action.title}: ${argsShown(args)}", action.category, action.keywords))
+            }
+            for (action in keymap.serverActions) add(ShortcutTarget(action.name, null, action.title, action.category, action.keywords))
+        }
+        val others = keymap.bindings
+            .filter { binding -> binding.action != FORWARDED_KEY && listed.none { binding.isFor(it.action, it.args) } }
+            .distinctBy { it.action to it.args?.takeIf { args -> args.isNotEmpty() } }
+            .map { ShortcutTarget(it.action, it.args, titleOf(it, listed), byName[it.action]?.category ?: "Actions") }
+        return listed + others
+    }
+
+    /** What a binding does, in words, for saying what a key is already used for. */
+    fun titleOf(binding: KeyBinding, targets: List<ShortcutTarget> = shortcutTargets(ui.client.keymap.value)): String {
+        if (binding.action == FORWARDED_KEY) return "a function in the configuration file"
+        targets.firstOrNull { binding.isFor(it.action, it.args) }?.let { return it.title }
+        val title = byName[binding.action]?.title ?: targets.firstOrNull { it.action == binding.action && it.args == null }?.title ?: binding.action
+        return binding.args?.takeIf { it.isNotEmpty() }?.let { "$title: ${argsShown(it)}" } ?: title
+    }
+
+    private fun argsShown(args: JsonObject): String =
+        args.entries.joinToString(", ") { (name, value) -> "$name ${(value as? JsonPrimitive)?.content ?: value.toString()}" }
+
+}
+
+/** The keys the actions are bound to when nothing has changed them, lowest first. */
+internal fun defaultKeyBindings(actions: List<ClientAction>): List<KeyBinding> = actions.flatMap { action ->
+    action.keys.map { KeyBinding(listOf(KeyChord.parse(it)!!), action.name) } +
+        action.argKeys.map { (keys, args) -> KeyBinding(listOf(KeyChord.parse(keys)!!), action.name, args) }
 }
 
 /**
@@ -110,7 +149,7 @@ internal fun takesKey(bindings: List<KeyBinding>, isOurs: (action: String) -> Bo
     return ours
 }
 
-private const val FORWARD_TO_SERVER = "client.key.forward"
+private const val FORWARD_TO_SERVER = FORWARDED_KEY
 
 private val hasHost: RexUiState.() -> Boolean = { hostState?.connection == org.example.kotlintest.rex.HostConnection.Connected }
 private val hasSession: RexUiState.() -> Boolean = { view != null }
@@ -123,6 +162,10 @@ internal fun clientActions(): List<ClientAction> = buildList {
     // App
     add(ClientAction("client.palette.toggle", "Command Palette…", "App", "commands actions run search", keys = listOf("ctrl+shift+p")) {
         if (palette == null) palette = PaletteMode.Commands else closePalette()
+    })
+    // Rex.app's name and title, and like it without a key of its own.
+    add(ClientAction("client.shortcuts.edit", "Change Shortcut…", "App", "keyboard key binding bindings keybinding keybindings rebind record hotkey shortcut remove unbind reset") {
+        palette = PaletteMode.Shortcuts
     })
     add(ClientAction("client.showcase.toggle", "UI Showcase", "App", "compose components demo gallery") {
         showcase = !showcase

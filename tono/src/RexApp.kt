@@ -230,7 +230,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Box(
             Modifier.fillMaxSize().focusRequester(rootFocus).focusable().onPreviewKeyEvent { event ->
-                if (ui.palette != null || ui.renamingAnything || ui.paneMenu != null) return@onPreviewKeyEvent false // an overlay has the keyboard
+                if (ui.palette != null || ui.renamingAnything || ui.paneMenu != null || ui.shortcutEdit != null) return@onPreviewKeyEvent false // an overlay has the keyboard
                 when (event.type) {
                     KeyEventType.KeyDown -> {
                         val chord = keyChord(event) ?: return@onPreviewKeyEvent false
@@ -286,6 +286,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
                 }
             }
             ui.palette?.let { CommandPalette(ui, commands, it) }
+            ui.shortcutEdit?.let { ChangeShortcut(ui, commands, it) }
             ui.renaming?.let { renaming -> RenameTabDialog(renaming, onDismiss = { ui.renaming = null; ui.returnFocusToTerminal() }) }
             ui.renamingPane?.let { renaming -> RenamePaneDialog(renaming, onDismiss = { ui.renamingPane = null; ui.returnFocusToTerminal() }) }
             ui.renamingSession?.let { renaming -> RenameSessionDialog(renaming, onDismiss = { ui.renamingSession = null; ui.returnFocusToTerminal() }) }

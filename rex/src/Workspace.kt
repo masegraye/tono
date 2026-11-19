@@ -104,6 +104,8 @@ class Workspace(
     var selection: SelectionSwitches = SelectionSwitches(),
     /** The tabs this app keeps quiet. This client's alone: the servers never hear of them. */
     var mutedTabs: List<MutedTab> = emptyList(),
+    /** The shortcuts changed in this app, for this app alone: see Shortcuts.kt. */
+    var shortcuts: ShortcutOverrides = ShortcutOverrides(),
 ) {
     val tabs: MutableMap<String, String> = tabs.toMutableMap()
     var hosts: List<SavedHost> = hosts
@@ -137,6 +139,7 @@ class Workspace(
                         put("window", tab.window)
                     })
                 })
+                if (!shortcuts.isEmpty) put("shortcuts", shortcuts.toJson())
             }
             runCatching { target.write(PRETTY.encodeToString(JsonObject.serializer(), json) + "\n") }
         }
@@ -166,6 +169,7 @@ class Workspace(
                     val tab = element as? JsonObject ?: return@mapNotNull null
                     MutedTab(tab.string("endpoint") ?: return@mapNotNull null, tab.string("session") ?: return@mapNotNull null, tab.string("window") ?: return@mapNotNull null)
                 }.takeLast(MUTED_TABS_LIMIT),
+                shortcuts = ShortcutOverrides.parse(root.obj("shortcuts")),
             )
         }
     }

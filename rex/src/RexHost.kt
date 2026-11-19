@@ -778,8 +778,8 @@ class RexHost(
         (control ?: throw RexDisconnected("Not connected to ${saved.label}")).call(method, payload)
 
     /** Declares this client's actions and default keys, and returns what each key does once the server's configuration is applied. */
-    suspend fun keymap(actions: List<RexAction>, defaults: List<KeyBinding>): Keymap =
-        parseKeymap(call("client.keymap", keymapRequest(actions, defaults)))
+    suspend fun keymap(actions: List<RexAction>, defaults: List<KeyBinding>, overrides: ShortcutOverrides = ShortcutOverrides()): Keymap =
+        parseKeymap(call("client.keymap", keymapRequest(actions, defaults, overrides)))
 
     fun close() = scope.cancel()
 
