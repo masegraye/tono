@@ -225,7 +225,13 @@ fun TerminalView(
             // offered to the terminal, which knows what its program asked to be told.
             .onPointerEvent(PointerEventType.Press) { event -> mouseButton(event.button)?.let { report(event, MouseAction.Press, it) } }
             .onPointerEvent(PointerEventType.Release) { event -> mouseButton(event.button)?.let { report(event, MouseAction.Release, it) } }
-            .onPointerEvent(PointerEventType.Enter) { onPointerOver() }
+            // With the button held, crossing the view's edge is one more step of a drag: a
+            // selection is dragged past the edge, and the crossing itself arrives as one of these.
+            .onPointerEvent(PointerEventType.Enter) { event ->
+                onPointerOver()
+                if (event.buttons.isPrimaryPressed) report(event, MouseAction.Motion, MouseButton.Left)
+            }
+            .onPointerEvent(PointerEventType.Exit) { event -> if (event.buttons.isPrimaryPressed) report(event, MouseAction.Motion, MouseButton.Left) }
             .onPointerEvent(PointerEventType.Move) { event ->
                 onPointerOver()
                 val held = when {

@@ -103,7 +103,8 @@ place of Cmd, and with Shift added where Ctrl on its own already means something
 | Alt+] / Alt+[ | Focus the next / previous pane |
 | Ctrl+Shift+Enter | Zoom the pane, or restore the layout |
 | Ctrl+Shift+W / Ctrl+Alt+W | Close the pane / the tab, after asking |
-| Ctrl+Shift+V | Paste |
+| Ctrl+Shift+C / Ctrl+Shift+V | Copy the selected text / paste |
+| Ctrl+Shift+A | Select everything in the terminal, including its history |
 | Shift+PageUp / Shift+PageDown | Scroll through history |
 | Ctrl+= / Ctrl+- / Ctrl+0 | Larger / smaller / default text |
 | Ctrl+Shift+/ | Show or hide the sidebar |
@@ -123,6 +124,19 @@ replies with the final bindings after applying your Rex configuration. That's wh
 The debug log (Ctrl+`) is a panel at the bottom of the window that shows what Tono is doing: its connections, the
 events servers send, the requests that change something, and the commands it runs. It never records what you type.
 
+## Selecting and copying
+
+Drag across a terminal to select text. Double-click selects a word and triple-click a line, and dragging after
+either carries on a word or a line at a time. Dragging past the top or bottom of the terminal scrolls it. Ctrl+Shift+C
+copies what's selected, and Ctrl+Shift+A selects everything, including the history.
+
+A program that uses the mouse itself, such as Neovim, htop or tmux, gets your clicks and drags. Hold Shift while
+you drag to select there anyway.
+
+The selection stays on its text. When more output arrives the highlight moves up with the lines it's on, and you
+can still copy them after they've scrolled out of view. Clicking, or typing into the terminal, clears it. So does
+a program that clears the screen.
+
 ## Sharing a terminal with other clients
 
 A terminal takes its size from one client at a time, and that should be the client someone is actually using. Tono
@@ -136,7 +150,6 @@ affect the Mac app.
 
 ## What's missing
 
-- You can't select text with the mouse or copy it.
 - SSH hosts aren't supported.
 - Floating panes aren't drawn as windows.
 - Animated images show only their first frame.
