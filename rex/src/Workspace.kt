@@ -382,5 +382,65 @@ class Workspace(
             if (!together && stateRead.root != null) workspace.keptState = workspace.stateText()
             return workspace
         }
+
+        /** One that runs on defaults and saves nothing, with the places it would have used still shown. */
+        private fun notSaved(storage: WorkspaceStorage, stateStorage: WorkspaceStorage, why: String): Workspace = Workspace(storage, stateStorage = stateStorage).apply {
+            settingsProblem = why
+            stateProblem = why
+            notices = listOf(Notice(why, isError = true))
+        }
+
+        /**
+         * Reads the workspace from its two places, moving it there first from [old], the one
+         * place everything was kept in before, if this is the first start since:
+         *
+         * 1. Settings already in [storage]: they are used, and [old] isn't looked at.
+         * 2. Otherwise, something readable in [old]: its state keys are copied to
+         *    [stateStorage] and the rest, keys this app doesn't know included, to [storage].
+         *    The settings are written last, and only where there are none, because their
+         *    being there is what marks the move as done: stopped halfway, the next start does
+         *    it again. Both are read back and compared. [old] is never written to.
+         * 3. Otherwise it starts fresh in the two places.
+         *
+         * If [old] is there and can't be read, or the copies don't read back as they were
+         * written, this runs on defaults and saves nothing, so that the next start can try again.
+         *
+         * @param moved called once the move is done and checked, for the platform to leave a note where the old one is
+         */
+        fun loadMoving(storage: WorkspaceStorage, stateStorage: WorkspaceStorage, old: WorkspaceStorage?, moved: () -> Unit = {}): Workspace {
+            // Something unreadable there is still something there: the reader says so and leaves it be.
+            val settled = runCatching { storage.read() != null }.getOrDefault(true)
+            if (settled || old == null) return load(storage, stateStorage)
+            val from = old.location ?: "the place settings were kept before"
+            val text = try {
+                old.read()
+            } catch (failure: Exception) {
+                return notSaved(storage, stateStorage, "$from couldn't be read (${failure.message ?: failure::class.simpleName}), so nothing was moved from it. It is left as it is, and nothing is saved until it can be read or is moved away.")
+            }
+            if (text.isNullOrBlank()) return load(storage, stateStorage)
+            val root = runCatching { Json.parseToJsonElement(text) as? JsonObject }.getOrNull()
+                ?: return notSaved(storage, stateStorage, "$from isn't JSON that can be read, so nothing was moved from it. It is left as it is, and nothing is saved until it is corrected or moved away.")
+
+            val state = JsonObject(root.filterKeys { it in STATE_KEYS })
+            val settings = JsonObject(root.filterKeys { it !in STATE_KEYS })
+            fun textOf(json: JsonObject) = PRETTY.encodeToString(JsonObject.serializer(), json) + "\n"
+            fun holds(kept: WorkspaceStorage, json: JsonObject) = kept.read()?.let { Json.parseToJsonElement(it) } == json
+            try {
+                // State that is already there is from a move stopped halfway, or newer: either way it stays.
+                val stateWritten = runCatching { stateStorage.read() == null }.getOrDefault(false)
+                if (stateWritten) stateStorage.write(textOf(state))
+                // False when another Tono started at the same moment and got there first: its settings stand.
+                val settingsWritten = storage.writeNew(textOf(settings))
+                if (stateWritten && !holds(stateStorage, state)) return notSaved(storage, stateStorage, "Moving from $from: ${stateStorage.location ?: "the state"} doesn't read back as it was written. Nothing is saved; $from is as it was.")
+                if (settingsWritten && !holds(storage, settings)) return notSaved(storage, stateStorage, "Moving from $from: ${storage.location ?: "the settings"} don't read back as they were written. Nothing is saved; $from is as it was.")
+                if (!settingsWritten) return load(storage, stateStorage)
+            } catch (failure: Exception) {
+                return notSaved(storage, stateStorage, "Moving from $from failed (${failure.message ?: failure::class.simpleName}). Nothing is saved; $from is as it was.")
+            }
+            runCatching(moved)
+            return load(storage, stateStorage).apply {
+                notices = listOf(Notice("Settings moved from $from to ${storage.location ?: "their new place"}, and where you were to ${stateStorage.location ?: "its new place"}. $from is left as it was, as a backup.")) + notices
+            }
+        }
     }
 }

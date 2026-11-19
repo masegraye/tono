@@ -20,14 +20,16 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import org.example.kotlintest.rex.RexClient
 import org.example.kotlintest.rex.Workspace
+import org.example.kotlintest.rex.defaultWorkspace
 import org.example.kotlintest.rex.load
 import org.jetbrains.skia.Image
 import java.nio.file.Path
 
 /**
  * Options:
- * - `--workspace <file>`: keep saved hosts and the last selection in this file instead of
- *   `~/.config/kotlin-test/workspace.json`.
+ * - `--workspace <file>`: keep settings and state together in this one file, and read and
+ *   write nothing in the usual places (on Linux `~/.config/tono/settings.json` and
+ *   `~/.local/state/tono/state.json`). For tests, demos and a second profile.
  */
 fun main(args: Array<String>) {
     // Some Java runtimes scale the window themselves from desktop settings, in whole steps,
@@ -39,7 +41,9 @@ fun main(args: Array<String>) {
     nameWindowClass("tono")
 
     val workspaceFile = args.indexOf("--workspace").takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
-    val workspace = workspaceFile?.let { Workspace.load(Path.of(it)) } ?: Workspace.load()
+    val workspace = workspaceFile?.let { Workspace.load(Path.of(it)) } ?: defaultWorkspace()
+    // Said here as well as in the app's debug log: a file left alone because it couldn't be read, or moved from the old place.
+    for (notice in workspace.notices) System.err.println("tono: ${notice.message}")
 
     // Connecting starts here, before the window exists: every configured server at once.
     val connections = CoroutineScope(SupervisorJob() + Dispatchers.Default)

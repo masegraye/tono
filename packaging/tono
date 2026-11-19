@@ -1,6 +1,6 @@
 #!/bin/sh
 # Tono, a Linux client for Rex. Installed by `task install`; `task uninstall` removes it.
-# Options: --workspace FILE keeps hosts and where you were in FILE instead of the usual place.
+# Options: --workspace FILE keeps settings and where you were together in FILE, and leaves the usual places alone.
 home="${XDG_DATA_HOME:-$HOME/.local/share}/tono"
 
 # The Java it was installed with, or failing that whichever is on PATH (it needs 25 or later).

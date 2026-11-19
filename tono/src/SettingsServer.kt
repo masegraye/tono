@@ -27,6 +27,7 @@ import org.example.kotlintest.rex.HostState
 import org.example.kotlintest.rex.RexHost
 import org.example.kotlintest.rex.ServerInfo
 import org.example.kotlintest.rex.TonoClient
+import org.example.kotlintest.rex.Workspace
 import org.example.kotlintest.rex.defaultLocalEndpoint
 import org.example.kotlintest.rex.endpointKey
 
@@ -114,7 +115,28 @@ internal fun ServerSettings(ui: RexUiState) {
     SettingsGroup(APP_NAME) {
         InfoRow("Version", TonoClient.version)
         RowDivider()
-        InfoRow("Workspace", client.workspace.location ?: "Not kept: what is set here lasts until $APP_NAME closes.")
+        for ((label, value) in keptRows(client.workspace)) {
+            RowDivider()
+            InfoRow(label, value)
+        }
+    }
+}
+
+/**
+ * Where what is set here is kept, as rows of a label and a value: the settings and the
+ * state where they are apart, one row where they are together (`--workspace FILE`), and a
+ * row for each that isn't being saved because what was there couldn't be read.
+ */
+internal fun keptRows(workspace: Workspace): List<Pair<String, String>> {
+    val settings = workspace.location ?: return listOf("Workspace" to "Not kept: what is set here lasts until $APP_NAME closes.")
+    val state = workspace.stateLocation
+    return buildList {
+        if (state == null || state == settings) add("Workspace" to settings) else {
+            add("Settings" to settings)
+            add("State" to state)
+        }
+        workspace.settingsProblem?.let { add("Settings not saved" to it) }
+        workspace.stateProblem?.takeIf { it != workspace.settingsProblem }?.let { add("State not saved" to it) }
     }
 }
 

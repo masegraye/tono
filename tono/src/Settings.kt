@@ -145,7 +145,8 @@ internal class SettingEntry(val section: SettingsSection, val title: String, val
 internal val SETTING_ENTRIES: List<SettingEntry> = listOf(
     SettingEntry(SettingsSection.Server, "Server", "home rex about status"),
     SettingEntry(SettingsSection.Server, "Version", "about tono app"),
-    SettingEntry(SettingsSection.Server, "Workspace", "file path json settings kept saved"),
+    SettingEntry(SettingsSection.Server, "Settings", "file path json settings.json workspace kept saved where"),
+    SettingEntry(SettingsSection.Server, "State", "file path json state.json workspace kept saved where"),
     SettingEntry(SettingsSection.Server, "Home server", "rex local socket address api revision running since process account sessions listeners"),
     SettingEntry(SettingsSection.Server, "Start Server", "no server start at login install rex systemd rex.socket"),
     SettingEntry(SettingsSection.Server, "Tailscale", "tailnet sign in https address"),

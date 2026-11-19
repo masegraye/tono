@@ -499,3 +499,21 @@ class SettingsTest {
         assertEquals("Not connected", homeServerWords(HostState(connection = HostConnection.Disconnected("gone"), failed = true)))
     }
 }
+
+/** Settings › Server says where what is set is kept: backlog-049. */
+class KeptRowsTest {
+    private class Named(override val location: String, private val text: String? = null) : org.example.kotlintest.rex.WorkspaceStorage {
+        override fun read() = text
+        override fun write(text: String) = Unit
+    }
+
+    @Test
+    fun `both files are shown where there are two, one where there is one, and what isn't being saved`() {
+        assertEquals(listOf("Settings" to "/c/tono/settings.json", "State" to "/s/tono/state.json"), keptRows(Workspace.load(Named("/c/tono/settings.json"), Named("/s/tono/state.json"))))
+        assertEquals(listOf("Workspace" to "/tmp/w.json"), keptRows(Workspace.load(Named("/tmp/w.json"))))
+        assertEquals(1, keptRows(Workspace(null)).size)
+        val broken = keptRows(Workspace.load(Named("/c/tono/settings.json", "{ typo"), Named("/s/tono/state.json")))
+        assertEquals(listOf("Settings", "State", "Settings not saved"), broken.map { it.first })
+        assertTrue("/c/tono/settings.json" in broken.last().second)
+    }
+}

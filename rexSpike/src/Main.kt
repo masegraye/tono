@@ -11,6 +11,7 @@ import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.RexClient
 import org.example.kotlintest.rex.RexKey
 import org.example.kotlintest.rex.Workspace
+import org.example.kotlintest.rex.defaultWorkspace
 import org.example.kotlintest.rex.load
 import java.nio.file.Path
 
@@ -61,7 +62,7 @@ fun main(args: Array<String>) {
 
 private suspend fun kotlinx.coroutines.CoroutineScope.probe(args: Array<String>) {
     val typed = args.indexOf("--type").takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
-    val workspace = args.firstOrNull()?.takeIf { !it.startsWith("--") }?.let { Workspace.load(Path.of(it)) } ?: Workspace.load()
+    val workspace = args.firstOrNull()?.takeIf { !it.startsWith("--") }?.let { Workspace.load(Path.of(it)) } ?: defaultWorkspace()
     val client = RexClient(this, workspace)
 
     // Give every host a chance to connect (or fail), and discovered hosts time to appear.

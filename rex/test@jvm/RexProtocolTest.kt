@@ -204,12 +204,6 @@ class WorkspaceTest {
         assertTrue(Workspace.load(broken).hosts.isEmpty())
         directory.toFile().deleteRecursively()
     }
-
-    @Test
-    fun `the workspace lives under the config directory`() {
-        assertEquals("/cfg/kotlin-test/workspace.json", Workspace.defaultFile(mapOf("XDG_CONFIG_HOME" to "/cfg")).toString())
-        assertEquals("/home/me/.config/kotlin-test/workspace.json", Workspace.defaultFile(mapOf("HOME" to "/home/me")).toString())
-    }
 }
 
 class RexKeyTest {
