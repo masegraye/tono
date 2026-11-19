@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | done (commits `d0c2aaa`, `COMMIT2`, 2026-11-18) |
+| Status | done (commits `d0c2aaa`, `1662da1`, 2026-11-18) |
 | Area | Hosts and other clients |
 | Size | small |
 | Source | earlier sessions |
