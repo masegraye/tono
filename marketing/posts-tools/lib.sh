@@ -8,7 +8,7 @@
 PM=${PM:-/tmp/post-media}
 PM_DISPLAY=${PM_DISPLAY:-:91}
 PM_W=3840 PM_H=2160            # the nested display; clips are scaled to half of it
-PM_SCALE=3.2                   # twice Omarchy's 1.6, so a 1920x1080 clip shows 1200x675 dp
+PM_SCALE=${PM_SCALE:-3.2}     # twice Omarchy's 1.6, so a 1920x1080 clip shows 1200x675 dp; more for a closer look
 tools=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo=$(cd "$tools/../.." && pwd)
 posts=$repo/marketing/posts
