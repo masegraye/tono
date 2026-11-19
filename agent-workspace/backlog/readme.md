@@ -72,6 +72,6 @@ The order proposed in inv-001, not yet agreed:
 | 042 | [Change a shortcut in Tono itself](backlog-042-change-a-shortcut.md) | Typing and keys | medium | done |
 | 043 | [A relay test sometimes fails under load](backlog-043-relay-gone-page-test-is-flaky.md) | Tests | small | captured |
 | 044 | [Switching tabs sometimes says the server refused the terminal stream (reason 2)](backlog-044-server-refuses-terminal-stream-reason-2.md) | Connecting to servers | small | done |
-| 045 | [Look right without Omarchy: built-in themes and a terminal font](backlog-045-look-right-without-omarchy.md) | The app | medium | captured |
+| 045 | [Look right without Omarchy: built-in themes and a terminal font](backlog-045-look-right-without-omarchy.md) | The app | medium | done |
 | 046 | [Living without a bundled server](backlog-046-living-without-a-bundled-server.md) | Connecting to servers | medium | promoted (spec-001, phase 4) |
 | 047 | [Other settings Rex for Mac has that Tono may want](backlog-047-other-rex-for-mac-settings.md) | The app | medium | captured |
