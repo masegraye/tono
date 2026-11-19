@@ -80,4 +80,4 @@ The order proposed in inv-001, not yet agreed:
 | 050 | [A Mac app](backlog-050-a-mac-app.md) | Shipping | large | captured |
 | 051 | [An Android app](backlog-051-an-android-app.md) | Shipping | large | captured (low priority) |
 | 052 | [One look for every dialog's buttons, and a focus ring that hugs its button](backlog-052-one-look-for-every-dialogs-buttons.md) | The app | small | done |
-| 053 | [Scrolling a terminal is clunky](backlog-053-scrolling-is-clunky.md) | Reading a terminal | unknown | captured (being diagnosed) |
+| 053 | [Scrolling a terminal is clunky](backlog-053-scrolling-is-clunky.md) | Reading a terminal | medium | done |

@@ -26,3 +26,7 @@ Next time anything touches the relay, or sooner if it fails again.
 ## Not known yet
 
 Whether to wait for the outcome (poll until the stand-in records it, with a generous ceiling) rather than sleep a fixed time, or to give the test its own longer timings.
+
+## Seen again
+
+2026-11-19, while merging backlog-053: "a page that is there and has nothing to say stays connected" in the same file failed once in a full `task test` run (`expected: <closed 1000> but was: <dropped>`), then passed five times on its own. Two of the file's tests are now known to fail under load, so this is worth doing soon.
