@@ -43,10 +43,6 @@ internal actual fun WatchControlKey(onChange: (held: Boolean) -> Unit) {
     }
 }
 
-internal actual suspend fun clipboardText(): String? = runCatching {
-    Toolkit.getDefaultToolkit().systemClipboard.getData(DataFlavor.stringFlavor) as? String
-}.getOrNull()
-
 internal actual suspend fun setClipboardText(text: String): String? = runCatching {
     Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
 }.exceptionOrNull()?.let { it.message ?: it::class.simpleName ?: "the clipboard refused" }

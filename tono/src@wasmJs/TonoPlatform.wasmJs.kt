@@ -145,11 +145,6 @@ internal actual fun WatchControlKey(onChange: (held: Boolean) -> Unit) {
     }
 }
 
-private fun readClipboard(): Promise<JsAny?> = js("navigator.clipboard.readText()")
-
-/** The browser may ask the user first, and refuses a page that isn't served securely. */
-internal actual suspend fun clipboardText(): String? = runCatching { (readClipboard().await<JsAny?>() as? JsString)?.toString() }.getOrNull()
-
 /** Resolves to null when the text is on the clipboard, and to the browser's reason when it isn't. */
 private fun writeClipboard(text: String): Promise<JsAny?> = js(
     """(async () => {

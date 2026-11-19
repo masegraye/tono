@@ -17,7 +17,8 @@ actual class UploadContent private constructor(internal val path: Path?, interna
     constructor(path: Path) : this(path, null)
     constructor(bytes: ByteArray) : this(null, bytes)
 
-    internal fun open(): InputStream = bytes?.inputStream() ?: Files.newInputStream(path!!)
+    /** The bytes, from the start. */
+    fun open(): InputStream = bytes?.inputStream() ?: Files.newInputStream(path!!)
 }
 
 /** A file on this machine, as it is now. Throws [UploadFailed] for a folder, or anything else that isn't a file to read. */

@@ -190,6 +190,14 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
         }
     }
 
+    // Files a browser pastes by its own means go where the app's paste would put them: the
+    // terminal with the keyboard, and nowhere while something is open over it.
+    WatchPastedFiles { offer ->
+        val blockId = ui.focusedBlockId
+        val owner = ui.host
+        if (blockId != null && owner != null && !ui.overlayOpen && !(ui.narrow && ui.sidebarVisible)) owner.offer(blockId, offer)
+    }
+
     // Shortcuts are looked up here, above everything, so they work wherever the keyboard is.
     // A key that isn't a shortcut carries on down to the focused terminal.
     val rootFocus = remember { FocusRequester() }
@@ -905,9 +913,18 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, a
     // Which of several panes has the keyboard is shown by the others being dimmed, not by
     // an outline round the one: an outline round the only pane of a tab says nothing.
     val dim = if (focused || alone) Color.Transparent else MaterialTheme.colorScheme.background.copy(alpha = UNFOCUSED_PANE_DIM)
+    // Files dragged from outside the app can be dropped on a terminal: see Uploads.kt.
+    var filesOver by remember { mutableStateOf(false) }
+    val takesFiles = pane.isTerminal && terminal != null && !ui.overlayOpen
     Box(
         Modifier
             .fillMaxSize()
+            .fileDropTarget(onHover = { filesOver = it }) { offer ->
+                if (!takesFiles) return@fileDropTarget
+                // The pane the files were dropped on is the one the paths are typed in, so it has the keyboard next.
+                if (!focused) onFocus()
+                host.offer(pane.blockId, offer)
+            }
             .drawWithContent {
                 drawContent()
                 drawRect(dim)
@@ -944,6 +961,7 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, a
                 }
             }
         }
+        PaneUploads(host, pane.blockId, dropping = filesOver && takesFiles)
     }
 }
 

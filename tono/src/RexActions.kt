@@ -374,7 +374,15 @@ internal fun clientActions(): List<ClientAction> = buildList {
         val blockId = focusedBlockId ?: return@ClientAction
         val owner = host ?: return@ClientAction
         // A browser hands the clipboard over only when it is ready to, so this doesn't wait.
-        scope?.launch { clipboardText()?.takeIf { it.isNotEmpty() }?.let { owner.paste(blockId, it) } }
+        // Text is pasted. Copied files, or an image with no text, go to the terminal's machine
+        // and their paths are typed there: see Uploads.kt.
+        scope?.launch {
+            when (val content = clipboardContent()) {
+                is ClipboardContent.Text -> owner.paste(blockId, content.text)
+                is ClipboardContent.Files -> owner.offer(blockId, content.offer)
+                null -> {}
+            }
+        }
     })
     // Rex.app's names and titles. Insert Path is Control+Command+I there, and Control+Alt+I
     // here: Control+Shift+I is a browser's, for its developer tools, and Control+I is Tab.
