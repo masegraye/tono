@@ -2,6 +2,7 @@ package org.example.kotlintest.server
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.request.header
 import io.ktor.client.request.unixSocket
 import io.ktor.client.request.url
@@ -20,6 +21,7 @@ import io.ktor.websocket.readBytes
 import io.ktor.websocket.readText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
@@ -41,9 +43,23 @@ import io.ktor.client.plugins.websocket.WebSockets as ClientWebSockets
  * `/api/control` and `/api/data`, each with its subprotocol. `?endpoint=` names the server,
  * written as it would be in a workspace.
  *
+ * A page that vanishes closes nothing: a phone that sleeps, a lid that shuts, a network that
+ * drops. Its connection looks open for as long as nobody writes to it, and to the Rex server
+ * the relay's connection is the client, so a client nobody is using would stay listed. So
+ * every page is asked whether it is still there (a WebSocket ping, which a browser answers
+ * itself, however idle or far in the background the page is), and one that doesn't answer is
+ * taken to be gone.
+ *
  * @param localEndpoint the Rex server on this machine, which the page calls `unix:///@local`
+ * @param pageAskMillis how often a page is asked whether it is still there
+ * @param pagePatienceMillis how long it then has to answer
  */
-fun Application.tonoRelay(path: String = "/api/tono/relay", localEndpoint: String = RexEndpoint.local()) {
+fun Application.tonoRelay(
+    path: String = "/api/tono/relay",
+    localEndpoint: String = RexEndpoint.local(),
+    pageAskMillis: Long = PAGE_ASK_MILLIS,
+    pagePatienceMillis: Long = PAGE_PATIENCE_MILLIS,
+) {
     if (pluginOrNull(WebSockets) == null) install(WebSockets)
     val client = HttpClient(CIO) { install(ClientWebSockets) }
     routing {
@@ -58,6 +74,9 @@ fun Application.tonoRelay(path: String = "/api/tono/relay", localEndpoint: Strin
                     close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Not a Rex server this relay will connect to"))
                     return@webSocket
                 }
+                // Set here and not where the plugin is installed, which may not be in this file.
+                timeoutMillis = pagePatienceMillis
+                pingIntervalMillis = pageAskMillis
                 // A page gives a server ten seconds to answer and then closes this socket. The
                 // attempt made for it ends with it, or a server that takes connections and
                 // answers none would keep one open here for every time the page tried.
@@ -97,9 +116,18 @@ fun Application.tonoRelay(path: String = "/api/tono/relay", localEndpoint: Strin
     }
 }
 
-/** Passes everything each side sends to the other, and when one closes, closes the other the same way. */
-private suspend fun relay(page: DefaultWebSocketSession, server: DefaultWebSocketSession) = coroutineScope {
-    suspend fun pump(from: DefaultWebSocketSession, to: DefaultWebSocketSession) {
+/**
+ * Passes everything each side sends to the other, and when one ends, ends the other the same way.
+ *
+ * A Rex server tells a client that left from one whose connection was lost: the first is
+ * forgotten at once, and the second keeps its place for a minute, so that it can come back
+ * as the client it was, with the terminals it had. Which of the two a page is has to reach
+ * the server, so a page that says goodbye has that passed on, and the connection of a page
+ * that broke off or stopped answering is dropped with nothing said.
+ */
+private suspend fun relay(page: DefaultWebSocketSession, server: DefaultClientWebSocketSession) = coroutineScope {
+    suspend fun pump(from: DefaultWebSocketSession, to: DefaultWebSocketSession, end: suspend (CloseReason?) -> Unit) {
+        var broken = false
         try {
             for (frame in from.incoming) {
                 when (frame) {
@@ -108,15 +136,29 @@ private suspend fun relay(page: DefaultWebSocketSession, server: DefaultWebSocke
                     else -> {}
                 }
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // What reading ends with when the other end stopped answering, among other things.
+            broken = true
         } finally {
-            // Rex's close codes mean things to a client (a terminal's block closing, for one),
-            // so the other side is closed with the same code and reason.
             val reason = runCatching { from.closeReason.await() }.getOrNull()
-            runCatching { to.close(reason ?: CloseReason(CloseReason.Codes.GOING_AWAY, "")) }
+            // Without a goodbye the reason is one made up here, with a code that is never sent.
+            runCatching { end(reason?.takeUnless { broken || it.code == CLOSED_ABNORMALLY }) }
         }
     }
-    launch { pump(page, server) }
-    launch { pump(server, page) }
+    launch {
+        pump(page, server) { said ->
+            // Rex's close codes mean things, so the server hears the page's own.
+            // Cancelling the request ends its connection. Cancelling the socket would say goodbye first.
+            if (said != null) server.close(said) else server.call.cancel(CancellationException("The page is gone"))
+        }
+    }
+    launch {
+        // A page is always told, since it shows why a host isn't connected, and with the
+        // server's code if there was one: a terminal's block closing is one of them.
+        pump(server, page) { said -> page.close(said ?: CloseReason(CloseReason.Codes.GOING_AWAY, "")) }
+    }
 }
 
 /**
@@ -137,8 +179,21 @@ internal fun relayTarget(endpoint: String?, localEndpoint: String): RexEndpoint?
     return parsed.takeIf { onTailnet }
 }
 
+/** The close code that stands for a connection that ended without one. */
+private const val CLOSED_ABNORMALLY: Short = 1006
+
 /** What the page calls the Rex server on this machine, whose socket it has no way to know. */
 private const val LOCAL_NAME = "unix:///@local"
 
 /** The sockets a Rex client opens, and the subprotocol each speaks. */
 private val RELAYED = listOf("/api/control" to "rex.control.v1", "/api/data" to "rex.data.terminal.v1")
+
+/**
+ * How often a page is asked whether it is still there, and how long it has to answer: a page
+ * that is gone is noticed within a minute. A Rex server asks its clients every two minutes
+ * and gives up on one after about nine, having learnt to be patient with slow links. This is
+ * less patient because being wrong costs little here: a page that is cut off while it is
+ * still there connects again and carries on as the client it was.
+ */
+private const val PAGE_ASK_MILLIS = 20_000L
+private const val PAGE_PATIENCE_MILLIS = 40_000L
