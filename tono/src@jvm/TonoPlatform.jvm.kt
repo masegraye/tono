@@ -115,17 +115,19 @@ internal actual fun openUrl(url: String, log: (message: String, isError: Boolean
         return
     }
     // Off the interface's thread: starting a program can take a moment, and so can its answer.
-    Thread({
-        runCatching {
-            val process = ProcessBuilder(command).redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start()
-            process.outputStream.close()
-            // It hands the address on and exits; one that stays is left to finish in its own time.
-            if (process.waitFor(OPEN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) process.exitValue() else 0
-        }.onSuccess { code ->
-            val opener = Path.of(command.first()).fileName
-            if (code == 0) log("opened $url with $opener", false) else log("couldn't open $url: $opener exited with $code", true)
-        }.onFailure { log("couldn't open $url: ${it.message}", true) }
-    }, "open-link").apply { isDaemon = true }.start()
+    Thread({ runOpener(command, url, log) }, "open-link").apply { isDaemon = true }.start()
+}
+
+/** Runs the command that opens [url], waits a while for it to say how that went, and says so in [log]. */
+internal fun runOpener(command: List<String>, url: String, log: (message: String, isError: Boolean) -> Unit) {
+    val opener = Path.of(command.first()).fileName
+    runCatching {
+        val process = ProcessBuilder(command).redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start()
+        process.outputStream.close()
+        // It hands the address on and exits; one that stays is left to finish in its own time.
+        if (process.waitFor(OPEN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) process.exitValue() else 0
+    }.onSuccess { code -> if (code == 0) log("opened $url with $opener", false) else log("couldn't open $url: $opener exited with $code", true) }
+        .onFailure { log("couldn't open $url: ${it.message}", true) }
 }
 
 private const val OPEN_TIMEOUT_SECONDS = 10L

@@ -105,6 +105,7 @@ place of Cmd, and with Shift added where Ctrl on its own already means something
 | Ctrl+Shift+W / Ctrl+Alt+W | Close the pane / the tab, after asking |
 | Ctrl+Shift+C / Ctrl+Shift+V | Copy the selected text / paste |
 | Ctrl+Shift+A | Select everything in the terminal, including its history |
+| Ctrl+click | Open the link under the pointer |
 | Shift+PageUp / Shift+PageDown | Scroll through history |
 | Ctrl+= / Ctrl+- / Ctrl+0 | Larger / smaller / default text |
 | Ctrl+Shift+/ | Show or hide the sidebar |
@@ -136,6 +137,24 @@ you drag to select there anyway.
 The selection stays on its text. When more output arrives the highlight moves up with the lines it's on, and you
 can still copy them after they've scrolled out of view. Clicking, or typing into the terminal, clears it. So does
 a program that clears the screen.
+
+## Opening links
+
+Hold Ctrl and click a link to open it. An address written out in the output is a link, including one too long for
+its row that the terminal wrapped onto the next. So is text that a program made a link, as `ls --hyperlink`, `gh`
+and many others do.
+
+While Ctrl is held, the link under the pointer is underlined, and after a moment its address is shown beside it.
+For a link a program made, that's the address the program gave, which is where the click goes, whatever the
+text says.
+
+Only `http`, `https`, `ftp` and `mailto` links are opened. Anything else is not a link to Tono, and in particular
+not `file:` addresses: what a terminal shows may come from another machine, and shouldn't be able to open a file
+on yours. The desktop app hands the address to `xdg-open`, which opens your default browser or mail program. In
+a browser, the link opens in a new tab.
+
+Ctrl+click on a link works over a program that uses the mouse too, and the program isn't told of that click.
+Anywhere else, Ctrl+click is an ordinary click.
 
 ## Sharing a terminal with other clients
 
