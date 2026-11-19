@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | done (commits `bd7287d`, `DOCS`, 2026-11-18) |
+| Status | done (commits `bd7287d`, `45fed5d`, 2026-11-18) |
 | Area | The sidebar |
 | Size | small |
 | Source | noticed while fixing a host that stayed "connected" after its machine went away |
