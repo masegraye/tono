@@ -59,7 +59,30 @@ class GhosttyTerminalTest {
             assertTrue(runs[1].bold)
 
             assertEquals(0x010203, runs[3].background)
-            assertTrue(runs[3].underline)
+            assertEquals(TerminalUnderline.Single, runs[3].underline)
+        }
+    }
+
+    @Test
+    fun `each kind of underline, its color and an overline are read`() = terminal().use { terminal ->
+        GhosttyRenderer().use { renderer ->
+            terminal.setColors(TerminalColors(foreground = 0xEEEEEE, background = 0x101010, ansi = ANSI))
+            // One letter for each of SGR 4:1 to 4:5, then colors for the line (58, as RGB and from the palette, and 59 to drop it), then 53 and 55.
+            terminal.write("$ESC[4:1ma$ESC[4:2mb$ESC[4:3mc$ESC[4:4md$ESC[4:5me$ESC[4:0mf")
+            terminal.write("$ESC[4:3;58:2::10:20:30mg$ESC[58:5:1mh$ESC[59mi$ESC[0;53mj$ESC[9mk$ESC[55ml")
+
+            val runs = renderer.render(terminal).rows[0].runs
+
+            assertEquals(listOf("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"), runs.map { it.text })
+            assertEquals(
+                listOf(TerminalUnderline.Single, TerminalUnderline.Double, TerminalUnderline.Curly, TerminalUnderline.Dotted, TerminalUnderline.Dashed, TerminalUnderline.None),
+                runs.take(6).map { it.underline },
+            )
+            assertTrue(runs.take(6).all { it.underlineColor == null && !it.overline })
+            assertEquals(listOf(TerminalUnderline.Curly, TerminalUnderline.Curly, TerminalUnderline.Curly, TerminalUnderline.None), runs.subList(6, 10).map { it.underline })
+            assertEquals(listOf(0x0A141E, 0xAA0001, null, null), runs.subList(6, 10).map { it.underlineColor }) // the second is ANSI red, from the palette set above
+            assertEquals(listOf(false, false, false, true, true, false), runs.subList(6, 12).map { it.overline })
+            assertEquals(listOf(false, true, true), runs.subList(9, 12).map { it.strikethrough })
         }
     }
 

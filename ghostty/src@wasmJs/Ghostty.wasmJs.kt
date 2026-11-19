@@ -184,13 +184,15 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
                             TerminalRun(
                                 column = fields[at].toInt(),
                                 cells = fields[at + 1].toInt(),
-                                text = fields[at + 5],
+                                text = fields[at + 6],
                                 foreground = fields[at + 2].toInt(),
                                 background = fields[at + 3].toInt().takeIf { it >= 0 },
                                 bold = flags and 1 != 0,
                                 italic = flags and 2 != 0,
-                                underline = flags and 4 != 0,
+                                underline = TerminalUnderline.entries.getOrElse(flags shr 8) { TerminalUnderline.Single },
                                 strikethrough = flags and 8 != 0,
+                                underlineColor = fields[at + 5].toInt().takeIf { it >= 0 },
+                                overline = flags and 16 != 0,
                             ),
                         )
                         at += RUN_FIELDS
@@ -271,7 +273,7 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
     private companion object {
         const val FIELD = '\u001f'
         const val RECORD = '\u001e'
-        const val RUN_FIELDS = 6
+        const val RUN_FIELDS = 7
     }
 }
 

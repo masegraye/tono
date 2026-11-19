@@ -277,8 +277,10 @@
    * `describeImages` says, and selection is the selected cells on screen, "row,first
    * column,last column" for each row that has some, with ";" between. Then one record per visible row, top to bottom: "=" and the row's id when
    * the row is unchanged since the last frame, or "+" and its id followed by its runs, each
-   * six fields: column, cells, foreground, background (-1 for none), flags (1 bold, 2 italic,
-   * 4 underline, 8 strikethrough) and text. A row keeps its id as it scrolls.
+   * seven fields: column, cells, foreground, background (-1 for none), flags (1 bold, 2 italic,
+   * 8 strikethrough, 16 overline, and 256 times the kind of underline: 0 none, 1 single,
+   * 2 double, 3 curly, 4 dotted, 5 dashed), the underline's color (-1 for the foreground)
+   * and text. A row keeps its id as it scrolls.
    */
   function render(state, terminal) {
     const renderer = renderers.get(state);
@@ -430,6 +432,17 @@
     const wideKind = T.GhosttyCellWide.values;
     const style = slots + SLOT.style;
     const styleField = (name) => bytes()[style + F('GhosttyStyle', name)] !== 0;
+    const underlineKind = T.GhosttySgrUnderline.values;
+    const colorTag = T.GhosttyStyleColorTag.values;
+    /** The underline's own color, a palette color looked up in the palette this frame was read with, or -1 when it has none. */
+    const underlineColorOf = () => {
+      const color = style + F('GhosttyStyle', 'underline_color');
+      const tag = view().getInt32(color + F('GhosttyStyleColor', 'tag'), true);
+      const value = color + F('GhosttyStyleColor', 'value');
+      if (tag === colorTag.RGB) return rgbAt(value);
+      if (tag === colorTag.PALETTE) return rgbAt(slots + SLOT.colors + F('GhosttyRenderStateColors', 'palette') + bytes()[value] * 3);
+      return -1;
+    };
     const cellGet = (data, out) => check('render_state_row_cells_get', ex.ghostty_render_state_row_cells_get(cells, data, out));
     const cellTry = (data, out) => ex.ghostty_render_state_row_cells_get(cells, data, out) === OK;
 
@@ -439,7 +452,7 @@
     const flush = () => {
       if (!open) return;
       open = false;
-      text += US + run.column + US + run.cells + US + run.foreground + US + run.background + US + run.flags + US + run.text;
+      text += US + run.column + US + run.cells + US + run.foreground + US + run.background + US + run.flags + US + run.underlineColor + US + run.text;
     };
 
     let column = 0;
@@ -454,6 +467,7 @@
       let foreground = defaultForeground;
       let background = -1;
       let flags = 0;
+      let underlineColor = -1;
       let invisible = false;
       // A cell can carry a background without any other styling, so always ask.
       if (cellTry(cellData.BG_COLOR, slots + SLOT.a)) background = rgbAt(slots + SLOT.a);
@@ -464,8 +478,14 @@
         cellGet(cellData.STYLE, style);
         if (styleField('bold')) flags |= 1;
         if (styleField('italic')) flags |= 2;
-        if (view().getInt32(style + F('GhosttyStyle', 'underline'), true) !== E('GhosttySgrUnderline', 'NONE')) flags |= 4;
+        const underline = view().getInt32(style + F('GhosttyStyle', 'underline'), true);
+        if (underline !== underlineKind.NONE) {
+          flags |= 256 * (underline === underlineKind.DOUBLE ? 2 : underline === underlineKind.CURLY ? 3 :
+            underline === underlineKind.DOTTED ? 4 : underline === underlineKind.DASHED ? 5 : 1);
+          underlineColor = underlineColorOf();
+        }
         if (styleField('strikethrough')) flags |= 8;
+        if (styleField('overline')) flags |= 16;
         invisible = styleField('invisible');
         if (styleField('inverse')) {
           const swapped = background >= 0 ? background : defaultBackground;
@@ -495,11 +515,11 @@
 
       const width = wide === wideKind.WIDE ? 2 : 1;
       const joins = open && plain && run.plain && thisColumn === run.column + run.cells &&
-        foreground === run.foreground && background === run.background && flags === run.flags;
+        foreground === run.foreground && background === run.background && flags === run.flags && underlineColor === run.underlineColor;
       if (!joins) {
         flush();
         open = true;
-        run = { column: thisColumn, cells: 0, plain, foreground, background, flags, text: '' };
+        run = { column: thisColumn, cells: 0, plain, foreground, background, flags, underlineColor, text: '' };
       }
       run.text += cellText;
       run.cells += width;

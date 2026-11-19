@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFontFamilyResolver
+import androidx.compose.ui.unit.Density
 import org.example.kotlintest.rex.TerminalLink
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -84,7 +86,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
@@ -141,7 +142,9 @@ fun TerminalView(
     val fontFamily = MaterialTheme.typography.bodyMedium.fontFamily ?: FontFamily.Monospace
     val style = remember(fontFamily, fontSize) { TextStyle(fontFamily = fontFamily, fontSize = fontSize) }
     val measurer = rememberTextMeasurer(cacheSize = 0) // rows are cached below, by identity
-    val cell = remember(style, measurer) { measureCell(measurer, style) }
+    val density = LocalDensity.current
+    val fonts = LocalFontFamilyResolver.current
+    val cell = remember(style, measurer, density, fonts) { measureCell(measurer, style, density, fonts) }
     val layouts = remember(style, cell) { RowLayouts(cell) }
     // Where fonts arrive after the text that needs them (see fontsArriveLater), rows drawn
     // without one are laid out again once it has had time to come, and this says to redraw.
@@ -407,8 +410,12 @@ fun TerminalView(
     }
 }
 
-/** The size of one character cell, in pixels. */
-internal class CellSize(val width: Float, val height: Float)
+/** The size of one character cell, in pixels, and where in it the lines under, over and through its text go. */
+internal class CellSize(
+    val width: Float,
+    val height: Float,
+    val lines: CellLines = CellLines(width, height, baseline = height * 0.8f, fontSize = height * 0.75f),
+)
 
 /**
  * Draws one frame of a terminal: its background, images and text, and over them what is
@@ -444,14 +451,17 @@ internal fun DrawScope.drawTerminal(
     frame.cursor?.let { drawCursor(it, frame, cell, active = cursorActive) }
 }
 
-internal fun measureCell(measurer: TextMeasurer, style: TextStyle): CellSize {
+internal fun measureCell(measurer: TextMeasurer, style: TextStyle, density: Density, fonts: FontFamily.Resolver? = null): CellSize {
     // How far the text itself runs, over a sample long enough to average out what the
     // layout does to each glyph. Not the size of the layout: that is the same width rounded
     // up to a whole pixel, which made every cell up to a twentieth of a pixel wider than
     // its glyph when the sample was twenty long, and text is drawn a run at a time, so by
     // column 120 it sat most of a cell to the left of the cell it belonged to.
     val sample = measurer.measure("M".repeat(CELL_SAMPLE), style, softWrap = false, maxLines = 1)
-    return CellSize(sample.getHorizontalPosition(CELL_SAMPLE, usePrimaryDirection = true) / CELL_SAMPLE, ceil(sample.size.height.toFloat()))
+    val width = sample.getHorizontalPosition(CELL_SAMPLE, usePrimaryDirection = true) / CELL_SAMPLE
+    val height = ceil(sample.size.height.toFloat())
+    val fontSize = with(density) { style.fontSize.toPx() }
+    return CellSize(width, height, CellLines(width, height, sample.firstBaseline, fontSize, fonts?.let { fontLines(it, style, fontSize) }))
 }
 
 private const val CELL_SAMPLE = 100
@@ -499,9 +509,8 @@ internal class RowLayouts(private val cell: CellSize) {
             add(PlacedText(run.column, whole))
             return
         }
-        val decorated = run.underline || run.strikethrough
         text.forEachIndexed { index, char ->
-            if (decorated || !char.isWhitespace()) add(PlacedText(run.column + index, measurer.measure(AnnotatedString(char.toString()), style, softWrap = false, maxLines = 1)))
+            if (!char.isWhitespace()) add(PlacedText(run.column + index, measurer.measure(AnnotatedString(char.toString()), style, softWrap = false, maxLines = 1)))
         }
     }
 
@@ -551,12 +560,6 @@ private fun TextStyle.merge(run: TerminalRun): TextStyle = copy(
     color = Color(0xFF000000 or run.foreground.toLong()),
     fontWeight = if (run.bold) FontWeight.Bold else FontWeight.Normal,
     fontStyle = if (run.italic) FontStyle.Italic else FontStyle.Normal,
-    textDecoration = when {
-        run.underline && run.strikethrough -> TextDecoration.combine(listOf(TextDecoration.Underline, TextDecoration.LineThrough))
-        run.underline -> TextDecoration.Underline
-        run.strikethrough -> TextDecoration.LineThrough
-        else -> TextDecoration.None
-    },
 )
 
 private fun DrawScope.drawRow(row: TerminalRow, rowIndex: Int, cell: CellSize, texts: List<PlacedText>) {
@@ -570,8 +573,12 @@ private fun DrawScope.drawRow(row: TerminalRow, rowIndex: Int, cell: CellSize, t
             size = Size(ceil(run.cells * cell.width) + 1f, cell.height),
         )
     }
+    // The lines under, over and through the text are drawn here, a run's cells at a time
+    // (TerminalLines.kt): under it first, and the others over it.
+    for (run in row.runs) drawUnderline(run, top, cell)
     // Over all the row's backgrounds, so that the next run's doesn't cut into a glyph that leans over its cell's edge.
     for (text in texts) drawText(text.layout, topLeft = Offset(text.column * cell.width, top))
+    for (run in row.runs) drawOverlineAndStrikethrough(run, top, cell)
 }
 
 /**

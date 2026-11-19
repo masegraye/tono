@@ -58,12 +58,22 @@ class TerminalRun(
     val background: Int?,
     val bold: Boolean = false,
     val italic: Boolean = false,
-    val underline: Boolean = false,
+    val underline: TerminalUnderline = TerminalUnderline.None,
     val strikethrough: Boolean = false,
+    /** The color of the line under the text, when the program asked for one of its own. Null to draw it in [foreground]. */
+    val underlineColor: Int? = null,
+    /** A line over the text, along the top of its cells. */
+    val overline: Boolean = false,
 ) {
     /** Whether this is plain characters, one to a cell, and not one character that takes all the run's cells. */
     val oneToACell: Boolean get() = text.length == cells && text.all { isPlain(it.code) }
 }
+
+/**
+ * The line under a run's text, as its program asked for it (SGR 4:1 to 4:5). In the order
+ * the terminal library and the browser's glue number them, from zero.
+ */
+enum class TerminalUnderline { None, Single, Double, Curly, Dotted, Dashed }
 
 /**
  * Whether a monospace font can be trusted to draw this character exactly one cell wide, so

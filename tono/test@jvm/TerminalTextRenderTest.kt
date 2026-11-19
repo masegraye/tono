@@ -17,6 +17,7 @@ import org.example.kotlintest.ghostty.SelectedCells
 import org.example.kotlintest.ghostty.TerminalFrame
 import org.example.kotlintest.ghostty.TerminalRow
 import org.example.kotlintest.ghostty.TerminalRun
+import org.example.kotlintest.ghostty.TerminalUnderline
 import org.jetbrains.skia.Bitmap
 import java.io.File
 import kotlin.math.abs
@@ -105,7 +106,7 @@ class TerminalTextRenderTest {
         val scene = ImageComposeScene(width = (columns * fontSize * density * 1.0f).toInt(), height = (rows.size * fontSize * density * 2.5f).toInt(), density = Density(density)) {
             val style = remember { TextStyle(fontFamily = family, fontSize = fontSize.sp) }
             val measurer = rememberTextMeasurer(cacheSize = 0)
-            val measured = remember { measureCell(measurer, style) }
+            val measured = remember { measureCell(measurer, style, Density(density)) }
             val layouts = remember { RowLayouts(measured) }
             val pictures = remember { Pictures() }
             Canvas(Modifier.fillMaxSize()) {
@@ -127,7 +128,8 @@ class TerminalTextRenderTest {
     }
 
     private fun run(column: Int, text: String, cells: Int = text.length, bold: Boolean = false, italic: Boolean = false, underline: Boolean = false) =
-        TerminalRun(column, cells, text, foreground, background = null, bold = bold, italic = italic, underline = underline)
+       
+        TerminalRun(column, cells, text, foreground, background = null, bold = bold, italic = italic, underline = if (underline) TerminalUnderline.Single else TerminalUnderline.None)
 
     /** One run the width of the terminal, with a mark in its first cell and one in [markAt], and nothing between them to get in the way of finding them. */
     private fun marks(markAt: Int, bold: Boolean = false, italic: Boolean = false) =
@@ -192,7 +194,7 @@ class TerminalTextRenderTest {
         val drawn = draw("proportional", listOf(marks(last), TerminalRow(listOf(run(0, "i".repeat(40) + " ".repeat(20), underline = true)))), family = FontFamily.SansSerif)
         val drift = drawn.drift(0, last)
         assertTrue(abs(drift) <= 0.5, "column $last is drawn ${"%.2f".format(drift)} pixels from its cell")
-        assertEquals(listOf(2, 60), drawn.pieces, "a piece for each glyph, and for each blank only where a line is drawn under it")
+        assertEquals(listOf(2, 40), drawn.pieces, "a piece for each glyph and none for a blank, a line under the text being drawn apart from it")
     }
 
     @Test

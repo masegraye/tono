@@ -2,6 +2,8 @@ package org.example.kotlintest.ghostty
 
 import org.example.kotlintest.ghostty.ffi.GhosttyColorRgb
 import org.example.kotlintest.ghostty.ffi.GhosttyRenderStateColors
+import org.example.kotlintest.ghostty.ffi.GhosttyStyleColor
+import org.example.kotlintest.ghostty.ffi.GhosttyStyleColorValue
 import org.example.kotlintest.ghostty.ffi.GhosttyRenderStateCursor
 import org.example.kotlintest.ghostty.ffi.GhosttyRenderStateRowSelection
 import org.example.kotlintest.ghostty.ffi.GhosttyStyle
@@ -222,8 +224,10 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
             var background: Int? = null
             var bold = false
             var italic = false
-            var underline = false
+            var underline = TerminalUnderline.None
+            var underlineColor: Int? = null
             var strikethrough = false
+            var overline = false
             var invisible = false
 
             // A cell can carry a background without any other styling, so always ask.
@@ -234,8 +238,10 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
                 cellGet(GhosttyVt.GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_STYLE(), styleOut)
                 bold = GhosttyStyle.bold(styleOut)
                 italic = GhosttyStyle.italic(styleOut)
-                underline = GhosttyStyle.underline(styleOut) != GhosttyVt.GHOSTTY_SGR_UNDERLINE_NONE()
+                underline = underlineOf(GhosttyStyle.underline(styleOut))
+                if (underline != TerminalUnderline.None) underlineColor = styleColor(GhosttyStyle.underline_color(styleOut))
                 strikethrough = GhosttyStyle.strikethrough(styleOut)
+                overline = GhosttyStyle.overline(styleOut)
                 invisible = GhosttyStyle.invisible(styleOut)
                 if (GhosttyStyle.inverse(styleOut)) {
                     val swapped = background ?: defaultBackground
@@ -274,14 +280,33 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
             }
 
             val width = if (wide == GhosttyVt.GHOSTTY_CELL_WIDE_WIDE()) 2 else 1
-            if (!pending.accepts(thisColumn, plain, foreground, background, bold, italic, underline, strikethrough)) {
+            if (!pending.accepts(thisColumn, plain, foreground, background, bold, italic, underline, strikethrough, underlineColor, overline)) {
                 pending.flushInto(runs)
-                pending.start(thisColumn, plain, foreground, background, bold, italic, underline, strikethrough)
+                pending.start(thisColumn, plain, foreground, background, bold, italic, underline, strikethrough, underlineColor, overline)
             }
             pending.append(text, width)
         }
         pending.flushInto(runs)
         return TerminalRow(runs)
+    }
+
+    private fun underlineOf(style: Int): TerminalUnderline = when (style) {
+        GhosttyVt.GHOSTTY_SGR_UNDERLINE_NONE() -> TerminalUnderline.None
+        GhosttyVt.GHOSTTY_SGR_UNDERLINE_DOUBLE() -> TerminalUnderline.Double
+        GhosttyVt.GHOSTTY_SGR_UNDERLINE_CURLY() -> TerminalUnderline.Curly
+        GhosttyVt.GHOSTTY_SGR_UNDERLINE_DOTTED() -> TerminalUnderline.Dotted
+        GhosttyVt.GHOSTTY_SGR_UNDERLINE_DASHED() -> TerminalUnderline.Dashed
+        else -> TerminalUnderline.Single
+    }
+
+    /** A color a style names, a palette color looked up in the palette this frame was read with. Null when it names none. */
+    private fun styleColor(color: MemorySegment): Int? = when (GhosttyStyleColor.tag(color)) {
+        GhosttyVt.GHOSTTY_STYLE_COLOR_RGB() -> readRgb(GhosttyStyleColorValue.rgb(GhosttyStyleColor.value(color)))
+        GhosttyVt.GHOSTTY_STYLE_COLOR_PALETTE() -> {
+            val index = GhosttyStyleColorValue.palette(GhosttyStyleColor.value(color)).toInt() and 0xFF
+            readRgb(GhosttyRenderStateColors.palette(colorsOut), index * GhosttyColorRgb.sizeof())
+        }
+        else -> null
     }
 
     private fun rowGet(data: Int, out: MemorySegment) =
@@ -316,20 +341,25 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
         private var background: Int? = null
         private var bold = false
         private var italic = false
-        private var underline = false
+        private var underline = TerminalUnderline.None
         private var strikethrough = false
+        private var underlineColor: Int? = null
+        private var overline = false
 
         /** Whether a cell at [column] with these attributes can join the run. */
         fun accepts(
             column: Int, plain: Boolean, foreground: Int, background: Int?,
-            bold: Boolean, italic: Boolean, underline: Boolean, strikethrough: Boolean,
+            bold: Boolean, italic: Boolean, underline: TerminalUnderline, strikethrough: Boolean,
+            underlineColor: Int?, overline: Boolean,
         ): Boolean = open && plain && this.plain && column == this.column + cells &&
             foreground == this.foreground && background == this.background &&
-            bold == this.bold && italic == this.italic && underline == this.underline && strikethrough == this.strikethrough
+            bold == this.bold && italic == this.italic && underline == this.underline && strikethrough == this.strikethrough &&
+            underlineColor == this.underlineColor && overline == this.overline
 
         fun start(
             column: Int, plain: Boolean, foreground: Int, background: Int?,
-            bold: Boolean, italic: Boolean, underline: Boolean, strikethrough: Boolean,
+            bold: Boolean, italic: Boolean, underline: TerminalUnderline, strikethrough: Boolean,
+            underlineColor: Int?, overline: Boolean,
         ) {
             open = true
             text.setLength(0)
@@ -342,6 +372,8 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
             this.italic = italic
             this.underline = underline
             this.strikethrough = strikethrough
+            this.underlineColor = underlineColor
+            this.overline = overline
         }
 
         fun append(cellText: String, width: Int) {
@@ -352,7 +384,7 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
         fun flushInto(runs: MutableList<TerminalRun>) {
             if (!open) return
             open = false
-            runs += TerminalRun(column, cells, text.toString(), foreground, background, bold, italic, underline, strikethrough)
+            runs += TerminalRun(column, cells, text.toString(), foreground, background, bold, italic, underline, strikethrough, underlineColor, overline)
         }
     }
 }
