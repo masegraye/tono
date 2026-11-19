@@ -10,3 +10,4 @@ An investigation records findings and may recommend, but it is not a work order.
 |---|----------|--------|
 | 001 | [inv-001-rex-rune-feature-audit.md](inv-001-rex-rune-feature-audit.md): what Rex Rune does that Tono doesn't, and what in it is worth building. Its findings are the backlog's first entries | in-review |
 | 002 | [inv-002-ios-app-and-testflight.md](inv-002-ios-app-and-testflight.md): what it takes to build Tono for iOS and ship it through TestFlight | done |
+| 003 | [inv-003-where-tono-keeps-its-files.md](inv-003-where-tono-keeps-its-files.md): where Tono should keep its settings and state on each platform, what the Kotlin libraries offer, and how to move from `~/.config/kotlin-test/` | in-review |
