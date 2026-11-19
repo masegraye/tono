@@ -13,7 +13,7 @@ Most of these came from the audit of Rex Rune in [inv-001](../investigations/inv
 The order proposed in inv-001, not yet agreed:
 
 1. ~~backlog-001: Program copies reach the clipboard (OSC 52)~~ done
-2. backlog-002: Select and copy text
+2. ~~backlog-002: Select and copy text~~ done
 3. backlog-005: Open links with Ctrl+click
 4. backlog-006: Search a terminal
 5. backlog-008: Desktop notifications
@@ -29,7 +29,7 @@ The order proposed in inv-001, not yet agreed:
 | # | Entry | Area | Size | Status |
 |---|-------|------|------|--------|
 | 001 | [Program copies reach the clipboard (OSC 52)](backlog-001-program-copies-reach-the-clipboard.md) | Clipboard | small | done |
-| 002 | [Select and copy text](backlog-002-select-and-copy-text.md) | Clipboard | large | captured |
+| 002 | [Select and copy text](backlog-002-select-and-copy-text.md) | Clipboard | large | done |
 | 003 | [Paste or drop files and images](backlog-003-paste-files-and-images.md) | Clipboard | medium | captured |
 | 004 | [Copy on select, and middle-click paste](backlog-004-copy-on-select-and-middle-click-paste.md) | Clipboard | small | captured |
 | 005 | [Open links with Ctrl+click](backlog-005-open-links.md) | Reading a terminal | medium | captured |
