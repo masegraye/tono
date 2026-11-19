@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | done (commit `e8a2e9d`, 2026-11-18) |
+| Status | done (commit `f1f40b2`, 2026-11-19) |
 | Area | Dialogs |
 | Size | small |
 | Source | Mase, looking at the Close Pane confirmation |
