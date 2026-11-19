@@ -6,7 +6,7 @@
 // which it does for keys that reach a terminal, but not for a key it has no use for at that
 // moment (a shortcut pressed while a dialog is open), and not at all while the page's focus
 // is outside its canvas, as it is when the page has just loaded. Three things here close
-// those gaps, a fourth is for a keyboard on a screen, and a fifth for a mouse's side buttons. Each is about the page rather than
+// those gaps, a fourth is for a keyboard on a screen, a fifth for a mouse's side buttons, and a sixth for its middle one. Each is about the page rather than
 // the app, which is why they are not in it.
 (() => {
   'use strict';
@@ -122,4 +122,18 @@
       if (event.button === 3 || event.button === 4) event.preventDefault();
     });
   }
+
+  // --- 6. The middle button does only what the app says ---
+  //
+  // A browser has its own uses for the middle button: on Windows and where it is turned on
+  // elsewhere, pressing it starts scrolling the page by moving the mouse. The app hears the
+  // press and decides for itself whether it pastes into a terminal (its Primary Selection
+  // setting); cancelling the press here keeps the browser from doing anything besides. A
+  // text field of the page's own keeps what the browser does there.
+  addEventListener('mousedown', (event) => {
+    if (event.button !== 1) return;
+    const target = event.composedPath ? event.composedPath()[0] : event.target;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+    event.preventDefault();
+  });
 })();

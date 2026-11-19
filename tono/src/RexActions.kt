@@ -497,6 +497,33 @@ internal fun clientActions(): List<ClientAction> = buildList {
         notifications = notifications.copy(programMessages = !notifications.programMessages)
         client.log.add("notify", "notifications that programs ask for ${if (notifications.programMessages) "on" else "off"}")
     })
+    // Rex.app's action, and Rex Rune's second switch beside it under its name there. Both
+    // are also in the workspace file, under "terminal".
+    add(ClientAction(
+        "client.setting.terminal.selection.copy_on_select", "Copy on Selection", "Terminal",
+        "copy select selection clipboard automatic mouse drag highlight",
+        state = { if (selection.copyOnSelection) "on" else "off" },
+    ) {
+        selection = selection.copy(copyOnSelection = !selection.copyOnSelection)
+        client.log.add("clipboard", "copy on selection ${if (selection.copyOnSelection) "on" else "off"}")
+    })
+    add(ClientAction(
+        "client.setting.terminal.selection.primary_selection", "Primary Selection", "Terminal",
+        "primary selection middle click button paste mouse copy select x11 wayland linux",
+        state = {
+            when {
+                !selection.primarySelection -> "off"
+                else -> when (primarySelection()) {
+                    PrimarySelection.Desktop -> "on"
+                    PrimarySelection.Clipboard -> "on, with the clipboard"
+                    PrimarySelection.None -> "unavailable"
+                }
+            }
+        },
+    ) {
+        selection = selection.copy(primarySelection = !selection.primarySelection)
+        client.log.add("clipboard", "primary selection ${if (selection.primarySelection) "on" else "off"}")
+    })
     // Only where the app is what asks for it, which is a browser. There it is also the way to
     // get every key: a browser keeps some for itself in a tab, and gives them up in full screen.
     fullScreen?.let { screen ->

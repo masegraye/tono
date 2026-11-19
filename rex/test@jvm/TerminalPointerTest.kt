@@ -21,10 +21,25 @@ class TerminalPointerTest {
         val selected get() = selection.text(terminal)
 
         /** Cells are ten pixels wide and twenty tall. */
-        fun pointer(action: MouseAction, button: MouseButton?, x: Float, y: Float, shift: Boolean = false, scrollRows: Int = 0, control: Boolean = false): String {
-            now += 1_000 // far enough apart that no two presses make a double click
-            return pointer.handle(terminal, MouseInput(action, button, x, y, cellWidth = 10, cellHeight = 20, shift = shift, control = control), scrollRows, now).decodeToString()
+        fun pointer(action: MouseAction, button: MouseButton?, x: Float, y: Float, shift: Boolean = false, scrollRows: Int = 0, control: Boolean = false, sinceLast: Long = 1_000): String {
+            now += sinceLast // by default far enough apart that no two presses make a double click
+            return pointer.handle(terminal, MouseInput(action, button, x, y, cellWidth = 10, cellHeight = 20, shift = shift, control = control), scrollRows, now, middlePastes).decodeToString()
         }
+
+        /** Whether the middle button is asked to paste. */
+        var middlePastes = false
+
+        /** How many times the pointer said it had finished selecting, and what was selected each time. */
+        val finished = ArrayList<String>()
+
+        /** How many pastes a middle click asked for. */
+        var pastes = 0
+
+        fun middleClick(x: Float, y: Float = 10f, shift: Boolean = false, toX: Float = x): List<String> = listOf(
+            pointer(MouseAction.Press, MouseButton.Middle, x, y, shift),
+            pointer(MouseAction.Motion, MouseButton.Middle, toX, y, shift),
+            pointer(MouseAction.Release, MouseButton.Middle, toX, y, shift),
+        )
 
         /** The addresses opened so far. */
         val opened = ArrayList<String>()
@@ -46,6 +61,8 @@ class TerminalPointerTest {
                         mouse, selection,
                         linkAt = { at, column, row -> linkAt(DrawnScreen(renderer.render(at), at), column, row) },
                         open = { scene.opened += it },
+                        selected = { scene.finished += scene.selected },
+                        paste = { scene.pastes++ },
                     )
                     scene = Scene(terminal, selection, pointer)
                     scene.body()
@@ -251,5 +268,150 @@ class TerminalPointerTest {
         assertNull(pointer.linkUnder(terminal, at(5f, 10f)))
         assertNull(pointer.linkUnder(terminal, at(-5f, 10f)))
         assertNull(pointer.linkUnder(terminal, at(45f, 90f)))
+    }
+
+    // --- A finished selection, which Copy on Selection copies ---
+
+    @Test
+    fun `a drag that selects says so once, when the button comes up`() = scene("hello world") {
+        pointer(MouseAction.Press, MouseButton.Left, 1f, 10f)
+        pointer(MouseAction.Motion, MouseButton.Left, 49f, 10f)
+        assertEquals(emptyList(), finished)
+        pointer(MouseAction.Release, MouseButton.Left, 49f, 10f)
+
+        assertEquals(listOf("hello"), finished)
+    }
+
+    @Test
+    fun `a click finishes with nothing selected, and a double click with the word`() = scene("hello world") {
+        pointer(MouseAction.Press, MouseButton.Left, 15f, 10f)
+        pointer(MouseAction.Release, MouseButton.Left, 15f, 10f, sinceLast = 50)
+        assertEquals(listOf(""), finished)
+
+        pointer(MouseAction.Press, MouseButton.Left, 15f, 10f, sinceLast = 100)
+        pointer(MouseAction.Release, MouseButton.Left, 15f, 10f, sinceLast = 50)
+        assertEquals(listOf("", "hello"), finished)
+    }
+
+    @Test
+    fun `a drag that went to a program finishes nothing, and one with shift does`() = scene("hello world$tracking") {
+        drag(fromX = 1f, toX = 49f)
+        assertEquals(emptyList(), finished)
+
+        drag(fromX = 1f, toX = 49f, shift = true)
+        assertEquals(listOf("hello"), finished)
+    }
+
+    @Test
+    fun `a click on a link finishes nothing`() = scene("see https://a.example") {
+        pointer(MouseAction.Press, MouseButton.Left, 45f, 10f, control = true)
+        pointer(MouseAction.Release, MouseButton.Left, 45f, 10f, control = true)
+
+        assertEquals(listOf("https://a.example"), opened)
+        assertEquals(emptyList(), finished)
+    }
+
+    // --- The middle button, which Primary Selection has paste ---
+
+    @Test
+    fun `a middle click pastes once, when the button comes up`() = scene("hello world") {
+        middlePastes = true
+        assertEquals("", pointer(MouseAction.Press, MouseButton.Middle, 45f, 10f))
+        assertEquals(0, pastes)
+        assertEquals("", pointer(MouseAction.Release, MouseButton.Middle, 46f, 11f))
+
+        assertEquals(1, pastes)
+    }
+
+    @Test
+    fun `it pastes nothing unless it is asked to`() = scene("hello world") {
+        assertEquals(listOf("", "", ""), middleClick(45f))
+
+        assertEquals(0, pastes)
+    }
+
+    @Test
+    fun `a middle click leaves the selection as it is`() = scene("hello world") {
+        middlePastes = true
+        drag(fromX = 1f, toX = 49f)
+        middleClick(95f)
+
+        assertEquals("hello", selected)
+        assertEquals(1, pastes)
+    }
+
+    @Test
+    fun `a middle button that is dragged pastes nothing, even if it comes back`() = scene("hello world") {
+        middlePastes = true
+        middleClick(45f, toX = 95f)
+        assertEquals(0, pastes)
+
+        pointer(MouseAction.Press, MouseButton.Middle, 45f, 10f)
+        pointer(MouseAction.Motion, MouseButton.Middle, 95f, 10f)
+        pointer(MouseAction.Motion, MouseButton.Middle, 45f, 10f)
+        pointer(MouseAction.Release, MouseButton.Middle, 45f, 10f)
+        assertEquals(0, pastes)
+    }
+
+    @Test
+    fun `a middle press outside the terminal pastes nothing`() = scene("hello world") {
+        middlePastes = true
+        middleClick(45f, y = 90f)
+        middleClick(205f)
+
+        assertEquals(0, pastes)
+    }
+
+    @Test
+    fun `a middle press while selecting pastes nothing, and the selection goes on`() = scene("hello world") {
+        middlePastes = true
+        pointer(MouseAction.Press, MouseButton.Left, 1f, 10f)
+        pointer(MouseAction.Motion, MouseButton.Left, 29f, 10f)
+        pointer(MouseAction.Press, MouseButton.Middle, 29f, 10f)
+        pointer(MouseAction.Release, MouseButton.Middle, 29f, 10f)
+        pointer(MouseAction.Motion, MouseButton.Left, 49f, 10f)
+        pointer(MouseAction.Release, MouseButton.Left, 49f, 10f)
+
+        assertEquals(0, pastes)
+        assertEquals(listOf("hello"), finished)
+    }
+
+    @Test
+    fun `a program that asked for the mouse gets the middle click, and nothing is pasted`() = scene("hello world$tracking") {
+        for (asked in listOf(false, true)) {
+            middlePastes = asked
+            val sent = middleClick(45f)
+
+            assertEquals("$ESC[<1;5;1M", sent.first(), "asked to paste: $asked")
+            assertEquals("$ESC[<1;5;1m", sent.last(), "asked to paste: $asked")
+        }
+        assertEquals(0, pastes)
+    }
+
+    @Test
+    fun `with shift, a middle click pastes even there, and the program hears none of it`() = scene("hello world$tracking") {
+        middlePastes = true
+        assertEquals(listOf("", "", ""), middleClick(45f, shift = true))
+
+        assertEquals(1, pastes)
+    }
+
+    @Test
+    fun `with shift and not asked to paste, the program gets the middle click as before`() = scene("hello world$tracking") {
+        val sent = middleClick(45f, shift = true)
+
+        assertTrue(sent.first().endsWith("M") && sent.first().startsWith("$ESC[<"), sent.first())
+        assertEquals(0, pastes)
+    }
+
+    @Test
+    fun `a program that starts asking while the button is down is told nothing of that click`() = scene("hello world") {
+        middlePastes = true
+        pointer(MouseAction.Press, MouseButton.Middle, 45f, 10f)
+        terminal.write(tracking.encodeToByteArray())
+
+        assertEquals("", pointer(MouseAction.Release, MouseButton.Middle, 45f, 10f))
+        assertEquals(1, pastes)
+        assertEquals("$ESC[<1;5;1M", pointer(MouseAction.Press, MouseButton.Middle, 45f, 10f))
     }
 }

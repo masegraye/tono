@@ -131,6 +131,9 @@ fun TerminalView(
     controlHeld: Boolean = false,
     onOpenLink: (url: String) -> Unit = {},
     topEndInset: Dp = 0.dp,
+    middlePastes: Boolean = false,
+    onSelected: () -> Unit = {},
+    onMiddlePaste: () -> Unit = {},
 ) {
     val frame by terminal.frame.collectAsState()
     val fontFamily = MaterialTheme.typography.bodyMedium.fontFamily ?: FontFamily.Monospace
@@ -182,7 +185,20 @@ fun TerminalView(
     fun report(event: PointerEvent, action: MouseAction, button: MouseButton?, scrollRows: Int = 0) {
         // Wherever it is: the terminal knows its own edges, and a selection is dragged past them.
         val position = event.changes.firstOrNull()?.position ?: return
-        terminal.mouse(input(position, action, button, event), scrollRows)
+        terminal.mouse(input(position, action, button, event), scrollRows, middlePastes)
+    }
+
+    // A selection the pointer finished, and a middle click that asks for a paste: what
+    // either does is a setting's to say (see SelectionCopy.kt).
+    val selected by rememberUpdatedState(onSelected)
+    val middlePaste by rememberUpdatedState(onMiddlePaste)
+    LaunchedEffect(terminal) {
+        terminal.gestures.collect { gesture ->
+            when (gesture) {
+                TerminalSession.Gesture.Selected -> selected()
+                TerminalSession.Gesture.Paste -> middlePaste()
+            }
+        }
     }
 
     // Links. With Control held the terminal is told where the pointer is, and says which

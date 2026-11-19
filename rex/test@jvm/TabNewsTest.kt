@@ -85,4 +85,30 @@ class NotificationSwitchesTest {
         assertEquals(NotificationSwitches(done = false), Workspace.load(file).notifications)
         file.parent.toFile().deleteRecursively()
     }
+
+    @Test
+    fun `the selection switches are off until turned on, and are written under Rex Rune's names`() {
+        assertEquals(SelectionSwitches(copyOnSelection = false, primarySelection = false), SelectionSwitches.parse(null))
+        assertEquals(SelectionSwitches(), SelectionSwitches.parse(fields("""{"copy_on_selection":"sometimes","primary_selection":false}""")))
+        val both = SelectionSwitches(copyOnSelection = true, primarySelection = true)
+        assertEquals(fields("""{"copy_on_selection":true,"primary_selection":true}"""), both.toJson())
+        for (each in listOf(both, SelectionSwitches(copyOnSelection = true), SelectionSwitches(primarySelection = true))) {
+            assertEquals(each, SelectionSwitches.parse(each.toJson()))
+        }
+    }
+
+    @Test
+    fun `the workspace keeps the selection switches, and shows them even when none has been touched`() {
+        val file = Files.createTempDirectory("workspace").resolve("workspace.json")
+        Workspace(WorkspaceFile(file)).save()
+        assertEquals(SelectionSwitches().toJson(), fields(Files.readString(file))["terminal"])
+        assertEquals(SelectionSwitches(), Workspace.load(file).selection)
+
+        val workspace = Workspace.load(file)
+        workspace.selection = SelectionSwitches(primarySelection = true)
+        workspace.save()
+        assertEquals(SelectionSwitches(primarySelection = true), Workspace.load(file).selection)
+        assertEquals(NotificationSwitches(), Workspace.load(file).notifications)
+        file.parent.toFile().deleteRecursively()
+    }
 }

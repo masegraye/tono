@@ -92,6 +92,20 @@ class TerminalSession internal constructor(
      */
     val opened: SharedFlow<String> get() = mutableOpened
 
+    /** What the pointer did that is for whoever shows the terminal to act on. */
+    enum class Gesture {
+        /** The button came up after selecting. Whether anything is selected is for [selectedText] to say. */
+        Selected,
+
+        /** A middle click that asks for a paste: see [mouse]. */
+        Paste,
+    }
+
+    private val mutableGestures = MutableSharedFlow<Gesture>(extraBufferCapacity = 4)
+
+    /** The [Gesture]s as they are made. Nothing is kept for a collector that arrives later. */
+    val gestures: SharedFlow<Gesture> get() = mutableGestures
+
     private val mutableSearch = MutableStateFlow<TerminalSearch?>(null)
 
     /** The terminal's search while it is open: what is looked for and what was found. Null while it is closed. */
@@ -109,7 +123,7 @@ class TerminalSession internal constructor(
     private sealed interface Command {
         class SetColors(val colors: TerminalColors) : Command
         class Scroll(val rows: Int) : Command
-        class Mouse(val input: MouseInput, val scrollRows: Int, val timeMillis: Long) : Command
+        class Mouse(val input: MouseInput, val scrollRows: Int, val timeMillis: Long, val middlePastes: Boolean) : Command
         class PointAt(val at: MouseInput?) : Command
         data object ScrollToBottom : Command
         data object SelectAll : Command
@@ -155,8 +169,12 @@ class TerminalSession internal constructor(
      *
      * The position may be outside the terminal, which matters while selecting: dragging
      * past an edge selects up to it, and past the top or bottom scrolls.
+     *
+     * A selection the pointer finishes is told of in [gestures]. With [middlePastes], so is
+     * a middle click on a program that hasn't asked for the mouse, or with Shift held on one
+     * that has, and the program hears nothing of that click.
      */
-    fun mouse(input: MouseInput, scrollRows: Int = 0) { commands.trySend(Command.Mouse(input, scrollRows, nowMillis())) }
+    fun mouse(input: MouseInput, scrollRows: Int = 0, middlePastes: Boolean = false) { commands.trySend(Command.Mouse(input, scrollRows, nowMillis(), middlePastes)) }
 
     /**
      * Says where the pointer is while Control is held, which is how a link is followed: if
@@ -255,6 +273,8 @@ class TerminalSession internal constructor(
                     log("a link was clicked: $url")
                     mutableOpened.tryEmit(url)
                 },
+                selected = { mutableGestures.tryEmit(Gesture.Selected) },
+                paste = { mutableGestures.tryEmit(Gesture.Paste) },
             )
             colors?.let(terminal::setColors)
             mutableGrid.value = GridSize(terminal.columns, terminal.rows)
@@ -380,7 +400,7 @@ class TerminalSession internal constructor(
             is Command.Mouse -> {
                 val input = command.input
                 val wasScrolling = pointer.scrollingAt != null
-                val report = pointer.handle(terminal, input, command.scrollRows, command.timeMillis)
+                val report = pointer.handle(terminal, input, command.scrollRows, command.timeMillis, command.middlePastes)
                 if (!wasScrolling) scrollNextMillis = nowMillis() + AUTOSCROLL_MILLIS
                 // A click claims the terminal as a key press does; passing over it doesn't.
                 if (report.isNotEmpty()) onInput(report.latin1(), input.action == MouseAction.Press && input.button != MouseButton.WheelUp && input.button != MouseButton.WheelDown)

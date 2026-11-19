@@ -16,6 +16,7 @@ import org.example.kotlintest.rex.stillOpen
 import org.example.kotlintest.rex.with
 import org.example.kotlintest.rex.NotificationSwitches
 import org.example.kotlintest.rex.ProgramCopy
+import org.example.kotlintest.rex.SelectionSwitches
 import org.example.kotlintest.rex.RexClient
 import org.example.kotlintest.rex.RexHost
 import org.example.kotlintest.rex.SessionView
@@ -118,6 +119,16 @@ class RexUiState(val client: RexClient) {
             client.workspace.save()
         }
     private var notificationSwitches by mutableStateOf(client.workspace.notifications)
+
+    /** What selecting with the pointer copies, and whether the middle button pastes: see SelectionCopy.kt. Remembered between runs. */
+    var selection: SelectionSwitches
+        get() = selectionSwitches
+        set(switches) {
+            selectionSwitches = switches
+            client.workspace.selection = switches
+            client.workspace.save()
+        }
+    private var selectionSwitches by mutableStateOf(client.workspace.selection)
 
     /** Shows the notifications. */
     internal val notifier = Notifier(this)
