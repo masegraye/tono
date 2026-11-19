@@ -34,7 +34,7 @@ The order proposed in inv-001, not yet agreed:
 | 004 | [Copy on select, and middle-click paste](backlog-004-copy-on-select-and-middle-click-paste.md) | Clipboard | small | done |
 | 005 | [Open links with Ctrl+click](backlog-005-open-links.md) | Reading a terminal | medium | done |
 | 006 | [Search a terminal](backlog-006-search-scrollback.md) | Reading a terminal | medium | done |
-| 007 | [Jump between shell prompts](backlog-007-jump-between-prompts.md) | Reading a terminal | small | captured |
+| 007 | [Jump between shell prompts](backlog-007-jump-between-prompts.md) | Reading a terminal | small | done |
 | 008 | [Desktop notifications](backlog-008-desktop-notifications.md) | Knowing what happened | medium | done |
 | 009 | [The bell, and progress](backlog-009-bell-and-progress.md) | Knowing what happened | small | done |
 | 010 | [Name the window after the tab](backlog-010-window-title.md) | Knowing what happened | small | done |
