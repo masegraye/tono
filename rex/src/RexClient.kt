@@ -181,6 +181,38 @@ class RexClient(
      */
     val hostListings: StateFlow<Map<String, HostListing>> get() = mutableHostListings
 
+    private val mutableClientLabel = MutableStateFlow(workspace.clientLabel ?: info.label.orEmpty())
+
+    /**
+     * What this app calls itself in each server's list of clients (`rex client ls`), or empty
+     * for no label. It is the one someone chose here, and failing that the one the app was
+     * started with: in a browser, the name of the device the page is on.
+     */
+    val clientLabel: StateFlow<String> get() = mutableClientLabel
+
+    /**
+     * Calls this app [label] on every server it is connected to, and on the ones it connects
+     * to later. Kept in the workspace. Empty goes back to the label the app was started with.
+     * Returns null once the servers have it, and otherwise the first refusal, in the server's
+     * words: a label can be 64 bytes at most, and can't have control characters.
+     */
+    suspend fun setClientLabel(label: String): String? {
+        val chosen = label.trim()
+        val effective = chosen.ifEmpty { info.label.orEmpty() }
+        var refusal: String? = null
+        for (host in mutableHosts.value.filter { it.state.value.connection == HostConnection.Connected }) {
+            runCatching { host.setClientLabel(effective) }.onFailure {
+                if (it is RexError && refusal == null) refusal = it.message
+            }
+        }
+        if (refusal != null) return refusal
+        mutableClientLabel.value = effective
+        workspace.clientLabel = chosen.takeIf { it.isNotEmpty() }
+        workspace.save()
+        log.add("app", if (effective.isEmpty()) "this client has no label now" else "this client is labelled $effective")
+        return null
+    }
+
     private val mutableHostOrder = MutableStateFlow(workspace.hostOrder)
 
     /** The order someone arranged the hosts in, by label: see [Workspace.hostOrder]. */
@@ -554,6 +586,10 @@ class RexClient(
         },
         // The keymap belongs to the home server; read it when that connects or its configuration changes.
         onServerEvent = { type ->
+            // A label chosen here isn't the one the connection opened with, so each new connection is told it.
+            if (type == "connected" && workspace.clientLabel != null) scope.launch {
+                mutableHosts.value.firstOrNull { it.saved == saved }?.let { host -> runCatching { host.setClientLabel(mutableClientLabel.value) } }
+            }
             if (type == "connected" || type == "keymap_changed") keymapRefresh.trySend(Unit)
             // Every server has a host list; the one this app follows is its home's.
             if (saved == home?.saved && (type == "connected" || type == "hosts_changed")) hostListRefresh.trySend(Unit)

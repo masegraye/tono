@@ -340,6 +340,9 @@ private fun HostDetails(ui: RexUiState, label: String) {
         Text(hostSourceWords(source, home ?: "the home server", listing), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
     }
 
+    // What the server says of itself, for any host that is connected: the home server's is in Server too.
+    if (state.reach == HostReach.Connected) SettingsGroup("Rex Server") { ServerDetails(host, state) }
+
     if (isHome) {
         SettingsGroup("Address") { InfoRow("This app reaches it at", host.saved.endpoint) }
         return

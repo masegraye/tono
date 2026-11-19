@@ -172,3 +172,30 @@ internal enum class NotificationsMissing {
  */
 @Composable
 internal expect fun WatchBrowserBack(depth: Int, onBack: () -> Unit)
+
+/**
+ * What this machine has for running a Rex server of its own, as far as can be told.
+ *
+ * @param rexPath where the `rex` command is, or null if it isn't on `PATH`
+ * @param socketEnabled whether the `rex.socket` user unit is enabled, so that the server starts by itself; null if systemd can't be asked
+ * @param socketActive whether that unit is active just now; null if systemd can't be asked
+ */
+internal data class LocalServerSetup(val rexPath: String?, val socketEnabled: Boolean? = null, val socketActive: Boolean? = null)
+
+/** Looks at this machine: see [LocalServerSetup]. Null where the app can't look, which is a browser. Changes nothing. */
+internal expect suspend fun localServerSetup(): LocalServerSetup?
+
+/** The two things this app will run to get a server going, each only when its button is pressed. */
+internal enum class LocalServerCommand(val title: String, val arguments: List<String>) {
+    /** Starts a server that runs until the machine restarts. */
+    Start("Start Server", listOf("server", "start")),
+
+    /** Has the server start by itself from now on: on Linux, enables the `rex.socket` user unit. */
+    StartAtLogin("Start at Login", listOf("server", "install")),
+}
+
+/**
+ * Runs `rex` with a command's arguments and waits for it. Returns null if it succeeded, and
+ * otherwise what it printed, or why it couldn't be run, to show. Never throws.
+ */
+internal expect suspend fun runRex(command: LocalServerCommand): String?

@@ -298,8 +298,19 @@ Each phase is committed separately, with its tests, and leaves both apps working
 - **Add** is `RexClient.addHostNow`, which the palette's Add Host… also runs, now with an icon.
 - **Remove** asks with `removeHostQuestion`, the palette's words, now one function.
 
+### Phase 4: Server (2026-11-19)
+
+- **What a server says about itself:** `rex/src/ServerInfo.kt` reads `server.status`, `server.version` and `server.whoami` together (`RexHost.serverInfo`). `ServerDetails` in `tono/src/SettingsServer.kt` shows it for the home server in the Server section, and for any connected host in its details.
+- **No local server:** when the home server is this machine's usual socket and an attempt on it has failed (`isMissingLocalServer`), the desktop app looks for `rex` on `PATH` and asks `systemctl --user` whether `rex.socket` is enabled and active (`localServerSetup`). `localServerOffers` picks Start Server, Start at Login, or the link to installing Rex on Linux. `runRex` runs the command only when its button is pressed, with nothing on its input, and what it printed is shown if it fails. A browser can't look, and offers nothing.
+- **Tailscale:** state, name, address and account. **Sign In…** is offered while the device is `needs_login`, for the home server only, since the server takes `server.tailscale.login` over its own socket alone.
+- **Client Info:** `RexClient.clientLabel`, kept as `client_label` in the workspace and sent with `client.set_label` to every connected server, and to each as it connects.
+
 ### Decisions made while building, none of them asked for
 
+- **Start Server is offered only for this machine's usual socket** (`REX_SERVER`, or the per-user one). `rex server start` starts the account's server at the per-user socket whatever `REX_SERVER` says, so with `REX_SERVER` pointing elsewhere the button starts a server this app won't find. Not handled.
+- **A server's session count is the live one** this app already follows, not the one in the status it asked for once.
+- **The rest of a server's details are asked for when they are shown,** and again when the connection is made anew. They don't follow `tailscale_status_changed`.
+- **An empty client label goes back to the label the app started with:** in a browser, the name of the device the page is on.
 - **The order is this app's.** `hosts.list` says its hosts are "sorted by label, ignoring case, then by id", and `hosts.put` takes no place, so the server keeps no order. It is kept as `host_order` in the workspace file (`RexClient.hostOrder`), and `sidebarOrder` follows it: the home server first, then the hosts as arranged, reachable or not, then any that weren't there to arrange, by the old rule.
 - **A found tailnet server fills in the form; it isn't added at once,** unlike the palette. A mistaken press on a page where lines lead somewhere should add no machine. (A test click of mine did exactly that: see "What went wrong".)
 - **The home server can't be edited here.** Its details say what it is and where it is reached.
@@ -335,6 +346,21 @@ Each phase is committed separately, with its tests, and leaves both apps working
 - **Web, headless Chromium, 1400 wide:** Ctrl+, reached the page (`defaultPrevented`) and opened the panel; a click on Play Activity Sounds wrote `sounds: false` to the browser's storage, the palette said "Notifications · off", and it was still off after a reload; Escape closed the panel.
 - **Phone size, Chromium's phone emulation (390×844, scale 3, touch):** Settings… chosen in the palette filled the screen with the list; a tap on Terminal opened it; a tap on the words of Copy on Selection turned its switch; the browser's back went to the list, and again closed the panel, on the same page. After closing with the panel's own ✕, one more back left the page, as it would have before the settings were opened.
 
+### What was checked in phase 4
+
+- **Unit tests:** the three answers read into one, from what the real Local server answered on 2026-11-19 with the names changed, and from a server that says less; the client label kept and cleared (`rex/test@jvm/SettingSwitchesTest.kt`); what is offered for each state of the machine, its wording, when a server counts as missing, listeners and process in a line (`SettingsTest`).
+- **Render tests:** a server's details from a made-up answer with Tailscale on, and the Server section with no rex, with rex and the unit off, and with the unit on, at 420, 700 and 1100. Pictures `server-*.png` were looked at.
+- **The real Local server, by the command line only:** `rex api call server.status`, `server.version` and `server.whoami` gave the fields the parser reads, in the shape the unit test has. The app was not run against it: an app whose home is the real server connects to every host in Mase's list.
+- **Web app, headless Chromium, scratch home server:** the Server section showed its version, API revision, start time, account and process, sessions, listener, Tailscale off, and its configuration file's path and generation.
+- **Desktop app, nested Xwayland, with a `PATH` holding only stand-ins of mine for `rex`, `systemctl` and `tailscale`:**
+  - home on a socket nobody listened on, and no `rex` on `PATH`: "No Rex Server Here … Rex isn't installed", and only the link to installing it;
+  - the same with the stand-in `rex` and a `systemctl` that says the unit is off: both buttons, and nothing run by looking (the log of calls had the two `systemctl` questions and no `rex`);
+  - Start at Login, whose stand-in fails: "It didn't work. rex said:" and its line;
+  - Start Server, whose stand-in runs a scratch `rex server run` on that socket: within seconds the section said Connected and showed the new server's details, and the card was gone. Mase's server kept its pid and its sessions throughout.
+- **Desktop app, same display, scratch home with a second scratch server as a connected remote:** the layout after the Mac's, Remote Hosts with a connected host, that host's details with what its server says of itself, and a host dragged by its handle with the mouse to the top, which wrote `host_order` to the workspace file and reordered the sidebar.
+
+Not checked in phase 4: Tailscale Sign In… (no scratch server had Tailscale on; only the reading of `needs_login` and its link is tested); the real `rex server start` and `rex server install`, on purpose; a machine without systemd.
+
 ### What was checked in phase 3
 
 - **Unit tests:** moving a host before another, up and down; the order heard, kept and read back; a host of this app's alone renamed and readdressed, keeping its place and staying selected; refusals said in words; a changed host sent back whole (`rex/test@jvm/HostChangesTest.kt`); the sidebar's order with and without an arrangement, status and source wording, icon names, the places within the section (`SettingsTest`).
@@ -349,7 +375,7 @@ Each phase is committed separately, with its tests, and leaves both apps working
   - Remove Host… asked in the palette's words and, on Enter, the host left the scratch list.
 - **Phone size, Chromium's phone emulation:** Remote Hosts in the list of sections, a tap on a host's line opening its details (no handle, no ⓘ), the declared host's details saying so, and the browser's back returning to the list.
 
-Not checked in phase 3: the desktop app in a window (done with phase 4's desktop check, below); a connected remote host in the web app, which the relay refuses on a loopback address; saving a change to a host the configuration file declares; editing addresses with a real on-screen keyboard; Mase's own host list, on purpose.
+Not checked in phase 3: the desktop app in a window (done with phase 4's desktop check, above); a connected remote host in the web app, which the relay refuses on a loopback address; saving a change to a host the configuration file declares; editing addresses with a real on-screen keyboard; Mase's own host list, on purpose.
 
 ### What went wrong
 

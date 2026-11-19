@@ -71,7 +71,9 @@ class SettingsHostsRenderTest {
     }
 
     private inner class Picture(val width: Int, val height: Int, content: @Composable () -> Unit) : AutoCloseable {
-        val scene = ImageComposeScene(width, height, Density(1f)) { MaterialTheme(colorScheme = scheme, shapes = omarchyShapes(), content = content) }
+        val scene = ImageComposeScene(width, height, Density(1f)) {
+            MaterialTheme(colorScheme = scheme, shapes = omarchyShapes()) { androidx.compose.material3.Surface(color = MaterialTheme.colorScheme.background, content = content) }
+        }
         private var millis = 0L
 
         fun draw(name: String? = null) {
@@ -136,6 +138,46 @@ class SettingsHostsRenderTest {
                 assertTrue(File(outputDir, "$name-$width.png").length() > 0, "$name-$width")
             }
         }
+    }
+
+    @Test
+    fun `what a server says about itself, and what is offered when there is none on this machine`() {
+        val info = org.example.kotlintest.rex.ServerInfo(
+            version = "0.0.1794270332-g4ba7cc", platform = "linux_amd64", apiRevision = 12, pid = 1670719, startedAt = "2026-11-10T02:09:42.429Z", account = "mase", sessionCount = 2,
+            listeners = listOf(
+                org.example.kotlintest.rex.ServerListener("unix:///run/user/1000/rex/server.sock", "unix", primary = true),
+                org.example.kotlintest.rex.ServerListener("login-server:///run/user/1000/rex/login-server.sock", "unix", primary = false),
+            ),
+            tailscale = org.example.kotlintest.rex.ServerTailscale("running", "work-rex.tail1234.ts.net", "https://work-rex.tail1234.ts.net", "me@example.com", "example.com"),
+            configGeneration = 3,
+        )
+        for (width in listOf(420, 700)) {
+            Picture(width, 760) {
+                Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(14.dp)) {
+                    SettingsGroup("Rex Server") { ServerInfoRows(info, configPath = "/home/mase/.config/rex/init.lua") }
+                }
+            }.use { it.draw("server-info-$width") }
+        }
+        // The home server here is a socket nobody listens on. Called this machine's usual one, it is a missing server.
+        ui.usualLocalEndpoint = client.hosts.value.first().saved.endpoint
+        var ran: LocalServerCommand? = null
+        ui.runRexCommand = { command -> ran = command; "Error: the unit rex.socket could not be enabled\nrun it again as yourself" }
+        ui.settings.replace(SettingsPlace(SettingsSection.Server))
+        for ((name, setup) in listOf(
+            "no-rex" to LocalServerSetup(rexPath = null),
+            "not-enabled" to LocalServerSetup("/usr/bin/rex", socketEnabled = false, socketActive = false),
+            "enabled" to LocalServerSetup("/usr/bin/rex", socketEnabled = true, socketActive = true),
+        )) {
+            ui.lookAtLocalServer = { setup }
+            for (width in listOf(420, 700, 1100)) settings(width, height = 900).use { settings ->
+                // The first attempt on the socket has to have failed before anything is offered.
+                Thread.sleep(300)
+                settings.draw("server-$name-$width")
+                assertTrue(File(outputDir, "server-$name-$width.png").length() > 0)
+            }
+        }
+        // Nothing has been run by looking.
+        assertEquals(null, ran)
     }
 
     @Test

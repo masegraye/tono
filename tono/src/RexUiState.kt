@@ -25,6 +25,7 @@ import org.example.kotlintest.rex.RexClient
 import org.example.kotlintest.rex.RexHost
 import org.example.kotlintest.rex.SessionView
 import org.example.kotlintest.rex.TailnetServer
+import org.example.kotlintest.rex.defaultLocalEndpoint
 import org.example.kotlintest.rex.tailnetRexServers
 import org.example.kotlintest.rex.TerminalSession
 import org.example.kotlintest.rex.ShortcutTarget
@@ -304,6 +305,13 @@ class RexUiState(val client: RexClient) {
 
     /** The Rex servers found on the tailnet, for the host picker. Null until they have been looked for. */
     var tailnetServers: List<TailnetServer>? by mutableStateOf(null)
+
+    /** Looks at what this machine has for a Rex server of its own, and runs rex when asked to. Somewhere to put other ways, for a test. */
+    internal var lookAtLocalServer: suspend () -> LocalServerSetup? = { localServerSetup() }
+    internal var runRexCommand: suspend (LocalServerCommand) -> String? = { runRex(it) }
+
+    /** Where this machine's own Rex server usually is, which is the one this app can offer to start. */
+    internal var usualLocalEndpoint: String = defaultLocalEndpoint()
 
     /** Looks for the Rex servers on the tailnet. Somewhere to put another way of looking, for a test. */
     var findTailnetServers: suspend () -> List<TailnetServer> = { tailnetRexServers() }

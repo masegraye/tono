@@ -307,9 +307,19 @@ same switches, so turning one there shows in Settings at once, and the other way
 The sections are listed as Rex for Mac lists them, under a **Search Settings** field that finds a setting by name
 in any section:
 
-- **Server** comes first, with the home server's name and whether it's connected. It says which Tono this is, where
-  its workspace file is, which server is its home and the API revision it speaks, and where Rex's configuration
-  file is.
+- **Server** comes first, with the home server's name and whether it's connected. Rex for Mac ships its own
+  server and manages it here; Tono doesn't, so this section shows what there is to know:
+  - what the home server says about itself: its version and API revision, when it started, the account and
+    process it runs as, how many sessions it has, where it listens, how its Tailscale device stands (and its name
+    and address on the tailnet), and where its configuration file is. A connected remote host's details, under
+    Remote Hosts, show the same for that server;
+  - **Sign In…**, when the server's Tailscale device is waiting to be signed in, which opens Tailscale's link;
+  - when no Rex server answers on this machine, the desktop app says so, and looks for the `rex` command and the
+    `rex.socket` unit. Then it offers **Start Server** (`rex server start`), **Start at Login** (`rex server
+    install`), or, if Rex isn't installed, a link to how to install it. Nothing runs until you press a button,
+    and if the command fails you see what it printed;
+  - **Client Info**: the label this Tono has in a server's list of clients (`rex client ls`);
+  - which Tono this is, and where its workspace file is.
 - **Terminal** has Copy on Selection and Primary Selection.
 - **Shortcuts** lists every command with its keys and where they come from, with a search field over the list.
   Choose a command to record new keys for it, as [Change Shortcut…](#changing-a-shortcut) does. A command you've

@@ -362,3 +362,30 @@ internal actual fun notificationsMissing(): NotificationsMissing = Notifications
 
 @Composable
 internal actual fun WatchBrowserBack(depth: Int, onBack: () -> Unit) = Unit
+
+internal actual suspend fun localServerSetup(): LocalServerSetup? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    // Asked of the user's own systemd. Its answer is its exit status; without systemd there is none.
+    fun unit(question: String): Boolean? = runCatching {
+        val asked = ProcessBuilder("systemctl", "--user", question, "rex.socket").redirectErrorStream(true).redirectInput(ProcessBuilder.Redirect.from(java.io.File("/dev/null"))).start()
+        asked.inputStream.readAllBytes()
+        if (asked.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)) asked.exitValue() == 0 else null.also { asked.destroy() }
+    }.getOrNull()
+    LocalServerSetup(findProgram("rex")?.toString(), unit("is-enabled"), unit("is-active"))
+}
+
+internal actual suspend fun runRex(command: LocalServerCommand): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val rex = findProgram("rex") ?: return@withContext "The rex command isn't on PATH."
+    runCatching {
+        // Nothing to type into: a command that would ask a question gets no answer and says so.
+        val running = ProcessBuilder(listOf(rex.toString()) + command.arguments).redirectErrorStream(true).redirectInput(ProcessBuilder.Redirect.from(java.io.File("/dev/null"))).start()
+        val printed = java.util.concurrent.CompletableFuture.supplyAsync { running.inputStream.bufferedReader().readText() }
+        if (!running.waitFor(REX_COMMAND_SECONDS, java.util.concurrent.TimeUnit.SECONDS)) {
+            running.destroy()
+            return@runCatching "rex ${command.arguments.joinToString(" ")} didn't finish in $REX_COMMAND_SECONDS seconds, and was stopped."
+        }
+        val output = runCatching { printed.get(2, java.util.concurrent.TimeUnit.SECONDS) }.getOrDefault("").trim()
+        if (running.exitValue() == 0) null else output.ifEmpty { "rex ${command.arguments.joinToString(" ")} failed with status ${running.exitValue()}, and printed nothing." }
+    }.getOrElse { "Couldn't run $rex: ${it.message}" }
+}
+
+private const val REX_COMMAND_SECONDS = 60L

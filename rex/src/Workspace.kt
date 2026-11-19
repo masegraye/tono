@@ -155,6 +155,8 @@ class Workspace(
      * Empty until they are arranged; a host not named here comes after those that are.
      */
     var hostOrder: List<String> = emptyList(),
+    /** What this app calls itself in a server's list of clients, where someone chose that. Null leaves it as the app has it. */
+    var clientLabel: String? = null,
 ) {
     val tabs: MutableMap<String, String> = tabs.toMutableMap()
     var hosts: List<SavedHost> = hosts
@@ -194,6 +196,7 @@ class Workspace(
                 if (!shortcuts.isEmpty) put("shortcuts", shortcuts.toJson())
                 // Only what was chosen: a file without it follows the desktop, as before there was a choice.
                 if (!appearance.isDefault) put("appearance", appearance.toJson())
+                clientLabel?.let { put("client_label", it) }
                 if (hostOrder.isNotEmpty()) put("host_order", buildJsonArray { hostOrder.forEach { add(JsonPrimitive(it)) } })
             }
             runCatching { target.write(PRETTY.encodeToString(JsonObject.serializer(), json) + "\n") }
@@ -226,6 +229,7 @@ class Workspace(
                 }.takeLast(MUTED_TABS_LIMIT),
                 shortcuts = ShortcutOverrides.parse(root.obj("shortcuts")),
                 appearance = AppearanceChoice.parse(root.obj("appearance")),
+                clientLabel = root.string("client_label")?.trim()?.takeIf { it.isNotEmpty() },
                 hostOrder = (root["host_order"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.takeIf { value -> value.isString }?.content }.distinct(),
             )
         }

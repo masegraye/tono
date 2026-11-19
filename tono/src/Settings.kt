@@ -144,7 +144,10 @@ internal val SETTING_ENTRIES: List<SettingEntry> = listOf(
     SettingEntry(SettingsSection.Server, "Server", "home rex about status"),
     SettingEntry(SettingsSection.Server, "Version", "about tono app"),
     SettingEntry(SettingsSection.Server, "Workspace", "file path json settings kept saved"),
-    SettingEntry(SettingsSection.Server, "Home server", "rex local socket address api revision"),
+    SettingEntry(SettingsSection.Server, "Home server", "rex local socket address api revision running since process account sessions listeners"),
+    SettingEntry(SettingsSection.Server, "Start Server", "no server start at login install rex systemd rex.socket"),
+    SettingEntry(SettingsSection.Server, "Tailscale", "tailnet sign in https address"),
+    SettingEntry(SettingsSection.Server, "Client Info", "label name client rex client ls"),
     SettingEntry(SettingsSection.Server, "Configuration file", "init.lua config rex lua path"),
     SettingEntry(SettingsSection.Terminal, "Terminal", "selection"),
     SettingEntry(SettingsSection.Terminal, "Copy on Selection", "copy select clipboard automatic mouse drag highlight"),
@@ -860,36 +863,3 @@ internal fun primarySelectionWords(primary: PrimarySelection): String = when (pr
     PrimarySelection.Clipboard -> "Browsers have no primary selection, so here selecting copies to the clipboard, and a middle click pastes from it."
     PrimarySelection.None -> "This desktop has no primary selection, so this does nothing here."
 }
-
-/** What is running, the server it follows, and where what it reads is kept. Rex.app's About and its Server, in one. */
-@Composable
-private fun ServerSettings(ui: RexUiState) {
-    val client = ui.client
-    val hosts by client.hosts.collectAsState()
-    val keymap by client.keymap.collectAsState()
-    SettingsGroup(APP_NAME) {
-        InfoRow("Version", TonoClient.version)
-        RowDivider()
-        InfoRow("Workspace", client.workspace.location ?: "Not kept: what is set here lasts until $APP_NAME closes.")
-    }
-    SettingsGroup("Rex") {
-        val home = hosts.firstOrNull { it.saved.label == client.homeLabel }
-        if (home == null) {
-            InfoRow("Home server", "None. No host here is on this machine, so shortcuts are $APP_NAME's own and hosts are kept in the workspace.")
-        } else {
-            val state by home.state.collectAsState()
-            InfoRow("Home server", "${home.saved.label} · ${home.saved.endpoint}")
-            RowDivider()
-            InfoRow("API revision", homeServerWords(state))
-        }
-        // The server says where its configuration file is when it answers with the keymap.
-        keymap.configPath?.let { path ->
-            RowDivider()
-            InfoRow("Configuration file", path)
-        }
-    }
-}
-
-/** The API revision this app and its home server speak, or why that isn't known. */
-internal fun homeServerWords(state: HostState): String =
-    state.apiRevision?.takeIf { hostReachWords(state.reach) == null }?.toString() ?: (hostReachWords(state.reach) ?: "not known yet").replaceFirstChar { it.uppercase() }

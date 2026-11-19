@@ -418,6 +418,53 @@ class SettingsTest {
     }
 
     @Test
+    fun `with no server on this machine, what is offered fits what the machine has`() {
+        val nothing = LocalServerSetup(rexPath = null)
+        val installed = LocalServerSetup("/usr/bin/rex", socketEnabled = false, socketActive = false)
+        val enabled = LocalServerSetup("/usr/bin/rex", socketEnabled = true, socketActive = true)
+        val noSystemd = LocalServerSetup("/usr/local/bin/rex")
+        assertEquals(listOf(LocalServerOffer.InstallRex), localServerOffers(nothing))
+        assertEquals(listOf(LocalServerOffer.StartServer, LocalServerOffer.StartAtLogin), localServerOffers(installed))
+        assertEquals(listOf(LocalServerOffer.StartServer), localServerOffers(enabled))
+        assertEquals(listOf(LocalServerOffer.StartServer, LocalServerOffer.StartAtLogin), localServerOffers(noSystemd))
+
+        assertTrue("isn't installed" in localServerWords(nothing) && "PATH" in localServerWords(nothing))
+        assertTrue("/usr/bin/rex" in localServerWords(installed) && "rex.socket isn't enabled" in localServerWords(installed))
+        assertTrue("rex.socket is enabled" in localServerWords(enabled) && "No Rex server answered" in localServerWords(enabled))
+        assertTrue("isn't active" in localServerWords(enabled.copy(socketActive = false)))
+        assertFalse("rex.socket" in localServerWords(noSystemd))
+        // What the buttons run.
+        assertEquals(listOf("server", "start"), LocalServerCommand.Start.arguments)
+        assertEquals(listOf("server", "install"), LocalServerCommand.StartAtLogin.arguments)
+    }
+
+    @Test
+    fun `a server is missing only when it is this machine's usual one and an attempt has failed`() {
+        val usual = "unix:///run/user/1000/rex/server.sock"
+        val down = HostState(connection = HostConnection.Disconnected("no such file"), failed = true)
+        assertTrue(isMissingLocalServer(usual, down, usual))
+        assertTrue(isMissingLocalServer(usual, down.copy(connection = HostConnection.Connecting), usual), "still missing while it is tried again")
+        assertFalse(isMissingLocalServer(usual, HostState(), usual), "not before the first attempt has ended")
+        assertFalse(isMissingLocalServer(usual, HostState(connection = HostConnection.Connected, reached = true), usual))
+        assertFalse(isMissingLocalServer("unix:///tmp/elsewhere.sock", down, usual), "a server put somewhere else isn't this app's to start")
+    }
+
+    @Test
+    fun `a server's listeners and its process are said in a line each`() {
+        val info = org.example.kotlintest.rex.ServerInfo(
+            pid = 42, account = "mase",
+            listeners = listOf(
+                org.example.kotlintest.rex.ServerListener("login-server:///run/login.sock", "unix", primary = false),
+                org.example.kotlintest.rex.ServerListener("unix:///run/server.sock", "unix", primary = true),
+                org.example.kotlintest.rex.ServerListener("127.0.0.1:7297", "tcp", primary = false),
+            ),
+        )
+        assertEquals("unix:///run/server.sock  ·  Unix socket\nlogin-server:///run/login.sock  ·  login server\n127.0.0.1:7297  ·  TCP", listenersShown(info))
+        assertEquals("As mase, process 42", processShown(info))
+        assertNull(processShown(org.example.kotlintest.rex.ServerInfo()))
+    }
+
+    @Test
     fun `About gives the home server's API revision once it is connected, and says so until then`() {
         assertEquals("12", homeServerWords(HostState(connection = HostConnection.Connected, reached = true, apiRevision = 12)))
         assertEquals("Connecting", homeServerWords(HostState()))

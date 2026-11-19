@@ -783,6 +783,36 @@ class RexHost(
     suspend fun call(method: String, payload: JsonObject = EMPTY): JsonObject =
         (control ?: throw RexDisconnected("Not connected to ${saved.label}")).call(method, payload)
 
+    /**
+     * What the server says about itself: its version, when it started and as whom, where it
+     * listens, and how its Tailscale device stands. Throws when there is no connection. An
+     * answer the server won't give (an old server, a caller it tells less) is left out.
+     */
+    suspend fun serverInfo(): ServerInfo = parseServerInfo(
+        status = call("server.status"),
+        version = runCatching { call("server.version") }.getOrNull(),
+        whoami = runCatching { call("server.whoami") }.getOrNull(),
+    )
+
+    /**
+     * Asks Tailscale for the link that signs the server's device in, and waits a little for
+     * it: the server starts the sign-in at once and has the link a moment later. The server
+     * takes this only over its own socket. Throws with the server's reason if it won't.
+     */
+    suspend fun tailscaleSignInLink(): String? {
+        call("server.tailscale.login").string("auth_url")?.takeIf { it.isNotEmpty() }?.let { return it }
+        repeat(SIGN_IN_LINK_TRIES) {
+            kotlinx.coroutines.delay(SIGN_IN_LINK_PAUSE_MILLIS)
+            serverInfo().tailscale?.signInLink?.let { return it }
+        }
+        return null
+    }
+
+    /** Tells the server what to call this client in its list of clients. An empty label takes the label away. */
+    suspend fun setClientLabel(label: String) {
+        call("client.set_label", buildJsonObject { put("label", label) })
+    }
+
     /** Declares this client's actions and default keys, and returns what each key does once the server's configuration is applied. */
     suspend fun keymap(actions: List<RexAction>, defaults: List<KeyBinding>, overrides: ShortcutOverrides = ShortcutOverrides()): Keymap =
         parseKeymap(call("client.keymap", keymapRequest(actions, defaults, overrides)))
@@ -1259,3 +1289,5 @@ internal fun neighbourOf(before: List<String>, index: Int, remaining: List<Strin
     return before.drop(index + 1).firstOrNull { it in left } ?: before.take(index).lastOrNull { it in left }
 }
 
+private const val SIGN_IN_LINK_TRIES = 10
+private const val SIGN_IN_LINK_PAUSE_MILLIS = 1_000L

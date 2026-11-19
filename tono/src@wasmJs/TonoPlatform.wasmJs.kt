@@ -435,3 +435,8 @@ internal actual fun WatchBrowserBack(depth: Int, onBack: () -> Unit) {
         onDispose { }
     }
 }
+
+/** A page can't look at the machine it is served from; the server that serves it runs beside a Rex server already. */
+internal actual suspend fun localServerSetup(): LocalServerSetup? = null
+
+internal actual suspend fun runRex(command: LocalServerCommand): String? = "A page in a browser can't run rex."
