@@ -2,6 +2,7 @@ package org.example.kotlintest.rex
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -10,12 +11,22 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 
-/** Somewhere a workspace can be kept: a file on the desktop, the browser's own storage on the web. */
+/** Somewhere a workspace, or one of its two halves, can be kept: a file on the desktop, the browser's own storage on the web. */
 interface WorkspaceStorage {
-    /** What was last written, or null if nothing was. */
+    /** What was last written, or null if nothing was. Throws if something is there and can't be read. */
     fun read(): String?
 
     fun write(text: String)
+
+    /**
+     * Writes [text] only where nothing is kept yet, and says whether it did. Never replaces
+     * what is there: it is how a move from an older place marks itself done.
+     */
+    fun writeNew(text: String): Boolean {
+        if (read() != null) return false
+        write(text)
+        return true
+    }
 
     /** Where that is, in words a person can use to find it: a file's path, say. Null if there is nothing to say. */
     val location: String? get() = null
@@ -120,11 +131,22 @@ data class AppearanceChoice(
 }
 
 /**
- * What the app remembers between runs: the hosts to connect to, and where the user was.
- * Stored as JSON, in the same shape Rex Rune uses for these fields.
+ * What the app remembers between runs, in two halves: the settings (what a person chose: the
+ * hosts, the switches, the shortcuts, the look) and the state (where they were: the host,
+ * session and tab showing, what is folded away, the tabs kept quiet). Stored as JSON, in the
+ * same shape Rex Rune uses for these fields.
+ *
+ * Each half is kept in a storage of its own and written only when it changed, so that
+ * switching tabs never rewrites the settings. Given one storage for both, everything is
+ * kept there together: that is `--workspace FILE`, and what Tono wrote before there were two.
+ *
+ * Two promises about what is kept:
+ * - what couldn't be read is never written over. The app runs on defaults for that half and
+ *   leaves the storage alone until it is started again; [notices] says so.
+ * - keys this app doesn't know are written back as they were read.
  */
 class Workspace(
-    /** Where it is kept, or null for one that is never saved. */
+    /** Where the settings are kept, or null for ones that are never saved. */
     private val storage: WorkspaceStorage?,
     hosts: List<SavedHost> = emptyList(),
     /** The label of the host that was showing. */
@@ -157,81 +179,208 @@ class Workspace(
     var hostOrder: List<String> = emptyList(),
     /** What this app calls itself in a server's list of clients, where someone chose that. Null leaves it as the app has it. */
     var clientLabel: String? = null,
+    /** Where the state is kept. The same place as the settings unless told otherwise. */
+    private val stateStorage: WorkspaceStorage? = storage,
 ) {
+    /** Something to tell the person about what is kept: a move from an older place, or a file that couldn't be read. */
+    data class Notice(val message: String, val isError: Boolean = false)
+
     val tabs: MutableMap<String, String> = tabs.toMutableMap()
     var hosts: List<SavedHost> = hosts
     val sessions: MutableMap<String, String> = sessions.toMutableMap()
 
-    /** Where it is kept, for showing: the file's path on the desktop. Null for one that is never saved. */
+    /** Whether settings and state are kept together in one place. */
+    private val together: Boolean get() = stateStorage === storage
+
+    /** Where the settings are kept, for showing: the file's path on the desktop. Null for ones that are never saved. */
     val location: String? get() = storage?.location
 
-    /** Writes it out. Several threads may ask at once; one writes at a time. */
+    /** Where the state is kept. The same as [location] when both are kept together. */
+    val stateLocation: String? get() = stateStorage?.location
+
+    /** Why the settings aren't being saved, where they aren't: what was there couldn't be read. Null when they are. */
+    var settingsProblem: String? = null
+        private set
+
+    /** The same for the state. */
+    var stateProblem: String? = null
+        private set
+
+    /** What happened while this was read, oldest first, for the debug log. */
+    var notices: List<Notice> = emptyList()
+        private set
+
+    // What was read and isn't this app's to understand, written back as it was.
+    private var unknownSettings: JsonObject = EMPTY
+    private var unknownState: JsonObject = EMPTY
+    private var readNotifications: JsonObject? = null
+    private var readTerminal: JsonObject? = null
+    private var readAppearance: JsonObject? = null
+    private var readHosts: Map<SavedHost, JsonObject> = emptyMap()
+
+    // What each storage holds, as far as this knows: the text last written, or what the text read amounts to.
+    private var keptSettings: String? = null
+    private var keptState: String? = null
+
+    private fun settingsEntries(): Map<String, JsonElement> = buildMap {
+        put("hosts", buildJsonArray {
+            for (host in hosts) add(buildJsonObject {
+                put("label", host.label)
+                put("endpoint", host.endpoint)
+                readHosts[host]?.forEach { (key, value) -> if (key != "label" && key != "endpoint") put(key, value) }
+            })
+        })
+        if (!sounds) put("sounds", JsonPrimitive(false))
+        // Always written, every switch, so that the file shows what there is to set.
+        put("notifications", notifications.toJson().withUnknownOf(readNotifications))
+        // The same goes for these, which Rex Rune keeps under its terminal settings.
+        put("terminal", selection.toJson().withUnknownOf(readTerminal))
+        if (!shortcuts.isEmpty) put("shortcuts", shortcuts.toJson())
+        // Only what was chosen: a file without it follows the desktop, as before there was a choice.
+        val look = appearance.toJson().withUnknownOf(readAppearance, APPEARANCE_KEYS)
+        if (look.isNotEmpty()) put("appearance", look)
+        clientLabel?.let { put("client_label", JsonPrimitive(it)) }
+        if (hostOrder.isNotEmpty()) put("host_order", buildJsonArray { hostOrder.forEach { add(JsonPrimitive(it)) } })
+    }
+
+    private fun stateEntries(): Map<String, JsonElement> = buildMap {
+        lastHost?.let { put("last_host", JsonPrimitive(it)) }
+        put("sessions", buildJsonObject { for ((host, session) in sessions) put(host, session) })
+        if (tabs.isNotEmpty()) put("tabs", buildJsonObject { for ((session, tab) in tabs.entries.sortedBy { it.key }) put(session, tab) })
+        if (collapsedHosts.isNotEmpty()) put("collapsed_hosts", buildJsonArray { collapsedHosts.sorted().forEach { add(JsonPrimitive(it)) } })
+        if (collapsedSessions.isNotEmpty()) put("collapsed_sessions", buildJsonArray { collapsedSessions.sorted().forEach { add(JsonPrimitive(it)) } })
+        if (mutedTabs.isNotEmpty()) put("muted_tabs", buildJsonArray {
+            for (tab in mutedTabs) add(buildJsonObject {
+                put("endpoint", tab.endpoint)
+                put("session", tab.session)
+                put("window", tab.window)
+            })
+        })
+    }
+
+    /** The text of one file: this app's keys in the order they have always been written, then the ones it doesn't know. */
+    private fun text(known: Map<String, JsonElement>, unknown: JsonObject): String {
+        val json = buildJsonObject {
+            for (key in KEY_ORDER) known[key]?.let { put(key, it) }
+            for ((key, value) in unknown) if (key !in known) put(key, value)
+        }
+        return PRETTY.encodeToString(JsonObject.serializer(), json) + "\n"
+    }
+
+    private fun settingsText(): String =
+        if (together) text(settingsEntries() + stateEntries(), unknownSettings) else text(settingsEntries(), unknownSettings)
+
+    private fun stateText(): String = text(stateEntries(), unknownState)
+
+    /**
+     * Writes out what changed since it was last written or read: the settings, the state, or
+     * neither. Several threads may ask at once; one writes at a time. A storage whose
+     * contents couldn't be read is left as it is.
+     */
     fun save() {
         locked(this) {
-            val target = storage ?: return@locked
-            val json = buildJsonObject {
-                put("hosts", buildJsonArray {
-                    for (host in hosts) add(buildJsonObject {
-                        put("label", host.label)
-                        put("endpoint", host.endpoint)
-                    })
-                })
-                lastHost?.let { put("last_host", it) }
-                putJsonObject("sessions") { for ((host, session) in sessions) put(host, session) }
-                if (!sounds) put("sounds", false)
-                // Always written, every switch, so that the file shows what there is to set.
-                put("notifications", notifications.toJson())
-                // The same goes for these, which Rex Rune keeps under its terminal settings.
-                put("terminal", selection.toJson())
-                if (tabs.isNotEmpty()) putJsonObject("tabs") { for ((session, tab) in tabs.entries.sortedBy { it.key }) put(session, tab) }
-                if (collapsedHosts.isNotEmpty()) put("collapsed_hosts", buildJsonArray { collapsedHosts.sorted().forEach { add(JsonPrimitive(it)) } })
-                if (collapsedSessions.isNotEmpty()) put("collapsed_sessions", buildJsonArray { collapsedSessions.sorted().forEach { add(JsonPrimitive(it)) } })
-                if (mutedTabs.isNotEmpty()) put("muted_tabs", buildJsonArray {
-                    for (tab in mutedTabs) add(buildJsonObject {
-                        put("endpoint", tab.endpoint)
-                        put("session", tab.session)
-                        put("window", tab.window)
-                    })
-                })
-                if (!shortcuts.isEmpty) put("shortcuts", shortcuts.toJson())
-                // Only what was chosen: a file without it follows the desktop, as before there was a choice.
-                if (!appearance.isDefault) put("appearance", appearance.toJson())
-                clientLabel?.let { put("client_label", it) }
-                if (hostOrder.isNotEmpty()) put("host_order", buildJsonArray { hostOrder.forEach { add(JsonPrimitive(it)) } })
+            val settings = storage
+            if (settings != null && settingsProblem == null) {
+                val text = settingsText()
+                if (text != keptSettings && runCatching { settings.write(text) }.isSuccess) keptSettings = text
             }
-            runCatching { target.write(PRETTY.encodeToString(JsonObject.serializer(), json) + "\n") }
+            val state = stateStorage
+            if (state != null && !together && stateProblem == null) {
+                val text = stateText()
+                if (text != keptState && runCatching { state.write(text) }.isSuccess) keptState = text
+            }
         }
     }
 
     companion object {
         private val PRETTY = Json { prettyPrint = true }
+        private val EMPTY = JsonObject(emptyMap())
 
-        /** Reads the workspace from [storage]. If there is nothing there, or nothing readable, it is an empty one that saves there. */
-        fun load(storage: WorkspaceStorage): Workspace {
-            val root = runCatching { storage.read()?.let { Json.parseToJsonElement(it).jsonObject } }.getOrNull()
-                ?: return Workspace(storage)
-            val hosts = (root["hosts"] as? JsonArray).orEmpty().mapNotNull { element ->
+        /** The keys of the settings: what a person chose. */
+        val SETTINGS_KEYS: Set<String> = setOf("hosts", "sounds", "notifications", "terminal", "shortcuts", "appearance", "client_label", "host_order")
+
+        /** The keys of the state: where they were. */
+        val STATE_KEYS: Set<String> = setOf("last_host", "sessions", "tabs", "collapsed_hosts", "collapsed_sessions", "muted_tabs")
+
+        /** The order the keys are written in when all are in one file, which each half's order follows. */
+        private val KEY_ORDER = listOf(
+            "hosts", "last_host", "sessions", "sounds", "notifications", "terminal", "tabs", "collapsed_hosts", "collapsed_sessions",
+            "muted_tabs", "shortcuts", "appearance", "client_label", "host_order",
+        )
+        private val APPEARANCE_KEYS = setOf("theme", "font_family", "font_size", "font_weight")
+
+        /** [this], and whatever [read] holds under keys this doesn't write. [mine] names keys that are this app's even when left out. */
+        private fun JsonObject.withUnknownOf(read: JsonObject?, mine: Set<String> = keys): JsonObject =
+            if (read == null || read.keys.all { it in mine }) this else JsonObject(this + read.filterKeys { it !in mine })
+
+        /** What one storage held: an object, nothing, or something that couldn't be read. */
+        private class Read(val root: JsonObject?, val problem: String?)
+
+        private fun read(storage: WorkspaceStorage): Read {
+            val what = storage.location ?: "What was kept"
+            val text = try {
+                storage.read()
+            } catch (failure: Exception) {
+                return Read(null, "$what couldn't be read (${failure.message ?: failure::class.simpleName}). It is left as it is, and nothing is saved over it.")
+            }
+            if (text.isNullOrBlank()) return Read(null, null)
+            val root = runCatching { Json.parseToJsonElement(text) as? JsonObject }.getOrNull()
+                ?: return Read(null, "$what isn't JSON that can be read. It is left as it is, and nothing is saved over it: correct it and start again, or move it away.")
+            return Read(root, null)
+        }
+
+        /**
+         * Reads the workspace: settings from [storage], and state from [stateStorage], which
+         * is the same place unless another is given. Where there is nothing, it starts empty
+         * and saves there. Where there is something that can't be read, it starts empty for
+         * that half and never saves over it.
+         */
+        fun load(storage: WorkspaceStorage, stateStorage: WorkspaceStorage = storage): Workspace {
+            val together = stateStorage === storage
+            val settingsRead = read(storage)
+            val stateRead = if (together) settingsRead else read(stateStorage)
+            val settings = settingsRead.root ?: EMPTY
+            val state = stateRead.root ?: EMPTY
+
+            val readHosts = mutableMapOf<SavedHost, JsonObject>()
+            val hosts = (settings["hosts"] as? JsonArray).orEmpty().mapNotNull { element ->
                 val host = element as? JsonObject ?: return@mapNotNull null
                 SavedHost(host.string("label") ?: return@mapNotNull null, host.string("endpoint") ?: return@mapNotNull null)
+                    .also { if (host.size > 2) readHosts[it] = host }
             }
-            fun map(key: String) = root.obj(key)?.mapNotNull { (name, value) ->
+            fun map(key: String) = state.obj(key)?.mapNotNull { (name, value) ->
                 (value as? JsonPrimitive)?.takeIf { it.isString }?.let { name to it.content }
             }?.toMap().orEmpty()
             val sessions = map("sessions")
-            fun strings(key: String) = (root[key] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.takeIf { value -> value.isString }?.content }.toSet()
-            return Workspace(storage, hosts, root.string("last_host"), sessions, strings("collapsed_hosts"), strings("collapsed_sessions"), map("tabs"),
-                sounds = (root["sounds"] as? JsonPrimitive)?.content != "false",
-                notifications = NotificationSwitches.parse(root.obj("notifications")),
-                selection = SelectionSwitches.parse(root.obj("terminal")),
-                mutedTabs = (root["muted_tabs"] as? JsonArray).orEmpty().mapNotNull { element ->
+            fun strings(key: String) = (state[key] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.takeIf { value -> value.isString }?.content }.toSet()
+            val workspace = Workspace(storage, hosts, state.string("last_host"), sessions, strings("collapsed_hosts"), strings("collapsed_sessions"), map("tabs"),
+                sounds = (settings["sounds"] as? JsonPrimitive)?.content != "false",
+                notifications = NotificationSwitches.parse(settings.obj("notifications")),
+                selection = SelectionSwitches.parse(settings.obj("terminal")),
+                mutedTabs = (state["muted_tabs"] as? JsonArray).orEmpty().mapNotNull { element ->
                     val tab = element as? JsonObject ?: return@mapNotNull null
                     MutedTab(tab.string("endpoint") ?: return@mapNotNull null, tab.string("session") ?: return@mapNotNull null, tab.string("window") ?: return@mapNotNull null)
                 }.takeLast(MUTED_TABS_LIMIT),
-                shortcuts = ShortcutOverrides.parse(root.obj("shortcuts")),
-                appearance = AppearanceChoice.parse(root.obj("appearance")),
-                clientLabel = root.string("client_label")?.trim()?.takeIf { it.isNotEmpty() },
-                hostOrder = (root["host_order"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.takeIf { value -> value.isString }?.content }.distinct(),
+                shortcuts = ShortcutOverrides.parse(settings.obj("shortcuts")),
+                appearance = AppearanceChoice.parse(settings.obj("appearance")),
+                clientLabel = settings.string("client_label")?.trim()?.takeIf { it.isNotEmpty() },
+                hostOrder = (settings["host_order"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.takeIf { value -> value.isString }?.content }.distinct(),
+                stateStorage = stateStorage,
             )
+            // In a file of its own, a key of the other half's is as unknown as any other.
+            workspace.unknownSettings = JsonObject(settings.filterKeys { it !in SETTINGS_KEYS && !(together && it in STATE_KEYS) })
+            workspace.unknownState = if (together) EMPTY else JsonObject(state.filterKeys { it !in STATE_KEYS })
+            workspace.readNotifications = settings.obj("notifications")
+            workspace.readTerminal = settings.obj("terminal")
+            workspace.readAppearance = settings.obj("appearance")
+            workspace.readHosts = readHosts
+            workspace.settingsProblem = settingsRead.problem
+            workspace.stateProblem = if (together) null else stateRead.problem
+            workspace.notices = listOfNotNull(settingsRead.problem, stateRead.problem.takeIf { !together }).map { Notice(it, isError = true) }
+            // What was read counts as kept, however it was written: only a change made here rewrites it.
+            if (settingsRead.root != null) workspace.keptSettings = workspace.settingsText()
+            if (!together && stateRead.root != null) workspace.keptState = workspace.stateText()
+            return workspace
         }
     }
 }

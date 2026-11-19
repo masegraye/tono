@@ -86,7 +86,8 @@ actual fun defaultWorkspace(): Workspace = Workspace.load()
 class WorkspaceFile(val file: Path) : WorkspaceStorage {
     override val location: String get() = file.toAbsolutePath().toString()
 
-    override fun read(): String? = runCatching { Files.readString(file) }.getOrNull()
+    /** Null only when there is no file. One that is there and can't be read throws, so that nobody takes it for missing and writes over it. */
+    override fun read(): String? = if (Files.notExists(file)) null else Files.readString(file)
 
     override fun write(text: String) {
         Files.createDirectories(file.parent)

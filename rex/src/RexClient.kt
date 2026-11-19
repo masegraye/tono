@@ -239,8 +239,11 @@ class RexClient(
     }
 
     init {
+        // What happened to the files while they were read: moved from an older place, or left alone because unreadable.
+        for (notice in workspace.notices) log.add("app", notice.message, isError = notice.isError)
         // The first time the app runs there is one host, the local server. It is written to
         // the workspace like any other, so the file shows what the app connects to.
+        // Where the settings couldn't be read this saves nothing: the workspace leaves that file alone.
         if (workspace.hosts.isEmpty()) {
             workspace.hosts = listOf(SavedHost("Local", defaultLocalEndpoint()))
             workspace.save()
