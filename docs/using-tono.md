@@ -17,6 +17,11 @@ Tono right away.
   built-in Tailscale is a device on your tailnet, so its `https://` address works from any machine on that tailnet.
 - Tono also connects to any hosts listed in `~/.config/kotlin-test/workspace.json`. It only saves a host there when
   there's no local server to keep it.
+- A machine has the icon the host list gives it, in the sidebar and in the Switch Host list. Set one with
+  `rex hosts add NAME ADDRESS --icon ICON` or `rex hosts edit`. Tono draws `globe`, `server`, `cloud`, `laptop`,
+  `mini`, `studio` and `desktop`, and reads the names Rex for Mac writes for them too (`server.rack`, `macbook`,
+  `macmini`, `macstudio`, `desktopcomputer`). With no icon, or one Tono has no picture for, this machine is a screen
+  and every other machine is a rack.
 
 While Tono is reaching a machine for the first time, the machine's icon is dimmed and slowly pulses, and
 "Connecting…" is written under its name. If Tono can't reach a machine, the machine's icon turns red and nothing is

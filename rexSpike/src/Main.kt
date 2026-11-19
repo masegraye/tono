@@ -126,7 +126,7 @@ private suspend fun kotlinx.coroutines.CoroutineScope.probe(args: Array<String>)
     for (host in client.hosts.value) {
         val state = host.state.value
         val selected = if (host.saved.label == client.selectedHost.value) " (selected)" else ""
-        println("host ${host.saved.label}$selected  ${host.saved.endpoint}${if (host.discovered) "  [from the home server's host list]" else ""}")
+        println("host ${host.saved.label}$selected  ${host.saved.endpoint}${if (host.discovered) "  [from the home server's host list]" else ""}${client.hostIcons.value[host.saved.label]?.let { "  icon $it" } ?: ""}")
         println("  ${state.connection}  api ${state.apiRevision}  client ${state.clientId}")
         for (session in state.sessions) {
             println("  session ${session.label}${if (session.id == state.selectedSessionId) "  <- showing" else ""}")
