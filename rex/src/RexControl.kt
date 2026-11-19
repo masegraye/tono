@@ -14,10 +14,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -105,26 +109,38 @@ class RexControl private constructor(
                         info.label?.let { put("label", it) }
                     }
                 }
-                socket.send(Frame.Text(hello.toString()))
-                val first = within(timeoutMillis) { socket.incoming.receive() } as? Frame.Text
-                    ?: throw RexDisconnected("The server didn't send a welcome")
-                val welcome = Json.parseToJsonElement(first.readText()).jsonObject
-                if (welcome.string("type") != "welcome" || welcome.string("protocol") != "rex.control.v1") {
-                    throw RexDisconnected("Unexpected first message from the server")
+                // Why the other end closed, if it has: it is what is shown next to the host.
+                val said: suspend () -> String? = {
+                    withTimeoutOrNull(CLOSE_REASON_MILLIS) { runCatching { socket.closeReason.await() }.getOrNull() }
+                        ?.let { it.message.ifEmpty { "Connection closed (${it.code})" } }
                 }
-                welcome
+                closedIsFailure(said) {
+                    socket.send(Frame.Text(hello.toString()))
+                    val first = within(timeoutMillis) { socket.incoming.receive() }
+                    if (first is Frame.Close) throw RexDisconnected(said() ?: "The server closed the connection")
+                    val welcome = (first as? Frame.Text)?.let { Json.parseToJsonElement(it.readText()).jsonObject }
+                        ?: throw RexDisconnected("The server didn't send a welcome")
+                    if (welcome.string("type") != "welcome" || welcome.string("protocol") != "rex.control.v1") {
+                        throw RexDisconnected("Unexpected first message from the server")
+                    }
+                    welcome
+                }
             }
             return RexControl(socket, welcome).also { it.start(scope) }
         }
 
         private const val CONNECT_TIMEOUT_MILLIS = 10_000L
 
+        /** How long to wait to learn why a socket that has ended did. In a browser it is known already. */
+        private const val CLOSE_REASON_MILLIS = 200L
+
         /**
          * How long a server may say nothing before it is asked whether it is there, and how
          * long it then has to say anything at all. A machine that goes to sleep, or drops off
          * the network, closes nothing: its connection looks open for as long as nobody writes
          * to it, and for many minutes after. Together these are about what Rex Rune allows a
-         * silent server (30 seconds), and far less than the server's own nine minutes.
+         * silent server (30 seconds), and far less than the five minutes a Rex server
+         * gives a quiet client before closing its connection (1001, "keepalive timeout").
          */
         const val QUIET_MILLIS = 10_000L
         const val PATIENCE_MILLIS = 10_000L
@@ -299,6 +315,29 @@ internal suspend fun awaitSilence(
         }
     }
 }
+
+/**
+ * Runs [block], the first exchange on a socket, and reports the socket having closed under it
+ * as a [RexDisconnected], with [why] it closed if that is known.
+ *
+ * A socket that the other end has closed says so differently from one place to the next. In a
+ * browser, writing to it throws a `CancellationException`, though nobody cancelled anything;
+ * reading from it ends with a `ClosedReceiveChannelException`. A relay that refuses an address
+ * closes the socket the moment it has taken it, often before the first word is written, and
+ * everything that tries again after a failure passes cancellations on. So a refused host was
+ * never tried again and never marked as down: it said "Connecting…" for good.
+ *
+ * A cancellation of the caller itself is still passed on.
+ */
+internal suspend fun <T> closedIsFailure(why: suspend () -> String? = { null }, block: suspend () -> T): T =
+    try {
+        block()
+    } catch (closed: CancellationException) {
+        currentCoroutineContext().ensureActive()
+        throw RexDisconnected(why() ?: closed.message?.takeIf { it.isNotBlank() } ?: "The server closed the connection")
+    } catch (_: ClosedReceiveChannelException) {
+        throw RexDisconnected(why() ?: "The server closed the connection")
+    }
 
 internal val EMPTY = JsonObject(emptyMap())
 

@@ -9,6 +9,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -102,6 +104,18 @@ data class HostState(
             reached && (connection as? HostConnection.Disconnected)?.permanent != true -> HostReach.Reconnecting
             else -> HostReach.Down
         }
+
+    /** As an attempt to reach the host starts, the first or a later one. What is known of earlier ones stays. */
+    internal fun trying(): HostState = copy(connection = HostConnection.Connecting)
+
+    /**
+     * As an attempt fails or a connection ends, for [reason]. Everything read on the
+     * connection is stale and goes; that the host was once reached stays.
+     */
+    internal fun lost(reason: String): HostState = copy(
+        connection = HostConnection.Disconnected(reason), failed = true,
+        views = emptyMap(), terminals = emptyMap(), activity = emptyMap(), programs = emptyMap(), progress = emptyMap(), bells = emptySet(),
+    )
 
     /** The selected session's layout. */
     val view: SessionView? get() = views[selectedSessionId]
@@ -845,7 +859,7 @@ class RexHost(
         // long as the app runs, and saying so each time would bury everything else in the log.
         var lastFailure: String? = null
         while (true) {
-            mutableState.update { it.copy(connection = HostConnection.Connecting) }
+            mutableState.update { it.trying() }
             if (lastFailure == null) log.add(saved.label, "connecting to ${saved.endpoint}")
             val reason = try {
                 coroutineScope {
@@ -867,7 +881,12 @@ class RexHost(
                     connection.closed.await()
                 }
             } catch (cancelled: CancellationException) {
-                throw cancelled
+                // Only this host being closed ends the trying. A cancellation that comes from
+                // anywhere else, such as a socket closed while it was being written to, is a
+                // failure like any other: passing it on would leave the host as it is now,
+                // "connecting", never tried again and never marked as down.
+                currentCoroutineContext().ensureActive()
+                describe(cancelled)
             } catch (failure: Exception) {
                 describe(failure)
             }
@@ -878,7 +897,7 @@ class RexHost(
             statusRead.clear()
             copies.forget()
             mutableState.value.terminals.values.forEach { it.close() }
-            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason), failed = true, views = emptyMap(), terminals = emptyMap(), activity = emptyMap(), programs = emptyMap(), progress = emptyMap(), bells = emptySet()) }
+            mutableState.update { it.lost(reason) }
             val delayMillis = RETRY_DELAYS_MILLIS[minOf(attempt++, RETRY_DELAYS_MILLIS.lastIndex)]
             if (reason != lastFailure) log.add(saved.label, "not connected: $reason. Trying again every few seconds until it answers", isError = true)
             lastFailure = reason
