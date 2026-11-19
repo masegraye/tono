@@ -58,6 +58,14 @@ expect class GhosttyTerminal : AutoCloseable {
     fun scrollToBottom()
 
     /**
+     * Which row of everything the terminal holds, history first, is at the top of the view.
+     * It goes up by one when the view scrolls down a row, so the difference across a
+     * [scrollViewport] is how far the view really moved, which is less than was asked for
+     * at either end of the history. It also changes as output adds to the history.
+     */
+    val viewportTop: Long
+
+    /**
      * Moves the view by [count] shell prompts: negative is up, to the prompts of older
      * commands, and the prompt gone to becomes the view's first row, or as near it as the
      * end of the history allows. A shell says where its prompts are (OSC 133); in a

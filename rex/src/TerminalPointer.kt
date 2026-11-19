@@ -34,7 +34,7 @@ import org.example.kotlintest.ghostty.MouseInput
  * @param paste called for a middle click that asks for a paste
  * @param menu called for a press of the right button that asks for the pane's menu
  */
-internal class TerminalPointer(
+class TerminalPointer(
     private val mouse: GhosttyMouse,
     private val selection: GhosttySelection,
     private val linkAt: (terminal: GhosttyTerminal, column: Int, row: Int) -> TerminalLink? = { _, _, _ -> null },

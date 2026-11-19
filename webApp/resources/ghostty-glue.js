@@ -197,6 +197,12 @@
   }
   const terminalScrollBy = (terminal, rows) => terminalScroll(terminal, 'DELTA', rows);
   const terminalScrollToBottom = (terminal) => terminalScroll(terminal, 'BOTTOM', 0);
+  /** The row at the top of the view, counted from the oldest row kept: the difference across a scroll is how far the view really moved. */
+  function terminalViewportTop(terminal) {
+    const scrollbar = slots + SLOT.c;
+    if (ex.ghostty_terminal_get(terminal, E('GhosttyTerminalData', 'SCROLLBAR'), scrollbar) !== OK) return 0;
+    return Number(view().getBigUint64(scrollbar + F('GhosttyTerminalScrollbar', 'offset'), true));
+  }
   /** Moves the view by `count` shell prompts (OSC 133 marks): negative is up, to older ones. Nothing moves without marks. */
   const terminalScrollByPrompts = (terminal, count) => terminalScroll(terminal, 'DELTA_PROMPT', count);
 
@@ -921,7 +927,7 @@
     terminalHyperlinkAt, terminalRowWraps,
     selectionNew, selectionFree, selectionPress, selectionDrag, selectionRelease, selectionAutoscroll, selectionAll, selectionClear, selectionText,
     init, terminalNew, terminalRestore, terminalFree, terminalWrite, terminalResize, terminalColumns, terminalRows,
-    terminalWidthPx, terminalHeightPx, terminalSetColors, terminalScrollBy, terminalScrollByPrompts, terminalScrollToBottom, terminalBracketedPaste,
+    terminalWidthPx, terminalHeightPx, terminalSetColors, terminalScrollBy, terminalViewportTop, terminalScrollByPrompts, terminalScrollToBottom, terminalBracketedPaste,
     pasteEncode, rendererNew, rendererFree, rendererInvalidate, render, imageRead, mouseNew, mouseFree, mouseEncode,
   };
 })();

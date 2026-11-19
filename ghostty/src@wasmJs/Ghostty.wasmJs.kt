@@ -30,6 +30,7 @@ private fun glueTerminalHeightPx(terminal: Int): Int = js("globalThis.GhosttyGlu
 private fun glueTerminalSetColors(terminal: Int, foreground: Int, background: Int, cursor: Int, ansi: String): Unit =
     js("globalThis.GhosttyGlue.terminalSetColors(terminal, foreground, background, cursor, ansi)")
 private fun glueTerminalScrollBy(terminal: Int, rows: Int): Unit = js("globalThis.GhosttyGlue.terminalScrollBy(terminal, rows)")
+private fun glueTerminalViewportTop(terminal: Int): Double = js("globalThis.GhosttyGlue.terminalViewportTop(terminal)")
 private fun glueTerminalScrollByPrompts(terminal: Int, count: Int): Unit = js("globalThis.GhosttyGlue.terminalScrollByPrompts(terminal, count)")
 private fun glueTerminalScrollToBottom(terminal: Int): Unit = js("globalThis.GhosttyGlue.terminalScrollToBottom(terminal)")
 private fun glueTerminalBracketedPaste(terminal: Int): Boolean = js("globalThis.GhosttyGlue.terminalBracketedPaste(terminal)")
@@ -121,6 +122,8 @@ actual class GhosttyTerminal private constructor(internal val handle: Int) : Aut
     actual fun scrollViewport(rows: Int) = glueTerminalScrollBy(handle, rows)
 
     actual fun scrollToBottom() = glueTerminalScrollToBottom(handle)
+
+    actual val viewportTop: Long get() = glueTerminalViewportTop(handle).toLong()
 
     actual fun scrollByPrompts(count: Int) = glueTerminalScrollByPrompts(handle, count)
 

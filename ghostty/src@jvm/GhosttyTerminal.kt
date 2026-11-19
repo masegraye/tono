@@ -122,6 +122,14 @@ actual class GhosttyTerminal private constructor(internal val handle: MemorySegm
     /** Returns the view to the live screen. */
     actual fun scrollToBottom(): Unit = scroll(GhosttyVt.GHOSTTY_SCROLL_VIEWPORT_BOTTOM(), 0)
 
+    /** The row at the top of the view, counted from the oldest row kept. Kept by the library as it goes, so cheap to ask. */
+    actual val viewportTop: Long
+        get() = Arena.ofConfined().use { arena ->
+            // GhosttyTerminalScrollbar: three 64-bit numbers, of which the second is the offset.
+            val out = arena.allocate(JAVA_LONG, 3)
+            if (GhosttyVt.ghostty_terminal_get(handle, GhosttyVt.GHOSTTY_TERMINAL_DATA_SCROLLBAR(), out) == GhosttyVt.GHOSTTY_SUCCESS()) out.getAtIndex(JAVA_LONG, 1) else 0
+        }
+
     /** Moves the view by [count] shell prompts: negative is up, to older ones. Nothing moves without prompt marks. */
     actual fun scrollByPrompts(count: Int): Unit = scroll(GhosttyVt.GHOSTTY_SCROLL_VIEWPORT_DELTA_PROMPT(), count.toLong())
 
