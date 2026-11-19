@@ -21,7 +21,7 @@ The order proposed in inv-001, not yet agreed:
 7. ~~backlog-010: Name the window after the tab~~ done
 8. ~~backlog-012: Resize, balance, swap, move and rename panes~~ done
 9. ~~backlog-013: Move a tab by key, close others, mute, rename a session~~ done
-10. backlog-003: Paste or drop files and images
+10. ~~backlog-003: Paste or drop files and images~~ done
 11. ~~backlog-023: Insert a path, and go to a directory~~ done
 
 ## Everything
@@ -30,7 +30,7 @@ The order proposed in inv-001, not yet agreed:
 |---|-------|------|------|--------|
 | 001 | [Program copies reach the clipboard (OSC 52)](backlog-001-program-copies-reach-the-clipboard.md) | Clipboard | small | done |
 | 002 | [Select and copy text](backlog-002-select-and-copy-text.md) | Clipboard | large | done |
-| 003 | [Paste or drop files and images](backlog-003-paste-files-and-images.md) | Clipboard | medium | captured |
+| 003 | [Paste or drop files and images](backlog-003-paste-files-and-images.md) | Clipboard | medium | done |
 | 004 | [Copy on select, and middle-click paste](backlog-004-copy-on-select-and-middle-click-paste.md) | Clipboard | small | captured |
 | 005 | [Open links with Ctrl+click](backlog-005-open-links.md) | Reading a terminal | medium | done |
 | 006 | [Search a terminal](backlog-006-search-scrollback.md) | Reading a terminal | medium | done |
