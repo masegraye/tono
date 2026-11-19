@@ -24,6 +24,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
+import org.example.kotlintest.rex.DirectoryListing
 import org.example.kotlintest.rex.LISTING_TIMED_OUT
 import org.example.kotlintest.rex.LISTING_TIMEOUT_MILLIS
 import org.example.kotlintest.rex.PathRow
@@ -92,18 +94,51 @@ internal fun PathBrowser(ui: RexUiState, mode: PaletteMode) {
     val foldersOnly = mode == PaletteMode.GoToDirectory
     val keymap by ui.client.keymap.collectAsState()
     val target = remember(mode) { PathTarget.of(ui) }
-    var field by remember(mode) { mutableStateOf(TextFieldValue("")) }
-    var rows by remember(mode) { mutableStateOf(emptyList<PathRow>()) }
-    var selected by remember(mode) { mutableIntStateOf(0) }
+    PathBrowserPanel(
+        foldersOnly = foldersOnly,
+        list = target?.let { { text -> it.host.listDirectory(it.sessionId, it.blockId, text, files = !foldersOnly) } },
+        type = { text ->
+            if (target == null || !target.isThere) return@PathBrowserPanel false
+            ui.palette = null
+            // Never the path itself: the log is something people paste elsewhere.
+            ui.client.log.add("app", "typed ${if (foldersOnly) "cd and a folder" else "a path"} into the terminal (${text.length} characters, no Enter)")
+            target.host.typeText(target.blockId, text)
+            ui.returnFocusToTerminal()
+            true
+        },
+        onClose = ui::closePalette,
+        // The key that opens the palette closes this too.
+        closesIt = { event -> keyChord(event)?.let { keymap.bindingsFor(it).firstOrNull()?.action } == "client.palette.toggle" },
+    )
+}
+
+/**
+ * The browser, apart from the app it is in.
+ *
+ * @param list reads what is typed in the field from the terminal's machine, or null when there is no terminal
+ * @param type types the chosen text into the terminal and closes the browser. False if the terminal is gone.
+ * @param closesIt whether a key, other than Escape, closes the browser
+ */
+@Composable
+internal fun PathBrowserPanel(
+    foldersOnly: Boolean,
+    list: (suspend (text: String) -> DirectoryListing)?,
+    type: (text: String) -> Boolean,
+    onClose: () -> Unit,
+    closesIt: (KeyEvent) -> Boolean = { false },
+) {
+    var field by remember { mutableStateOf(TextFieldValue("")) }
+    var rows by remember { mutableStateOf(emptyList<PathRow>()) }
+    var selected by remember { mutableIntStateOf(0) }
     /** Why there is nothing to choose, or why the choice wasn't typed. */
-    var message by remember(mode) { mutableStateOf<String?>(null) }
-    var truncated by remember(mode) { mutableStateOf(false) }
-    var loading by remember(mode) { mutableStateOf(true) }
-    var home by remember(mode) { mutableStateOf("") }
+    var message by remember { mutableStateOf<String?>(null) }
+    var truncated by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(true) }
+    var home by remember { mutableStateOf("") }
     /** The text the rows are the listing of. An edit to anything else lists again. */
-    var listedFor by remember(mode) { mutableStateOf<String?>(null) }
+    var listedFor by remember { mutableStateOf<String?>(null) }
     /** Whether the field has been filled in with where the terminal is, which happens once. */
-    var started by remember(mode) { mutableStateOf(false) }
+    var started by remember { mutableStateOf(false) }
 
     fun put(text: String) {
         field = TextFieldValue(text, TextRange(text.length))
@@ -111,7 +146,7 @@ internal fun PathBrowser(ui: RexUiState, mode: PaletteMode) {
 
     // One listing at a time, for the newest text: an edit abandons the one before it, and
     // its answer, if it comes, is dropped. Rows go while reading, so an old path can't be chosen.
-    LaunchedEffect(mode, field.text) {
+    LaunchedEffect(field.text) {
         val text = field.text
         if (text == listedFor) return@LaunchedEffect
         listedFor = null
@@ -120,7 +155,7 @@ internal fun PathBrowser(ui: RexUiState, mode: PaletteMode) {
         truncated = false
         message = null
         loading = false
-        if (target == null) {
+        if (list == null) {
             message = "There is no terminal to browse from."
             return@LaunchedEffect
         }
@@ -132,7 +167,7 @@ internal fun PathBrowser(ui: RexUiState, mode: PaletteMode) {
         // Typing a name is several edits close together; ask once it pauses.
         if (started) delay(EDIT_PAUSE_MILLIS)
         val listing = try {
-            withTimeoutOrNull(LISTING_TIMEOUT_MILLIS) { target.host.listDirectory(target.sessionId, target.blockId, text, files = !foldersOnly) }
+            withTimeoutOrNull(LISTING_TIMEOUT_MILLIS) { list(text) }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
@@ -165,24 +200,16 @@ internal fun PathBrowser(ui: RexUiState, mode: PaletteMode) {
 
     val listState = rememberLazyListState()
     val focus = remember { FocusRequester() }
-    LaunchedEffect(mode) { focus.requestFocus() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
     LaunchedEffect(selected, rows.size) { if (selected in rows.indices) listState.scrollToItem(selected) }
 
     fun choose(row: PathRow) {
         val text = if (foldersOnly) goToDirectoryText(row.path) else insertPathText(row.path)
-        when {
-            text == null -> message = REFUSED_CHARACTERS
-            target == null || !target.isThere -> {
-                rows = emptyList()
-                message = "Nothing was typed: that terminal is no longer there."
-            }
-            else -> {
-                ui.palette = null
-                // Never the path itself: the log is something people paste elsewhere.
-                ui.client.log.add("app", "typed ${if (foldersOnly) "cd and a folder" else "a path"} into the terminal (${text.length} characters, no Enter)")
-                target.host.typeText(target.blockId, text)
-                ui.returnFocusToTerminal()
-            }
+        if (text == null) {
+            message = REFUSED_CHARACTERS
+        } else if (!type(text)) {
+            rows = emptyList()
+            message = "Nothing was typed: that terminal is no longer there."
         }
     }
 
@@ -190,7 +217,7 @@ internal fun PathBrowser(ui: RexUiState, mode: PaletteMode) {
         if (row.isFolder) put(fieldTextFor(row.path, home))
     }
 
-    PaletteFrame(onDismiss = ui::closePalette) {
+    PaletteFrame(onDismiss = onClose) {
         TextField(
             value = field,
             onValueChange = { field = it },
@@ -208,16 +235,11 @@ internal fun PathBrowser(ui: RexUiState, mode: PaletteMode) {
                 }
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key) {
-                    Key.Escape -> ui.closePalette()
+                    Key.Escape -> onClose()
                     Key.DirectionDown -> if (rows.isNotEmpty()) selected = (selected + 1) % rows.size
                     Key.DirectionUp -> if (rows.isNotEmpty()) selected = (selected - 1).mod(rows.size)
                     Key.Enter, Key.NumPadEnter -> rows.getOrNull(selected)?.let(::choose)
-                    else -> {
-                        // The key that opens the palette closes this too.
-                        val chord = keyChord(event) ?: return@onPreviewKeyEvent false
-                        if (keymap.bindingsFor(chord).firstOrNull()?.action != "client.palette.toggle") return@onPreviewKeyEvent false
-                        ui.closePalette()
-                    }
+                    else -> if (closesIt(event)) onClose() else return@onPreviewKeyEvent false
                 }
                 true
             },

@@ -168,6 +168,7 @@ place of Cmd, and with Shift added where Ctrl on its own already means something
 | Ctrl+Shift+W / Ctrl+Alt+W | Close the pane / the tab, after asking |
 | Ctrl+Shift+C / Ctrl+Shift+V | Copy the selected text / paste |
 | Ctrl+Shift+A | Select everything in the terminal, including its history |
+| Ctrl+Alt+I | Insert the path of a file or folder on the terminal's machine |
 | Ctrl+click | Open the link under the pointer |
 | Ctrl+Shift+F | Find text in the terminal and its history |
 | Ctrl+Shift+G / Ctrl+Alt+G | Go to the next match (older) / the previous one (newer) |
@@ -240,6 +241,33 @@ in that terminal, without taking the keyboard.
 Output that arrives while the bar is open is searched too, and the match you're on stays the same text as the
 count grows. The bar floats over the terminal and never changes its size. If the match you're on would be
 under the bar, the bar moves to the bottom right corner.
+
+## Inserting a path, and going to a folder
+
+**Insert Path…** (Ctrl+Alt+I, or the command palette) lists the files and folders of the machine the focused
+terminal runs on, which need not be the machine you're sitting at. It starts in the terminal's working directory.
+**Go to Directory…**, in the palette, is the same list with folders only.
+
+The field holds a path. Whatever comes after its last slash narrows the folder before it, in either case, so
+`~/dev/ko` lists what starts with "ko" in `~/dev`. Names that start with a dot are listed once you type the dot.
+Up and Down choose a row, and Tab goes into the chosen folder. The first row is always the path as you typed it.
+
+Enter, or a click, types the choice at the terminal's prompt: the path for Insert Path, and `cd` followed by the
+folder for Go to Directory. Tono never presses Enter there. It can't see what the prompt already holds, so
+running the line is left to you. Escape closes the list and types nothing.
+
+The path is typed in full, even where the list shows `~`, and quoted for the shell when it needs to be: a name
+with spaces, quotes, `$`, backticks, `*` and the like goes in single quotes, so the shell reads it as that one
+name and runs nothing in it. The quoting is right for sh, bash, zsh and fish. It isn't right inside a quote you've
+already opened, or in csh.
+
+Some names are never listed and never typed: those with control characters, such as a newline, which would run
+whatever came before it, and those with invisible formatting characters, which can make a name read as something
+it isn't. A path you type yourself with one of these is refused the same way.
+
+A folder with a great many entries is listed in part, and the list says so. Type more of the name to see the rest.
+Go to Directory has no shortcut of its own, because Rex's Mac app puts it on the key that's Find Next here; you can
+bind one to `pane.go_to_directory` in Rex's `init.lua`.
 
 ## Sharing a terminal with other clients
 
