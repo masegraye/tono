@@ -874,6 +874,8 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, a
                     focusRequests = ui.focusRequests,
                     controlHeld = ui.controlHeld,
                     onOpenLink = { url -> openLink(url) { message, isError -> ui.client.log.add("links", message, isError = isError) } },
+                    // A pane with a name has it in this corner, which the search bar goes under.
+                    topEndInset = if (pane.name != null) PANE_NAME_INSET else 0.dp,
                 )
                 when (val current = status) {
                     TerminalSession.Status.Connecting -> Notice("Restoring…")
@@ -944,6 +946,9 @@ private val PANEL_GAP = 6.dp
 
 /** Between a pane's edge and its terminal. */
 private val PANE_PADDING = 8.dp
+
+/** How far into a terminal's top right corner a pane's name reaches (PaneNameChip), with a little air under it. */
+private val PANE_NAME_INSET = 20.dp
 
 /** How much of a pane that doesn't have the keyboard is hidden under the panel's color. */
 private const val UNFOCUSED_PANE_DIM = 0.4f

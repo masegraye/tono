@@ -384,6 +384,19 @@ internal fun clientActions(): List<ClientAction> = buildList {
         focusedTerminal?.let { terminal -> terminal.scroll((terminal.grid.value?.rows ?: 24) - 1) }
     })
 
+    // Find. Rex.app has these on Command+F, Command+G and Shift+Command+G. Control+F and
+    // Control+G are a shell's, so Shift is added, and Find Previous, which has Shift
+    // already, takes Alt instead, as Split Pane Down does.
+    add(ClientAction("client.find.open", "Find…", "Find", "find search text scrollback highlight", keys = listOf("ctrl+shift+f"), available = hasTerminal) {
+        focusedTerminal?.openSearch()
+    })
+    add(ClientAction("client.find.next", "Find Next", "Find", "find search next forward match older", keys = listOf("ctrl+shift+g"), available = hasTerminal) {
+        focusedTerminal?.searchStep(forward = true)
+    })
+    add(ClientAction("client.find.previous", "Find Previous", "Find", "find search previous back match newer", keys = listOf("ctrl+alt+g"), available = hasTerminal) {
+        focusedTerminal?.searchStep(forward = false)
+    })
+
     // View
     add(ClientAction("client.font.increase", "Increase Font Size", "View", "bigger zoom in text", keys = listOf("ctrl+=", "ctrl+shift+=")) {
         fontSize = (fontSize + 1).coerceIn(RexUiState.FONT_SIZES)

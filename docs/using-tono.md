@@ -169,6 +169,8 @@ place of Cmd, and with Shift added where Ctrl on its own already means something
 | Ctrl+Shift+C / Ctrl+Shift+V | Copy the selected text / paste |
 | Ctrl+Shift+A | Select everything in the terminal, including its history |
 | Ctrl+click | Open the link under the pointer |
+| Ctrl+Shift+F | Find text in the terminal and its history |
+| Ctrl+Shift+G / Ctrl+Alt+G | Go to the next match (older) / the previous one (newer) |
 | Shift+PageUp / Shift+PageDown | Scroll through history |
 | Ctrl+= / Ctrl+- / Ctrl+0 | Larger / smaller / default text |
 | Ctrl+Shift+/ | Show or hide the sidebar |
@@ -219,6 +221,25 @@ a browser, the link opens in a new tab.
 
 Ctrl+click on a link works over a program that uses the mouse too, and the program isn't told of that click.
 Anywhere else, Ctrl+click is an ordinary click.
+
+## Finding text
+
+Ctrl+Shift+F opens a search bar over the terminal's top right corner. What you type is looked for on the screen
+and in everything that has scrolled off it. Every match is marked, the bar says which one you're on ("3 of 17"),
+and the terminal scrolls to show it. Letters match in either case; there is no way to make the search exact.
+
+The search starts at the newest match, at the bottom. Enter, or the up arrow in the bar, goes to the next match,
+which is the next older one, further up. Shift+Enter, or the down arrow, goes back towards newer ones. Both carry
+on round from the last match to the first. Escape, or the bar's cross, closes the search and gives the keyboard
+back to the terminal.
+
+Ctrl+Shift+G and Ctrl+Alt+G also step to the next and the previous match, and work while you're typing in the
+terminal, with the bar still open. If the bar is closed, they bring it back on the text you last searched for
+in that terminal, without taking the keyboard.
+
+Output that arrives while the bar is open is searched too, and the match you're on stays the same text as the
+count grows. The bar floats over the terminal and never changes its size. If the match you're on would be
+under the bar, the bar moves to the bottom right corner.
 
 ## Sharing a terminal with other clients
 

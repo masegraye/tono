@@ -12,6 +12,9 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
 import org.example.kotlintest.rex.TerminalLink
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -109,6 +112,7 @@ import kotlin.math.roundToInt
  * @param focusRequests change it to hand the keyboard back to this view, if it is the focused one
  * @param controlHeld whether Control is down, which marks the link under the pointer, to be opened with a click
  * @param onOpenLink a link was clicked with Control held; the address is one of the kinds that are opened
+ * @param topEndInset how far down the top right corner is taken by something drawn over this view, which the search bar keeps clear of
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -125,6 +129,7 @@ fun TerminalView(
     focusRequests: Int = 0,
     controlHeld: Boolean = false,
     onOpenLink: (url: String) -> Unit = {},
+    topEndInset: Dp = 0.dp,
 ) {
     val frame by terminal.frame.collectAsState()
     val fontFamily = MaterialTheme.typography.bodyMedium.fontFamily ?: FontFamily.Monospace
@@ -206,9 +211,31 @@ fun TerminalView(
         }
     }
 
+    // Search. Its bar floats over a corner (SearchBar), and while its field is being typed
+    // in, that is where the keyboard goes back to, not the terminal.
+    val search by terminal.search.collectAsState()
+    val searchField = remember { FocusRequester() }
+    var searchTyping by remember(terminal) { mutableStateOf(false) }
+    var searchOpenedSeen by remember(terminal) { mutableIntStateOf(terminal.search.value?.opened ?: 0) }
+    var searchBarSize by remember { mutableStateOf(IntSize.Zero) }
+    var searchBarAtBottom by remember(terminal) { mutableStateOf(false) }
+    val matchColor = MaterialTheme.colorScheme.primary
+    val topEndInsetPx = with(LocalDensity.current) { topEndInset.roundToPx() }
+
     val focusRequester = remember { FocusRequester() }
     var hasKeyboard by remember { mutableStateOf(false) }
-    LaunchedEffect(focused, focusRequests) { if (focused) focusRequester.requestFocus() }
+    val searchOpened = search?.opened
+    LaunchedEffect(focused, focusRequests, searchOpened) {
+        when (searchOpened) {
+            // Closed: the bar starts in its own corner again next time.
+            null -> { searchTyping = false; searchBarAtBottom = false }
+            // Asked for, by its key or from the palette: the field is what is typed in next.
+            searchOpenedSeen -> {}
+            else -> { searchOpenedSeen = searchOpened; searchTyping = true }
+        }
+        if (!focused) return@LaunchedEffect
+        if (searchTyping) searchField.requestFocus() else focusRequester.requestFocus()
+    }
     val keysDown = remember { HashSet<Long>() }
     // Preview, so that Tab and the arrow keys reach the terminal instead of moving focus.
     val keys = Modifier.onPreviewKeyEvent { event ->
@@ -263,6 +290,7 @@ fun TerminalView(
             .pointerInput(Unit) {
                 detectTapGestures {
                     onFocusRequested()
+                    searchTyping = false
                     if (touched) screenField.requestFocus() else focusRequester.requestFocus()
                 }
             }
@@ -313,11 +341,39 @@ fun TerminalView(
             drawRow(row, rowIndex, cell, layouts.of(row, measurer, style))
         }
         current.images.forEach { if (it.layer == TerminalImagePlacement.Layer.AboveText) drawImage(it, current, cell, pictures) }
+        search?.highlights?.let { found ->
+            found.others.forEach { drawMatch(it, cell, matchColor, selected = false) }
+            found.selected.forEach { drawMatch(it, cell, matchColor, selected = true) }
+        }
         current.selection.forEach { drawSelection(it, current, cell) }
         link?.cells?.forEach { drawLinkUnderline(it, current, cell) }
         current.cursor?.let { drawCursor(it, current, cell, active = focused && (hasKeyboard || screenKeyboard)) }
     }
     link?.takeIf { linkTargetShown }?.let { LinkTarget(it, cell) }
+    search?.let { current ->
+        // Out of the selected match's way: see searchBarAtBottom.
+        searchBarAtBottom = searchBarAtBottom(
+            searchBarAtBottom, current.highlights.selected, cell.width, cell.height,
+            size.width, size.height, searchBarSize.width, searchBarSize.height, topEndInsetPx,
+        )
+        SearchBar(
+            search = current,
+            field = searchField,
+            onQuery = terminal::search,
+            onStep = terminal::searchStep,
+            onClose = terminal::closeSearch,
+            onTyping = { typing ->
+                if (typing) {
+                    searchTyping = true
+                    if (!focused) onFocusRequested()
+                }
+            },
+            modifier = Modifier
+                .align(if (searchBarAtBottom) Alignment.BottomEnd else Alignment.TopEnd)
+                .padding(top = if (searchBarAtBottom) 0.dp else topEndInset)
+                .onSizeChanged { searchBarSize = it },
+        )
+    }
     // A keyboard that has real keys as well (a tablet's) sends them here while this has the focus.
     ScreenKeyboardField(screenTyping, ::typed, Modifier.focusRequester(screenField).onFocusChanged { screenKeyboard = it.isFocused; if (!it.isFocused) controlHeld = false }.then(keys))
     }
@@ -444,6 +500,22 @@ private fun DrawScope.drawSelection(cells: SelectedCells, frame: TerminalFrame, 
 }
 
 private const val SELECTION_ALPHA = 0.3f
+
+/**
+ * Marks cells a search matched, in the app's accent color: a wash over them, so the text
+ * still reads, stronger and with a line round it for the selected match.
+ */
+private fun DrawScope.drawMatch(cells: SelectedCells, cell: CellSize, color: Color, selected: Boolean) {
+    val left = (cells.firstColumn * cell.width).toInt().toFloat()
+    val right = ceil((cells.lastColumn + 1) * cell.width)
+    val topLeft = Offset(left, cells.row * cell.height)
+    val size = Size(right - left, cell.height)
+    drawRect(color.copy(alpha = if (selected) SELECTED_MATCH_ALPHA else MATCH_ALPHA), topLeft, size)
+    if (selected) drawRect(color, topLeft + Offset(0.5f, 0.5f), Size(size.width - 1f, size.height - 1f), style = Stroke(width = 1.5f))
+}
+
+private const val MATCH_ALPHA = 0.3f
+private const val SELECTED_MATCH_ALPHA = 0.5f
 
 /** Where the pointer was last seen over a terminal's view, and whether the terminal was told, for finding the link under it. */
 private class Pointing {
