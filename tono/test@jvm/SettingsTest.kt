@@ -212,7 +212,7 @@ class SettingsTest {
         val changed = listed()
         assertEquals(listOf("Change Session…" to "Tono"), filterShortcuts(changed, "ctrl+shift+k").map { it.target.title to it.sourceShown() })
         assertEquals(1, changed.count { it.changed })
-        assertEquals("1 changed in Tono", changedShortcutsWords(changed.count { it.changed }))
+        assertEquals("1 shortcut changed", changedShortcutsWords(changed.count { it.changed }))
 
         // Reset All puts everything back, and is kept.
         client.resetAllShortcuts()

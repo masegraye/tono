@@ -249,8 +249,8 @@ class SettingsRenderTest {
             // The first action listed is the first of the app's: the command palette.
             val first = commands.shortcutTargets(client.keymap.value).first()
             assertEquals("client.palette.toggle", first.action)
-            // Its line: under the search field, the note, the line with Reset All, and the group's name.
-            val line = Offset(400f, 300f)
+            // Its line: under the search field, the card with the note and Reset All, and the group's name.
+            val line = Offset(400f, 340f)
             settings.click(line)
             assertEquals(first, ui.settings.shortcutEdit, "a click on a line starts recording for its action")
             settings.draw("shortcuts-700-recording")

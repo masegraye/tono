@@ -705,9 +705,9 @@ internal fun filterShortcuts(shortcuts: List<Shortcut>, query: String): List<Sho
 
 /** How many shortcuts this app has changed, in words, for the line over the list. */
 internal fun changedShortcutsWords(changed: Int): String = when (changed) {
-    0 -> "None changed in $APP_NAME"
-    1 -> "1 changed in $APP_NAME"
-    else -> "$changed changed in $APP_NAME"
+    0 -> "No shortcuts changed"
+    1 -> "1 shortcut changed"
+    else -> "$changed shortcuts changed"
 }
 
 /** The question Reset All Shortcuts asks before it does anything. */
@@ -757,35 +757,40 @@ private fun ShortcutSettings(ui: RexUiState, commands: RexCommands) {
             )
             LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(bottom = 20.dp)) {
                 item {
-                    Column(Modifier.padding(start = 6.dp, end = 6.dp, top = 12.dp)) {
-                        Text(
-                            "Keys set here are this client's alone, and sit above Rex's configuration file. To change a key for every client, bind it with rex.bind in ${keymap.configPath ?: "init.lua"}.",
-                            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            "Keyboard shortcuts in the Rex documentation",
-                            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 2.dp).clip(MaterialTheme.shapes.extraSmall)
-                                .clickable { openLink(SHORTCUTS_DOCUMENTATION) { message, isError -> client.log.add("links", message, isError = isError) } }
-                                // The words are small, and what is pressed is the height a finger needs.
-                                .heightIn(min = TOUCH_TARGET).wrapContentHeight(),
-                        )
-                    }
-                }
-                item {
-                    Row(Modifier.fillMaxWidth().padding(start = 6.dp).heightIn(min = TOUCH_TARGET), verticalAlignment = Alignment.CenterVertically) {
-                        if (canChange) {
-                            Text(changedShortcutsWords(changed), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                            TextButton(
-                                onClick = { state.confirmation = resetAllShortcutsQuestion(changed) { client.resetAllShortcuts() } },
-                                enabled = changed > 0,
-                                modifier = Modifier.heightIn(min = TOUCH_TARGET),
-                            ) { Text("Reset All Shortcuts") }
-                        } else {
+                    // What changing a shortcut here means, and the way back: one card above the list.
+                    Column(
+                        Modifier.fillMaxWidth().padding(top = 12.dp).clip(MaterialTheme.shapes.medium)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                    ) {
+                        Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 12.dp)) {
                             Text(
-                                "Shortcuts are changed from a device with a keyboard: a shortcut is recorded by pressing it. Press one on a keyboard here, and this list can be changed.",
-                                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 6.dp, bottom = 6.dp),
+                                if (canChange) {
+                                    "Shortcuts you change here apply to $APP_NAME only, and take priority over Rex's configuration file. " +
+                                        "To change a shortcut for every Rex client, use rex.bind in ${keymap.configPath ?: "init.lua"}."
+                                } else {
+                                    "Changing a shortcut needs a keyboard. Press any Ctrl or Alt combination on one to start."
+                                },
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface,
                             )
+                            Text(
+                                "Keyboard shortcuts in the Rex documentation",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.clip(MaterialTheme.shapes.extraSmall)
+                                    .clickable { openLink(SHORTCUTS_DOCUMENTATION) { message, isError -> client.log.add("links", message, isError = isError) } }
+                                    // The words are small, and what is pressed is the height a finger needs.
+                                    .heightIn(min = TOUCH_TARGET).wrapContentHeight(),
+                            )
+                        }
+                        if (canChange) {
+                            RowDivider()
+                            Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp).heightIn(min = TOUCH_TARGET), verticalAlignment = Alignment.CenterVertically) {
+                                Text(changedShortcutsWords(changed), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                                TextButton(
+                                    onClick = { state.confirmation = resetAllShortcutsQuestion(changed) { client.resetAllShortcuts() } },
+                                    enabled = changed > 0,
+                                    modifier = Modifier.heightIn(min = TOUCH_TARGET),
+                                ) { Text("Reset All Shortcuts") }
+                            }
                         }
                     }
                 }
