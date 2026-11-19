@@ -81,16 +81,23 @@ actual fun defaultLocalEndpoint(): String = LOCAL_ENDPOINT
 /** What the relay takes to mean the Rex server on its own machine. */
 const val LOCAL_ENDPOINT = "unix:///@local"
 
-/** Kept in the browser's storage for this site, so each browser has its own. */
-actual fun defaultWorkspace(): Workspace = Workspace.load(
-    object : WorkspaceStorage {
-        override fun read(): String? = storageGet(STORAGE_KEY)
-        override fun write(text: String) = storageSet(STORAGE_KEY, text)
-        override val location: String get() = "this browser's storage for ${pageOrigin()}, under $STORAGE_KEY"
-    },
-)
+/** One key of the browser's storage for this site, so each browser has its own. */
+private class BrowserStorage(private val key: String) : WorkspaceStorage {
+    override fun read(): String? = storageGet(key)
+    override fun write(text: String) = storageSet(key, text)
+    override val location: String get() = "this browser's storage for ${pageOrigin()}, under $key"
+}
 
-private const val STORAGE_KEY = "tono.workspace"
+/**
+ * Kept in the browser's storage for this site, under two keys: the settings and the state
+ * (adr-001). The first time, they are copied from the one key everything was under before,
+ * which is left as it was.
+ */
+actual fun defaultWorkspace(): Workspace = Workspace.loadMoving(BrowserStorage(SETTINGS_KEY), BrowserStorage(STATE_KEY), BrowserStorage(OLD_KEY))
+
+private const val SETTINGS_KEY = "tono.settings"
+private const val STATE_KEY = "tono.state"
+private const val OLD_KEY = "tono.workspace"
 
 /** Asked of the page's server, which can run the `tailscale` command where a page can't. */
 actual suspend fun tailnetRexServers(): List<TailnetServer> = runCatching {

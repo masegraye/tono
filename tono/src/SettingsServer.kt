@@ -114,7 +114,6 @@ internal fun ServerSettings(ui: RexUiState) {
     ClientInfo(ui)
     SettingsGroup(APP_NAME) {
         InfoRow("Version", TonoClient.version)
-        RowDivider()
         for ((label, value) in keptRows(client.workspace)) {
             RowDivider()
             InfoRow(label, value)
