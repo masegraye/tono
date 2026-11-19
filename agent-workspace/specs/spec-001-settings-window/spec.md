@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | done (commits fa77767, 7c5dccd, d925863, 896b8dd, 3456d5f and the one after, 2026-11-19) |
+| Status | done (commits fa77767, 7c5dccd, d925863, 896b8dd, 3456d5f, 96d558f, 2026-11-19) |
 | Promoted from | backlog-028 |
 | Builds on | backlog-042 (Change Shortcut…), backlog-008 (notification switches), backlog-004 (selection switches) |
 | Asked for by | Mase, 2026-11-19 |
