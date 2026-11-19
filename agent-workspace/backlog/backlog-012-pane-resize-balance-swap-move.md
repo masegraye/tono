@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | done (commits `a8b405d`, `62fdd85`, 2026-11-18) |
+| Status | done (commits `275ab20`, `4026e49`, `120eab6`, 2026-11-18) |
 | Area | Panes, tabs and sessions |
 | Size | medium |
 | Source | inv-001 |
@@ -68,6 +68,9 @@ Decisions made while building, none of them asked for:
   a pane's label before, so a rename would otherwise have been invisible. A new pane's label (`shell`) and the
   one the server makes when a name is cleared (`Block 89abcdef`) don't count as names.
 - Resizing, moving and the two "move to" actions aren't offered while a pane is zoomed; balancing is.
+- The move keys are taken wherever a tab has several panes, and do nothing at the tab's edge. A key whose action
+  isn't offered goes to the terminal, and a shell shown Control+Alt+Shift+Left prints the end of its escape
+  sequence, a stray "D". In a tab with one pane they still go to the terminal, as Control+Alt+arrows do.
 
 Not checked: the desktop app in a real window (the resize pointer over a line, and a drag with a real mouse).
 `hyprctl binds` has nothing on Ctrl+Alt+Shift, so the swap keys reach Tono (checked by the orchestrator).
