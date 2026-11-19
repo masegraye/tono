@@ -232,6 +232,25 @@ into the app. Tono tells your home server which commands it has and what their d
 replies with the final bindings after applying your Rex configuration. That's why a key you bind in Rex's
 `init.lua` works in Tono the same way it does in the Mac app.
 
+### Changing a shortcut
+
+To change a shortcut for Tono alone, run **Change Shortcut…** from the command palette. It lists every command
+with its keys and where they come from: `default`, your Rex configuration file, or `Tono` for one you changed
+here. Choose a command and press the new keys. Then choose what to do:
+
+- **Set Shortcut** gives the command those keys in place of the ones it had. If the keys already belong to another
+  command, Tono says which, and takes them from it only if you agree.
+- **Remove Shortcut** leaves the command with no keys, so the keys it had go to the terminal again. Ctrl+K opens
+  Change Session by default; remove or move that shortcut and Ctrl+K is the shell's again.
+- **Reset to Default** undoes what you changed here for that command.
+
+A key that types, such as a letter on its own or with Shift, can't be made a shortcut. In a browser tab, the keys
+the browser keeps for itself (Ctrl+T, Ctrl+N, Ctrl+W) never reach the page, so they can't be recorded there.
+
+What you change is kept with Tono's other settings, on this device, and sits above your Rex configuration file:
+the same key bound in `init.lua` loses to it. Your other Rex clients aren't affected. The debug log shows a line
+under `keys` if the server finds something wrong with a shortcut changed here.
+
 The debug log (Ctrl+`) is a panel at the bottom of the window that shows what Tono is doing: its connections, the
 events servers send, the requests that change something, and the commands it runs. It never records what you type.
 
