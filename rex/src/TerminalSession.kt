@@ -131,7 +131,7 @@ class TerminalSession internal constructor(
     private sealed interface Command {
         class SetColors(val colors: TerminalColors) : Command
         class Scroll(val rows: Int) : Command
-        class Mouse(val input: MouseInput, val scrollRows: Int, val timeMillis: Long, val middlePastes: Boolean) : Command
+        class Mouse(val input: MouseInput, val scrollRows: Int, val timeMillis: Long, val middlePastes: Boolean, val wheel: Int) : Command
         class PointAt(val at: MouseInput?) : Command
         data object ScrollToBottom : Command
         data object SelectAll : Command
@@ -194,8 +194,13 @@ class TerminalSession internal constructor(
      * The right button asks for the pane's menu, which is also told of in [gestures], and
      * the program hears nothing of that click either. With Shift held on a program that
      * asked for the mouse, the click is the program's and no menu is asked for.
+     *
+     * [wheel] is the number [ScrollTelemetry] gave a turn of the wheel, while it is measuring.
      */
-    fun mouse(input: MouseInput, scrollRows: Int = 0, middlePastes: Boolean = false) { commands.trySend(Command.Mouse(input, scrollRows, nowMillis(), middlePastes)) }
+    fun mouse(input: MouseInput, scrollRows: Int = 0, middlePastes: Boolean = false, wheel: Int = 0) { commands.trySend(Command.Mouse(input, scrollRows, nowMillis(), middlePastes, wheel)) }
+
+    /** Adds a line to the app's debug log, under this terminal's name. */
+    fun note(message: String) = log(message)
 
     /**
      * Says where the pointer is while Control is held, which is how a link is followed: if
@@ -312,9 +317,11 @@ class TerminalSession internal constructor(
             mutableStatus.value = Status.Live
 
             while (true) {
+                var output = false
                 val more = select {
                     stream.frames.onReceiveCatching { result ->
                         val frame = result.getOrNull() ?: return@onReceiveCatching false
+                        output = true
                         if (frame is Frame.Binary) apply(frame.readBytes(), 0)
                         // Take whatever else has already arrived, so a burst of output is drawn once.
                         var budget = DRAIN_BYTES
@@ -344,7 +351,14 @@ class TerminalSession internal constructor(
                 if (!more) break
                 // Whatever just happened may have changed what there is to find, or where it is in the view.
                 searching.refresh()
-                mutableFrame.value = renderer.render(terminal)
+                if (ScrollTelemetry.enabled) {
+                    val before = ScrollTelemetry.micros()
+                    val next = renderer.render(terminal)
+                    ScrollTelemetry.frame(this, next, ScrollTelemetry.micros() - before, output)
+                    mutableFrame.value = next
+                } else {
+                    mutableFrame.value = renderer.render(terminal)
+                }
                 // Asked again every time, since what is under a pointer that hasn't moved may have changed.
                 mutableLink.value = pointingAt?.let { pointer.linkUnder(live, it) }
                 bracketedPaste = terminal.bracketedPaste
@@ -448,6 +462,7 @@ class TerminalSession internal constructor(
                 val wasScrolling = pointer.scrollingAt != null
                 val report = pointer.handle(terminal, input, command.scrollRows, command.timeMillis, command.middlePastes)
                 if (!wasScrolling) scrollNextMillis = nowMillis() + AUTOSCROLL_MILLIS
+                ScrollTelemetry.wheelHandled(command.wheel, if (report.isEmpty()) command.scrollRows else 0, report.size)
                 // A click claims the terminal as a key press does; passing over it doesn't.
                 if (report.isNotEmpty()) onInput(report.latin1(), input.action == MouseAction.Press && input.button != MouseButton.WheelUp && input.button != MouseButton.WheelDown)
             }

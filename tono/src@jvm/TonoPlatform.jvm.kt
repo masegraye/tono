@@ -389,3 +389,9 @@ internal actual suspend fun runRex(command: LocalServerCommand): String? = kotli
 }
 
 private const val REX_COMMAND_SECONDS = 60L
+
+internal actual fun wheelDetails(event: androidx.compose.ui.input.pointer.PointerEvent): String? {
+    val wheel = event.nativeEvent as? java.awt.event.MouseWheelEvent ?: return null
+    val type = if (wheel.scrollType == java.awt.event.MouseWheelEvent.WHEEL_UNIT_SCROLL) "unit" else "block"
+    return "awt $type rotation=${wheel.wheelRotation} precise=${wheel.preciseWheelRotation} amount=${wheel.scrollAmount} when=${wheel.`when`}"
+}

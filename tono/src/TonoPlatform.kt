@@ -199,3 +199,6 @@ internal enum class LocalServerCommand(val title: String, val arguments: List<St
  * otherwise what it printed, or why it couldn't be run, to show. Never throws.
  */
 internal expect suspend fun runRex(command: LocalServerCommand): String?
+
+/** What the window system said of a turn of the wheel, for [org.example.kotlintest.rex.ScrollTelemetry]. Null where it can't be read. */
+internal expect fun wheelDetails(event: androidx.compose.ui.input.pointer.PointerEvent): String?

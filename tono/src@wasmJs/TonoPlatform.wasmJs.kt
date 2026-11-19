@@ -440,3 +440,8 @@ internal actual fun WatchBrowserBack(depth: Int, onBack: () -> Unit) {
 internal actual suspend fun localServerSetup(): LocalServerSetup? = null
 
 internal actual suspend fun runRex(command: LocalServerCommand): String? = "A page in a browser can't run rex."
+
+private fun describeWheel(event: JsAny): String? = js("(event && typeof event.deltaY === 'number') ? ('dom deltaY=' + event.deltaY + ' deltaMode=' + event.deltaMode + ' timeStamp=' + event.timeStamp) : null")
+
+internal actual fun wheelDetails(event: androidx.compose.ui.input.pointer.PointerEvent): String? =
+    (event.nativeEvent as? JsAny)?.let { runCatching { describeWheel(it) }.getOrNull() }

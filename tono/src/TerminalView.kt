@@ -97,6 +97,9 @@ import org.example.kotlintest.ghostty.TerminalRow
 import org.example.kotlintest.ghostty.TerminalRun
 import org.example.kotlintest.rex.GridSize
 import org.example.kotlintest.rex.RexKey
+import org.example.kotlintest.rex.ScrollTelemetry
+import kotlinx.coroutines.channels.Channel
+import androidx.compose.runtime.withFrameNanos
 import org.example.kotlintest.rex.TerminalSession
 import org.example.kotlintest.ghostty.SearchHighlights
 import kotlin.math.ceil
@@ -184,10 +187,27 @@ fun TerminalView(
         )
     }
 
-    fun report(event: PointerEvent, action: MouseAction, button: MouseButton?, scrollRows: Int = 0) {
+    fun report(event: PointerEvent, action: MouseAction, button: MouseButton?, scrollRows: Int = 0, wheel: Int = 0) {
         // Wherever it is: the terminal knows its own edges, and a selection is dragged past them.
         val position = event.changes.firstOrNull()?.position ?: return
-        terminal.mouse(input(position, action, button, event), scrollRows, middlePastes)
+        terminal.mouse(input(position, action, button, event), scrollRows, middlePastes, wheel)
+    }
+
+    // Scrolling measured, when that was asked for (ScrollTelemetry): the window's frames are
+    // timed while the wheel turns, and a summary goes to the debug log once it is still.
+    val wheelTurned = remember { Channel<Unit>(Channel.CONFLATED) }
+    if (ScrollTelemetry.enabled) {
+        LaunchedEffect(terminal) {
+            for (turn in wheelTurned) {
+                var last = withFrameNanos { it }
+                while (ScrollTelemetry.scrolling) {
+                    val now = withFrameNanos { it }
+                    ScrollTelemetry.tick((now - last) / 1000)
+                    last = now
+                }
+                ScrollTelemetry.summary()?.let { terminal.note("scrolling: $it") }
+            }
+        }
     }
 
     // A selection the pointer finished, and a middle click that asks for a paste: what
@@ -354,7 +374,8 @@ fun TerminalView(
                 // A notch is a press of a wheel button to a program that tracks the mouse,
                 // and otherwise scrolls this terminal's own history.
                 val rows = (delta * SCROLL_ROWS_PER_NOTCH).roundToInt().coerceIn(-50, 50).let { if (it == 0) if (delta > 0) 1 else -1 else it }
-                report(event, MouseAction.Press, if (delta < 0) MouseButton.WheelUp else MouseButton.WheelDown, scrollRows = rows)
+                val wheel = if (ScrollTelemetry.enabled) ScrollTelemetry.wheel(terminal, delta, "$rows rows", wheelDetails(event)).also { wheelTurned.trySend(Unit) } else 0
+                report(event, MouseAction.Press, if (delta < 0) MouseButton.WheelUp else MouseButton.WheelDown, scrollRows = rows, wheel = wheel)
             },
     ) {
         val current = frame
@@ -430,6 +451,9 @@ internal fun DrawScope.drawTerminal(
     link: List<TerminalLink.Cells> = emptyList(),
     cursorActive: Boolean = false,
 ) {
+    val measuring = ScrollTelemetry.enabled
+    val started = if (measuring) ScrollTelemetry.micros() else 0L
+    layouts.count(measuring)
     drawRect(Color(0xFF000000 or frame.background.toLong()))
     layouts.retain(frame.rows)
     pictures.retain(frame.images)
@@ -446,6 +470,7 @@ internal fun DrawScope.drawTerminal(
     frame.selection.forEach { drawSelection(it, frame, cell) }
     link.forEach { drawLinkUnderline(it, frame, cell) }
     frame.cursor?.let { drawCursor(it, frame, cell, active = cursorActive) }
+    if (measuring) ScrollTelemetry.drawn(frame, ScrollTelemetry.micros() - started, layouts.layoutMicros, layouts.laidOut)
 }
 
 /**
@@ -519,8 +544,28 @@ internal class RowLayouts(private val cell: CellSize) {
     fun of(row: TerminalRow, measurer: TextMeasurer, style: TextStyle): List<PlacedText> =
         cache.getOrPut(row) {
             if (fontsArriveLater && row !in awaitingFonts && row.runs.any { run -> run.text.any(::mayNeedAnotherFont) }) awaitingFonts[row] = nowMillis()
-            buildList { for (run in row.runs) place(run, measurer, style.merge(run)) }
+            val started = if (counting) ScrollTelemetry.micros() else 0L
+            buildList { for (run in row.runs) place(run, measurer, style.merge(run)) }.also {
+                if (counting) {
+                    laidOut++
+                    layoutMicros += ScrollTelemetry.micros() - started
+                }
+            }
         }
+
+    /** While scrolling is measured (ScrollTelemetry): how many rows were laid out for the frame being drawn, and how long that took. */
+    var laidOut = 0
+        private set
+    var layoutMicros = 0L
+        private set
+    private var counting = false
+
+    /** Starts the count again for a new frame, or stops counting. */
+    fun count(counting: Boolean) {
+        this.counting = counting
+        laidOut = 0
+        layoutMicros = 0
+    }
 
     /**
      * Lays out a run's text. A run of plain characters is one piece, which the font lays

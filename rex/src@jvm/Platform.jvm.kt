@@ -225,3 +225,17 @@ actual suspend fun tailnetRexServers(): List<TailnetServer> = withContext(Dispat
         Tailnet.parseStatus(Json.parseToJsonElement(output).jsonObject)
     }.getOrDefault(emptyList())
 }
+
+/**
+ * Asked for with `TONO_SCROLL_TELEMETRY` or `-Dtono.scrollTelemetry`: a file to add the
+ * lines to, or `1` for standard error.
+ */
+internal actual fun scrollTelemetrySink(): ((String) -> Unit)? {
+    val wanted = (System.getProperty("tono.scrollTelemetry") ?: System.getenv("TONO_SCROLL_TELEMETRY"))?.takeIf { it.isNotEmpty() && it != "0" && it != "false" } ?: return null
+    if (wanted == "1" || wanted == "true") return { line -> System.err.println(line) }
+    val file = runCatching { java.io.PrintWriter(java.io.FileWriter(wanted, true), true) }.getOrElse {
+        System.err.println("tono: can't write scroll telemetry to $wanted: ${it.message}")
+        return null
+    }
+    return { line -> file.println(line) }
+}
