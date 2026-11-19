@@ -69,13 +69,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -120,6 +125,7 @@ import kotlin.math.abs
  * session's tabs and terminals in the rest of the window. Shortcuts, the command palette
  * and the debug log sit on top.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun RexApp(ui: RexUiState, commands: RexCommands) {
     val hosts by ui.client.hosts.collectAsState()
@@ -148,6 +154,15 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
         }
     }
     CloseSeenNotifications(ui, selected, inFront)
+    // The tabs shown are remembered, for going back to. Whatever shows a tab, on whichever
+    // host, changes one of these, and so does a tab or a session closing.
+    LaunchedEffect(ui, hosts) {
+        if (hosts.isEmpty()) return@LaunchedEffect
+        combine(hosts.map { it.state }) { states -> states.map { Triple(it.connection, it.selectedSessionId to it.window?.id, it.sessions.map { s -> s.id } to it.views.mapValues { (_, view) -> view.windows.map { w -> w.id } }) } }
+            .combine(ui.client.selectedHost) { states, label -> states to label }
+            .distinctUntilChanged()
+            .collect { ui.observeNavigation() }
+    }
     // A muted tab is remembered until it closes. Each host is watched for what it lists.
     LaunchedEffect(ui, hosts) {
         for (host in hosts) launch {
@@ -205,7 +220,15 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
                     KeyEventType.KeyUp -> shortcutKeysDown.remove(event.key.keyCode)
                     else -> false
                 }
-            },
+            }
+                // The mouse's back and forward buttons go through the tabs shown, wherever the
+                // pointer is, and are nothing to a terminal. Not while something is open over
+                // the terminals, as in Rex Rune.
+                .onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event ->
+                    val forward = historyButton(event.button) ?: return@onPointerEvent
+                    event.changes.forEach { it.consume() }
+                    if (!ui.overlayOpen) commands.run(if (forward) "client.history.forward" else "client.history.back", origin = if (forward) "mouse forward" else "mouse back")
+                },
         ) {
             Column(Modifier.fillMaxSize()) {
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {

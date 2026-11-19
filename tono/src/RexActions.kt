@@ -269,6 +269,19 @@ internal fun clientActions(): List<ClientAction> = buildList {
         args?.get("index")?.jsonPrimitive?.int?.let(::goToTab)
     })
 
+    // Back and forward through the tabs this window has shown, across sessions and hosts.
+    // The names are Rex Rune's; Rex.app has no such actions. Rune gives them no key, only the
+    // mouse's back and forward buttons, which work here too (see RexApp). The keys are this
+    // app's: brackets, as for the next tab (Control+Shift) and the next pane (Alt), with
+    // Control+Alt, which a terminal has no use for. The keys are taken at either end of the
+    // history too, where they do nothing.
+    add(ClientAction("client.history.back", "Back in History", "Tab", "navigate previous last recent visited return go", keys = listOf("ctrl+alt+["), available = { canStepHistory(forward = false) }) {
+        stepHistory(forward = false)
+    })
+    add(ClientAction("client.history.forward", "Forward in History", "Tab", "navigate next recent visited again go", keys = listOf("ctrl+alt+]"), available = { canStepHistory(forward = true) }) {
+        stepHistory(forward = true)
+    })
+
     // Pane
     for ((direction, keys) in listOf(
         SplitDirection.Right to listOf("ctrl+shift+d"),

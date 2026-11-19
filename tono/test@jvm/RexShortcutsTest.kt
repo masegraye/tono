@@ -54,6 +54,15 @@ class RexShortcutsTest {
     }
 
     @Test
+    fun `back and forward have Rex Rune's names, and brackets with control and alt`() {
+        val actions = clientActions().associateBy { it.name }
+        assertEquals(listOf("ctrl+alt+["), actions.getValue("client.history.back").keys)
+        assertEquals(listOf("ctrl+alt+]"), actions.getValue("client.history.forward").keys)
+        assertEquals(KeyChord.parse("ctrl+alt+["), chord(KeyEvent.VK_OPEN_BRACKET, ctrl or alt))
+        assertEquals(KeyChord.parse("ctrl+alt+]"), chord(KeyEvent.VK_CLOSE_BRACKET, ctrl or alt))
+    }
+
+    @Test
     fun `the tab keys are control and a digit, with nine for the last tab`() {
         val goto = clientActions().first { it.name == "client.tab.goto" }
         assertEquals((1..9).map { "ctrl+$it" }, goto.argKeys.map { it.first })

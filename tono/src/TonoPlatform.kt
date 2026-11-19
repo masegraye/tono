@@ -2,6 +2,7 @@ package org.example.kotlintest
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.pointer.PointerButton
 import org.example.kotlintest.rex.KeyChord
 import org.example.kotlintest.rex.RexKey
 import org.example.kotlintest.rex.openableLink
@@ -129,3 +130,9 @@ internal expect fun bringWindowToFront()
 /** Says whether the page has the browser's focus, as [pageHasFocus] does, whenever that changes. Says nothing on the desktop. */
 @Composable
 internal expect fun WatchPageFocus(onChange: (focused: Boolean) -> Unit)
+
+/**
+ * Whether a pointer button is the mouse's forward button (true) or its back button (false),
+ * the two on the side of a mouse that go through history. Null for every other button.
+ */
+internal expect fun historyButton(button: PointerButton?): Boolean?

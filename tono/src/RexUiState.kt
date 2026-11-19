@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
+import kotlin.time.TimeSource
 import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.HostState
 import org.example.kotlintest.rex.MutedTab
@@ -308,8 +309,50 @@ class RexUiState(val client: RexClient) {
         go(all[next])
     }
 
+    /** The tabs this window has shown, for going back to them. */
+    internal val history = NavigationHistory(now = TimeSource.Monotonic.markNow().let { start -> { start.elapsedNow().inWholeMilliseconds } })
+
+    /** Where the user is: the tab showing, if there is one. */
+    val placeShown: NavigationStop? get() = placeShown(host?.saved?.label, hostState)
+
+    private fun statesByLabel(): Map<String, HostState> = client.hosts.value.associate { it.saved.label to it.state.value }
+
+    /** Brings the history up to date with what is on screen and what has closed. Called whenever either may have changed. */
+    fun observeNavigation() {
+        val hosts = statesByLabel()
+        history.retain { isStillThere(it, hosts) }
+        placeShown?.let(history::observe)
+    }
+
+    /** Whether there is a tab to go back, or forward, to. */
+    fun canStepHistory(forward: Boolean): Boolean {
+        val hosts = statesByLabel()
+        return history.canStep(forward, placeShown) { isReachable(it, hosts) }
+    }
+
+    /**
+     * Goes back to the tab shown before this one, or forward again: see [NavigationHistory].
+     * Does nothing at either end.
+     */
+    fun stepHistory(forward: Boolean) {
+        observeNavigation()
+        val hosts = statesByLabel()
+        val stop = history.step(forward, placeShown) { isReachable(it, hosts) } ?: return
+        show(stop)
+        observeNavigation()
+    }
+
     /** Shows a session, or one of its tabs. Showing a tab makes it its session's active tab, for every client on that session. */
     fun go(stop: NavigationStop) {
+        if (client.hosts.value.none { it.saved.label == stop.host }) return
+        // Where this sets out from is a place to come back to, and what shows on the way isn't.
+        observeNavigation()
+        history.heading(stop)
+        show(stop)
+        observeNavigation() // already there, as often as not: a tab of the session showing changes at once
+    }
+
+    private fun show(stop: NavigationStop) {
         val target = client.hosts.value.firstOrNull { it.saved.label == stop.host } ?: return
         // Going somewhere that is folded away unfolds it, so the sidebar shows where you are.
         if (stop.host in collapsedHosts || stop.sessionId in collapsedSessions) {

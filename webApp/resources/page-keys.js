@@ -6,7 +6,7 @@
 // which it does for keys that reach a terminal, but not for a key it has no use for at that
 // moment (a shortcut pressed while a dialog is open), and not at all while the page's focus
 // is outside its canvas, as it is when the page has just loaded. Three things here close
-// those gaps, and a fourth is for a keyboard on a screen. Each is about the page rather than
+// those gaps, a fourth is for a keyboard on a screen, and a fifth for a mouse's side buttons. Each is about the page rather than
 // the app, which is why they are not in it.
 (() => {
   'use strict';
@@ -108,5 +108,18 @@
     };
     visualViewport.addEventListener('resize', fit);
     visualViewport.addEventListener('scroll', fit);
+  }
+
+  // --- 5. The mouse's back and forward buttons stay in the app ---
+  //
+  // The two buttons on the side of a mouse take a browser back and forward through the
+  // pages it has shown, which here means off the app and onto whatever was open before it.
+  // The app has its own use for them, going back and forward through its tabs. It hears the
+  // press either way; cancelling it here is what keeps the browser where it is. Browsers
+  // differ on whether they act on the press or the release, so both are cancelled.
+  for (const type of ['mousedown', 'mouseup', 'auxclick']) {
+    addEventListener(type, (event) => {
+      if (event.button === 3 || event.button === 4) event.preventDefault();
+    });
   }
 })();

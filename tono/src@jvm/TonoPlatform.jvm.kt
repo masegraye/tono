@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -322,3 +323,21 @@ private const val CLOSE_TIMEOUT_SECONDS = 3L
 
 internal actual fun resizePointer(sideways: Boolean): androidx.compose.ui.input.pointer.PointerIcon =
     androidx.compose.ui.input.pointer.PointerIcon(java.awt.Cursor(if (sideways) java.awt.Cursor.E_RESIZE_CURSOR else java.awt.Cursor.N_RESIZE_CURSOR))
+
+internal actual fun historyButton(button: PointerButton?): Boolean? =
+    historyButton(button?.index, x11 = Toolkit.getDefaultToolkit().javaClass.name == "sun.awt.X11.XToolkit")
+
+/**
+ * Which of a mouse's side buttons has the number Compose gives it, counting from 0.
+ *
+ * Elsewhere they are 3 and 4, Compose's Back and Forward. Under X11, which is also what the
+ * toolkit speaks on Wayland, they are 5 and 6: X numbers the side buttons 8 and 9, after the
+ * four directions of the wheel, and the toolkit takes two off for the vertical wheel only.
+ * That leaves 3 and 4 for the wheel tilted left and right, which a touchpad sends for a
+ * sideways scroll, and which must not go through history.
+ */
+internal fun historyButton(index: Int?, x11: Boolean): Boolean? = when (index) {
+    if (x11) 5 else 3 -> false
+    if (x11) 6 else 4 -> true
+    else -> null
+}

@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
@@ -362,3 +363,10 @@ private fun focusWindow(): Unit = js("window.focus()")
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 internal actual fun resizePointer(sideways: Boolean): androidx.compose.ui.input.pointer.PointerIcon =
     with(androidx.compose.ui.input.pointer.PointerIcon) { fromKeyword(if (sideways) "col-resize" else "row-resize") }
+
+/** A browser numbers the two 3 and 4, which is where Compose has them. That it leaves the page alone is seen to in page-keys.js. */
+internal actual fun historyButton(button: PointerButton?): Boolean? = when (button) {
+    PointerButton.Back -> false
+    PointerButton.Forward -> true
+    else -> null
+}
