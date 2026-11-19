@@ -68,4 +68,4 @@ The order proposed in inv-001, not yet agreed:
 | 038 | [A host that is still being connected to looks like one that is connected](backlog-038-a-host-being-connected-to-looks-connected.md) | The sidebar | small | done |
 | 039 | [Pane keys reach the terminal in a tab with one pane](backlog-039-pane-keys-reach-the-terminal-with-one-pane.md) | Typing and keys | small | done |
 | 040 | [Text drifts from its cells in the web app](backlog-040-text-drifts-from-the-grid-in-the-web-app.md) | Drawing | small | done |
-| 041 | [In the web app, a host the relay refuses lingers at "Connecting…"](backlog-041-web-hosts-linger-at-connecting.md) | The sidebar | small | captured |
+| 041 | [In the web app, a host the relay refuses lingers at "Connecting…"](backlog-041-web-hosts-linger-at-connecting.md) | The sidebar | small | done |
