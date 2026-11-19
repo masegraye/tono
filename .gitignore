@@ -36,3 +36,4 @@ hs_err_pid*.log
 /marketing/launch-video/.hyperframes/
 /marketing/launch-video/assets/fonts/
 /marketing/launch-video/assets/audio/bed.wav
+__pycache__/
