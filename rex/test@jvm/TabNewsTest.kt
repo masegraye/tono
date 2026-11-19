@@ -101,7 +101,8 @@ class NotificationSwitchesTest {
     fun `the workspace keeps the selection switches, and shows them even when none has been touched`() {
         val file = Files.createTempDirectory("workspace").resolve("workspace.json")
         Workspace(WorkspaceFile(file)).save()
-        assertEquals(SelectionSwitches().toJson(), fields(Files.readString(file))["terminal"])
+        // With the terminal's other switch beside them, which is how it scrolls.
+        assertEquals("""{"copy_on_selection":false,"primary_selection":false,"smooth_scrolling":false}""", fields(Files.readString(file))["terminal"].toString())
         assertEquals(SelectionSwitches(), Workspace.load(file).selection)
 
         val workspace = Workspace.load(file)

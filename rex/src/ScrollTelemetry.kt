@@ -17,6 +17,7 @@ import kotlin.time.TimeSource
  *   rows weren't in the frame before;
  * - `draw`: a frame drawn, how long laying out its text and drawing took, and how long
  *   after the wheel that asked for it;
+ * - `glide`: the same frame drawn again nearer its place, with smooth scrolling on;
  * - `tick`: the gap between two of the window's frames while scrolling, which is where a
  *   frame that came late or not at all shows;
  * - `summary`: all of that for one go at scrolling, in one line.
@@ -88,6 +89,7 @@ object ScrollTelemetry {
     private val ticks = ArrayList<Long>()
     private var rowsLaidOut = 0
     private var rowsFresh = 0
+    private var glides = 0
 
     private fun reset() {
         arrived.clear(); handled.clear(); awaitingAnswer.clear(); published.clear()
@@ -98,7 +100,7 @@ object ScrollTelemetry {
     private fun resetBurst() {
         burstStart = 0; wheels = 0; preciseWheels = 0; rowsScrolled = 0; reports = 0; frames = 0; framesNotDrawn = 0
         buildMicros.clear(); drawMicros.clear(); scrollLatency.clear(); answerLatency.clear(); ticks.clear()
-        rowsLaidOut = 0; rowsFresh = 0
+        rowsLaidOut = 0; rowsFresh = 0; glides = 0
     }
 
     private fun line(at: Long, text: String) {
@@ -110,11 +112,12 @@ object ScrollTelemetry {
      * [wheelHandled], or 0 while this is off.
      *
      * @param terminal the terminal it was over, as [frame] is told of it
-     * @param delta what the toolkit gave: 1 is a notch of a wheel, and a touchpad gives fractions
+     * @param delta what the toolkit gave: on the desktop 1 is a notch of a wheel, and in a browser it is pixels
+     * @param precise whether it was taken for one of the small moves a touchpad sends, and not a notch
      * @param asked what was asked of the terminal for it, in words
      * @param native what the window system said of the event, where that can be read
      */
-    fun wheel(terminal: Any?, delta: Float, asked: String, native: String?): Int {
+    fun wheel(terminal: Any?, delta: Float, precise: Boolean, asked: String, native: String?): Int {
         if (!enabled) return 0
         return locked(this) {
             val now = micros()
@@ -125,13 +128,21 @@ object ScrollTelemetry {
             }
             arrived += wheel
             if (wheels == 0) burstStart = now
-            val precise = delta != delta.toInt().toFloat()
             wheels++
             if (precise) preciseWheels++
             val gap = if (lastWheelAt == 0L) -1 else now - lastWheelAt
             lastWheelAt = now
             line(now, "wheel id=${wheel.id} delta=$delta precise=$precise gap_us=$gap asked=\"$asked\"" + (native?.let { " native=\"$it\"" } ?: ""))
             wheel.id
+        }
+    }
+
+    /** A wheel event too small to scroll a row by itself was added to what the next ones bring, and nothing was asked of the terminal. */
+    fun wheelHeld(id: Int) {
+        if (!enabled || id == 0) return
+        locked(this) {
+            arrived.removeAll { it.id == id }
+            line(micros(), "held id=$id")
         }
     }
 
@@ -188,14 +199,23 @@ object ScrollTelemetry {
 
     /**
      * A frame was drawn, on the thread that draws: its text took [layoutMicros] to lay out,
-     * for [laidOut] rows that had no layout yet, out of [micros] in all.
+     * for [laidOut] rows that had no layout yet, out of [micros] in all. [offset] is how many
+     * pixels from its place it was drawn, which is not zero on the way there with smooth scrolling.
      */
-    fun drawn(frame: TerminalFrame, micros: Long, layoutMicros: Long, laidOut: Int) {
+    fun drawn(frame: TerminalFrame, micros: Long, layoutMicros: Long, laidOut: Int, offset: Float = 0f) {
         if (!enabled) return
         locked(this) {
             val index = published.indexOfFirst { it.frame === frame }
-            if (index < 0) return@locked // not a frame made by scrolling, or drawn before
             val now = micros()
+            if (index < 0) {
+                // Not a frame made by scrolling, or one drawn before: drawn again on its way to its place, if it is on one.
+                if (offset != 0f) {
+                    glides++
+                    drawMicros += micros
+                    line(now, "glide offset_px=$offset draw_us=$micros rows_laid_out=$laidOut")
+                }
+                return@locked
+            }
             var scrollWorst = -1L
             var answerWorst = -1L
             for (at in 0..index) {
@@ -211,7 +231,7 @@ object ScrollTelemetry {
             lastDrawAt = now
             line(
                 now,
-                "draw draw_us=$micros layout_us=$layoutMicros rows_laid_out=$laidOut frames_skipped=$index since_last_draw_us=$gap" +
+                "draw draw_us=$micros layout_us=$layoutMicros rows_laid_out=$laidOut offset_px=$offset frames_skipped=$index since_last_draw_us=$gap" +
                     (if (scrollWorst >= 0) " wheel_to_draw_us=$scrollWorst" else "") +
                     (if (answerWorst >= 0) " wheel_to_answer_drawn_us=$answerWorst" else ""),
             )
@@ -245,11 +265,11 @@ object ScrollTelemetry {
             val late = if (usual > 0) ticks.count { it > usual * 3 / 2 } else 0
             val text = buildString {
                 append("wheel events $wheels")
-                if (preciseWheels > 0) append(" ($preciseWheels with fractions)")
+                if (preciseWheels > 0) append(" ($preciseWheels of them a touchpad's small moves)")
                 append(" in ${oneDecimal(seconds * 1000)} ms")
                 append("; scrolled $rowsScrolled rows; reports to the program $reports")
                 append("; frames read $frames (${describe(buildMicros)} ms, $rowsFresh new rows), of which never drawn $framesNotDrawn")
-                append("; drawn ${drawMicros.size} (${describe(drawMicros)} ms, $rowsLaidOut rows laid out)")
+                append("; drawn ${drawMicros.size - glides} and $glides more on the way to their places (${describe(drawMicros)} ms, $rowsLaidOut rows laid out)")
                 if (scrollLatency.isNotEmpty()) append("; wheel to drawn ${describe(scrollLatency)} ms")
                 if (answerLatency.isNotEmpty()) append("; wheel to the program's answer drawn ${describe(answerLatency)} ms")
                 if (awaitingAnswer.isNotEmpty()) append("; ${awaitingAnswer.size} reports the program drew nothing for")

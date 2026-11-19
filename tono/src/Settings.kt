@@ -111,7 +111,7 @@ import org.example.kotlintest.rex.TonoClient
 internal enum class SettingsSection(val title: String, val summary: String) {
     Server("Server", "The server this app follows, and where things are kept"),
     Appearance("Appearance", "The theme, and the terminals' font"),
-    Terminal("Terminal", "What selecting text copies"),
+    Terminal("Terminal", "What selecting text copies, and how the wheel scrolls"),
     Shortcuts("Shortcuts", "The keys for every action, and changing them"),
     Notifications("Notifications", "Sounds and notifications for tabs out of view"),
     RemoteHosts("Remote Hosts", "The other Rex servers this app connects to"),
@@ -155,9 +155,10 @@ internal val SETTING_ENTRIES: List<SettingEntry> = listOf(
     SettingEntry(SettingsSection.Appearance, "Appearance", "look interface themes colors colours"),
     SettingEntry(SettingsSection.Appearance, "Theme", "color colour scheme palette dark light omarchy follow"),
     SettingEntry(SettingsSection.Appearance, "Terminal font", "typeface family monospace size weight bold jetbrains mono nerd"),
-    SettingEntry(SettingsSection.Terminal, "Terminal", "selection"),
+    SettingEntry(SettingsSection.Terminal, "Terminal", "selection scrolling"),
     SettingEntry(SettingsSection.Terminal, "Copy on Selection", "copy select clipboard automatic mouse drag highlight"),
     SettingEntry(SettingsSection.Terminal, "Primary Selection", "middle click button paste mouse x11 wayland linux"),
+    SettingEntry(SettingsSection.Terminal, "Smooth Scrolling", "scroll wheel trackpad touchpad pixel precise fluid glide line by line history scrollback"),
     SettingEntry(SettingsSection.Shortcuts, "Shortcuts", "keyboard keys key bindings keybindings hotkey record rebind change"),
     SettingEntry(SettingsSection.Shortcuts, "Reset All Shortcuts", "default restore keys bindings"),
     SettingEntry(SettingsSection.Notifications, "Notifications", "alerts program activity"),
@@ -893,7 +894,11 @@ internal fun notificationAccessWords(access: NotificationAccess, browser: Boolea
     }
 }
 
-/** What selecting text in a terminal does. Rex.app's Settings > Terminal > Selection, and Rex Rune's second switch beside it. */
+/**
+ * What selecting text in a terminal does, which is Rex.app's Settings > Terminal > Selection
+ * and Rex Rune's second switch beside it, and how the wheel scrolls one, which is Rex.app's
+ * Settings > Terminal > Scrolling: its name, and off until turned on, as there.
+ */
 @Composable
 private fun TerminalSettings(ui: RexUiState) {
     val switches = ui.selection
@@ -901,6 +906,9 @@ private fun TerminalSettings(ui: RexUiState) {
         SwitchRow("Copy on Selection", "Automatically copy selected terminal text to the clipboard.", switches.copyOnSelection) { ui.selection = ui.selection.copy(copyOnSelection = it) }
         RowDivider()
         SwitchRow("Primary Selection", primarySelectionWords(primarySelection()), switches.primarySelection) { ui.selection = ui.selection.copy(primarySelection = it) }
+    }
+    SettingsGroup("Scrolling") {
+        SwitchRow("Smooth Scrolling", "Glide through terminal history instead of jumping a few lines at a time.", ui.smoothScrolling) { ui.smoothScrolling = it }
     }
 }
 

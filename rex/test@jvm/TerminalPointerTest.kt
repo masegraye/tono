@@ -169,6 +169,26 @@ class TerminalPointerTest {
         }
 
     @Test
+    fun `the wheel says how far it really moved the view, which is no further than the history goes`() =
+        scene((1..10).joinToString("\r\n") { "line $it" }) {
+            // Four rows on screen, six above them.
+            pointer(MouseAction.Press, MouseButton.WheelUp, 39f, 30f, scrollRows = -4)
+            assertEquals(-4, pointer.scrolled)
+            pointer(MouseAction.Press, MouseButton.WheelUp, 39f, 30f, scrollRows = -4)
+            assertEquals(-6, pointer.scrolled)
+            pointer(MouseAction.Press, MouseButton.WheelUp, 39f, 30f, scrollRows = -4)
+            assertEquals(-6, pointer.scrolled)
+            pointer(MouseAction.Press, MouseButton.WheelDown, 39f, 30f, scrollRows = 50)
+            assertEquals(0, pointer.scrolled)
+        }
+
+    @Test
+    fun `a program that asked for the mouse gets the wheel, and the view stays where it is`() = scene((1..10).joinToString("\r\n") { "line $it" } + tracking) {
+        assertEquals("$ESC[<64;4;2M", pointer(MouseAction.Press, MouseButton.WheelUp, 39f, 30f, scrollRows = -3))
+        assertEquals(0, pointer.scrolled)
+    }
+
+    @Test
     fun `held past the bottom edge it scrolls until the pointer comes back or the button comes up`() =
         scene((1..10).joinToString("\r\n") { "line $it" }) {
             terminal.scrollViewport(-6) // lines 1 to 4 in view

@@ -103,6 +103,9 @@ class SettingsTest {
         ui.switchSounds(false)
         ui.notifications = ui.notifications.copy(blocked = false, programMessages = false)
         ui.selection = ui.selection.copy(copyOnSelection = true)
+        assertEquals("off", commands.stateOf("client.setting.terminal.scrolling.smooth", ui))
+        ui.smoothScrolling = true
+        assertEquals("on", commands.stateOf("client.setting.terminal.scrolling.smooth", ui))
 
         assertEquals("off", commands.stateOf("client.setting.notifications.activity.sounds", ui))
         assertEquals("off", commands.stateOf("client.setting.notifications.macos.terminal_notifications", ui))
@@ -114,6 +117,7 @@ class SettingsTest {
         assertFalse(kept.sounds)
         assertEquals(NotificationSwitches(blocked = false, programMessages = false), kept.notifications)
         assertEquals(SelectionSwitches(copyOnSelection = true), kept.selection)
+        assertTrue(kept.smoothScrolling)
     }
 
     @Test
@@ -122,12 +126,16 @@ class SettingsTest {
         commands.run("client.setting.terminal.selection.primary_selection", origin = "test")
         assertTrue(ui.selection.primarySelection)
         assertTrue(ui.client.selection.value.primarySelection)
+        commands.run("client.setting.terminal.scrolling.smooth", origin = "test")
+        assertTrue(ui.smoothScrolling)
+        assertTrue(ui.client.smoothScrolling.value)
 
         // Something else with the same client: another window, say.
         ui.client.setSounds(false)
         ui.client.setNotifications(NotificationSwitches(done = false))
         ui.client.setSelection(SelectionSwitches())
-        eventually { !ui.soundsEnabled && !ui.notifications.done && !ui.selection.primarySelection }
+        ui.client.setSmoothScrolling(false)
+        eventually { !ui.soundsEnabled && !ui.notifications.done && !ui.selection.primarySelection && !ui.smoothScrolling }
         assertEquals("off", commands.stateOf("client.setting.terminal.selection.primary_selection", ui))
     }
 
@@ -318,7 +326,7 @@ class SettingsTest {
         assertEquals(listOf("Terminal Notifications"), searchSettings("osc").map { it.title })
         assertEquals(listOf("Configuration file"), searchSettings("init.lua").map { it.title })
         // A section's name finds everything in it, the section itself first.
-        assertEquals(listOf("Terminal font", "Terminal", "Copy on Selection", "Primary Selection", "Terminal Notifications"), searchSettings("terminal").map { it.title })
+        assertEquals(listOf("Terminal font", "Terminal", "Copy on Selection", "Primary Selection", "Smooth Scrolling", "Terminal Notifications"), searchSettings("terminal").map { it.title })
         assertEquals(listOf("Appearance", "Theme"), searchSettings("theme").map { it.title })
         assertEquals(setOf(SettingsSection.Shortcuts), searchSettings("shortcuts").map { it.section }.toSet())
         assertEquals(listOf("Show System Notifications"), searchSettings("system notif").map { it.title })

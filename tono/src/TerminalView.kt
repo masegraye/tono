@@ -31,6 +31,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import org.example.kotlintest.rex.nowMillis
@@ -100,6 +101,11 @@ import org.example.kotlintest.rex.RexKey
 import org.example.kotlintest.rex.ScrollTelemetry
 import kotlinx.coroutines.channels.Channel
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.clipRect
+import kotlinx.coroutines.flow.first
 import org.example.kotlintest.rex.TerminalSession
 import org.example.kotlintest.ghostty.SearchHighlights
 import kotlin.math.ceil
@@ -121,6 +127,7 @@ import kotlin.math.roundToInt
  * @param onOpenLink a link was clicked with Control held; the address is one of the kinds that are opened
  * @param onMenu the right button asked for the pane's menu, at this point of the view
  * @param topEndInset how far down the top right corner is taken by something drawn over this view, which the search bar keeps clear of
+ * @param smoothScrolling whether the wheel glides through the history, and doesn't jump a few rows at a time (see [TerminalScroll])
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -143,8 +150,30 @@ fun TerminalView(
     onSelected: () -> Unit = {},
     onMiddlePaste: () -> Unit = {},
     onMenu: (at: Offset) -> Unit = {},
+    smoothScrolling: Boolean = false,
 ) {
-    val frame by terminal.frame.collectAsState()
+    // The frame to draw, and how far from its place to draw it while the wheel's scrolling
+    // glides. The two change together, so that a frame that has scrolled is first drawn
+    // exactly where the one before it was.
+    val scroll = remember(terminal) { TerminalScroll() }
+    scroll.smooth = smoothScrolling
+    var frame by remember(terminal) { mutableStateOf(terminal.frame.value?.also(scroll::frame)) }
+    val rowHeight = remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(terminal) {
+        terminal.frame.collect { next ->
+            Snapshot.withMutableSnapshot {
+                if (next != null && next !== frame) {
+                    val wasMoving = scroll.moving
+                    scroll.frame(next)
+                    // Setting off, it covers a frame's share of the way at once, so that the
+                    // first picture after the wheel turns has already moved.
+                    if (!wasMoving && scroll.moving) scroll.advance(FIRST_GLIDE_MILLIS, rowHeight.floatValue)
+                }
+                frame = next
+            }
+        }
+    }
+    LaunchedEffect(terminal, smoothScrolling) { terminal.overscan(if (smoothScrolling) TerminalScroll.OVERSCAN_ROWS else 0) }
     // The font chosen for terminals (see Appearance.kt), or failing that the one everything else is in.
     val chosenFont = LocalTerminalFont.current
     val fontFamily = chosenFont?.family ?: MaterialTheme.typography.bodyMedium.fontFamily ?: FontFamily.Monospace
@@ -170,6 +199,19 @@ fun TerminalView(
 
     var size by remember { mutableStateOf(IntSize.Zero) }
     DesiredGrid(terminal, size, cell, holdGrid, onDesiredGrid)
+
+    rowHeight.floatValue = cell.height
+    LaunchedEffect(scroll, cell) {
+        while (true) {
+            snapshotFlow { scroll.moving }.first { it }
+            var last = withFrameNanos { it }
+            while (scroll.moving) {
+                val now = withFrameNanos { it }
+                scroll.advance((now - last) / 1_000_000f, cell.height)
+                last = now
+            }
+        }
+    }
 
     fun input(position: Offset, action: MouseAction, button: MouseButton?, event: PointerEvent? = null): MouseInput {
         // The encoder counts in whole pixels and cells are drawn a fraction wide, so the
@@ -372,10 +414,16 @@ fun TerminalView(
                 val delta = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
                 if (delta == 0f) return@onPointerEvent
                 // A notch is a press of a wheel button to a program that tracks the mouse,
-                // and otherwise scrolls this terminal's own history.
-                val rows = (delta * SCROLL_ROWS_PER_NOTCH).roundToInt().coerceIn(-50, 50).let { if (it == 0) if (delta > 0) 1 else -1 else it }
-                val wheel = if (ScrollTelemetry.enabled) ScrollTelemetry.wheel(terminal, delta, "$rows rows", wheelDetails(event)).also { wheelTurned.trySend(Unit) } else 0
-                report(event, MouseAction.Press, if (delta < 0) MouseButton.WheelUp else MouseButton.WheelDown, scrollRows = rows, wheel = wheel)
+                // and otherwise scrolls this terminal's own history. A touchpad's small moves
+                // add up to a row before they are either.
+                val turn = wheelTurn(event, delta, cell.height, density.density, terminal.grid.value?.rows ?: 0)
+                val rows = scroll.wheel(turn)
+                val wheel = if (ScrollTelemetry.enabled) ScrollTelemetry.wheel(terminal, delta, turn.precise, "$rows rows", wheelDetails(event)).also { wheelTurned.trySend(Unit) } else 0
+                if (rows == 0) {
+                    ScrollTelemetry.wheelHeld(wheel)
+                    return@onPointerEvent
+                }
+                report(event, MouseAction.Press, if (rows < 0) MouseButton.WheelUp else MouseButton.WheelDown, scrollRows = rows, wheel = wheel)
             },
     ) {
         val current = frame
@@ -385,6 +433,7 @@ fun TerminalView(
             current, cell, layouts, measurer, style, pictures,
             matches = search?.highlights, matchColor = matchColor, link = link?.cells.orEmpty(),
             cursorActive = focused && (hasKeyboard || screenKeyboard),
+            offset = scroll.offset(current, cell.height),
         )
     }
     link?.takeIf { linkTargetShown }?.let { LinkTarget(it, cell) }
@@ -438,6 +487,10 @@ internal class CellSize(
 /**
  * Draws one frame of a terminal: its background, images and text, and over them what is
  * marked on it. Everything is placed by its cell, [cell] being the size of one.
+ *
+ * With an [offset], everything but the background is drawn that many pixels lower, or
+ * higher when it is negative, and the edge it leaves is filled with the rows the frame
+ * carries from past its view. That is a frame of smooth scrolling: see [TerminalScroll].
  */
 internal fun DrawScope.drawTerminal(
     frame: TerminalFrame,
@@ -450,6 +503,7 @@ internal fun DrawScope.drawTerminal(
     matchColor: Color = Color.Unspecified,
     link: List<TerminalLink.Cells> = emptyList(),
     cursorActive: Boolean = false,
+    offset: Float = 0f,
 ) {
     val measuring = ScrollTelemetry.enabled
     val started = if (measuring) ScrollTelemetry.micros() else 0L
@@ -457,21 +511,38 @@ internal fun DrawScope.drawTerminal(
     drawRect(Color(0xFF000000 or frame.background.toLong()))
     layouts.retain(frame.rows)
     pictures.retain(frame.images)
-    // Images a program asked to have behind its text go down first, the rest on top of it.
-    frame.images.forEach { if (it.layer != TerminalImagePlacement.Layer.AboveText) drawImage(it, frame, cell, pictures) }
-    frame.rows.forEachIndexed { rowIndex, row ->
-        drawRow(row, rowIndex, cell, layouts.of(row, measurer, style))
+    val content: DrawScope.() -> Unit = {
+        // Images a program asked to have behind its text go down first, the rest on top of it.
+        frame.images.forEach { if (it.layer != TerminalImagePlacement.Layer.AboveText) drawImage(it, frame, cell, pictures) }
+        // The rows from past the view's edges, of which only as many as the offset uncovers are in sight.
+        if (offset > 0f) frame.above.forEachIndexed { index, row ->
+            val rowIndex = index - frame.above.size
+            if ((rowIndex + 1) * cell.height + offset > 0f) drawRow(row, rowIndex, cell, layouts.of(row, measurer, style))
+        }
+        frame.rows.forEachIndexed { rowIndex, row ->
+            drawRow(row, rowIndex, cell, layouts.of(row, measurer, style))
+        }
+        if (offset < 0f) frame.below.forEachIndexed { index, row ->
+            val rowIndex = frame.rows.size + index
+            if (rowIndex * cell.height + offset < frame.rows.size * cell.height) drawRow(row, rowIndex, cell, layouts.of(row, measurer, style))
+        }
+        frame.images.forEach { if (it.layer == TerminalImagePlacement.Layer.AboveText) drawImage(it, frame, cell, pictures) }
+        matches?.let { found ->
+            found.others.forEach { drawMatch(it, cell, matchColor, selected = false) }
+            found.selected.forEach { drawMatch(it, cell, matchColor, selected = true) }
+        }
+        frame.selection.forEach { drawSelection(it, frame, cell) }
+        link.forEach { drawLinkUnderline(it, frame, cell) }
+        frame.cursor?.let { drawCursor(it, frame, cell, active = cursorActive) }
     }
-    frame.images.forEach { if (it.layer == TerminalImagePlacement.Layer.AboveText) drawImage(it, frame, cell, pictures) }
-    matches?.let { found ->
-        found.others.forEach { drawMatch(it, cell, matchColor, selected = false) }
-        found.selected.forEach { drawMatch(it, cell, matchColor, selected = true) }
-    }
-    frame.selection.forEach { drawSelection(it, frame, cell) }
-    link.forEach { drawLinkUnderline(it, frame, cell) }
-    frame.cursor?.let { drawCursor(it, frame, cell, active = cursorActive) }
-    if (measuring) ScrollTelemetry.drawn(frame, ScrollTelemetry.micros() - started, layouts.layoutMicros, layouts.laidOut)
+    // Away from its place, it is drawn within the rows of the view and no further: what is left of the
+    // window under the last row stays empty, as it is at rest.
+    if (offset == 0f) content() else clipRect(bottom = frame.rows.size * cell.height) { translate(top = offset, block = content) }
+    if (measuring) ScrollTelemetry.drawn(frame, ScrollTelemetry.micros() - started, layouts.layoutMicros, layouts.laidOut, offset)
 }
+
+/** What the first frame of a glide counts as having passed, which is about one frame of a screen. */
+private const val FIRST_GLIDE_MILLIS = 16f
 
 /**
  * Reports the grid that would fill [size] with cells of [cell]'s size, once a resize has
@@ -779,8 +850,6 @@ private fun DrawScope.drawCursor(cursor: TerminalCursor, frame: TerminalFrame, c
         else -> drawRect(color.copy(alpha = 0.55f), topLeft, whole)
     }
 }
-
-private const val SCROLL_ROWS_PER_NOTCH = 3f
 
 /**
  * The bitmaps made from the images a terminal shows, kept for as long as each is on screen.

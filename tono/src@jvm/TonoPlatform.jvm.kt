@@ -395,3 +395,5 @@ internal actual fun wheelDetails(event: androidx.compose.ui.input.pointer.Pointe
     val type = if (wheel.scrollType == java.awt.event.MouseWheelEvent.WHEEL_UNIT_SCROLL) "unit" else "block"
     return "awt $type rotation=${wheel.wheelRotation} precise=${wheel.preciseWheelRotation} amount=${wheel.scrollAmount} when=${wheel.`when`}"
 }
+
+internal actual fun wheelTurn(event: androidx.compose.ui.input.pointer.PointerEvent, delta: Float, cellHeight: Float, density: Float, rows: Int): WheelTurn = notchedWheelTurn(delta)

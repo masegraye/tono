@@ -443,5 +443,12 @@ internal actual suspend fun runRex(command: LocalServerCommand): String? = "A pa
 
 private fun describeWheel(event: JsAny): String? = js("(event && typeof event.deltaY === 'number') ? ('dom deltaY=' + event.deltaY + ' deltaMode=' + event.deltaMode + ' timeStamp=' + event.timeStamp) : null")
 
+@Suppress("UNCHECKED_CAST_TO_EXTERNAL_INTERFACE")
 internal actual fun wheelDetails(event: androidx.compose.ui.input.pointer.PointerEvent): String? =
     (event.nativeEvent as? JsAny)?.let { runCatching { describeWheel(it) }.getOrNull() }
+
+private fun wheelMode(event: JsAny): Int = js("(event && typeof event.deltaMode === 'number') ? event.deltaMode : 0")
+
+@Suppress("UNCHECKED_CAST_TO_EXTERNAL_INTERFACE")
+internal actual fun wheelTurn(event: androidx.compose.ui.input.pointer.PointerEvent, delta: Float, cellHeight: Float, density: Float, rows: Int): WheelTurn =
+    browserWheelTurn(delta, (event.nativeEvent as? JsAny)?.let { runCatching { wheelMode(it) }.getOrNull() } ?: 0, cellHeight, density, rows)

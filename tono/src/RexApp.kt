@@ -971,6 +971,7 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, a
                     // A pane with a name has it in this corner, which the search bar goes under.
                     topEndInset = if (pane.name != null) PANE_NAME_INSET else 0.dp,
                     middlePastes = ui.middlePastes,
+                    smoothScrolling = ui.smoothScrolling,
                     onSelected = { ui.selectionFinished(terminal) },
                     onMiddlePaste = { ui.pastePrimarySelection(host, pane.blockId) },
                     onMenu = { at -> ui.openPaneMenu(host, pane.blockId, at + Offset(paneMargin, paneMargin)) },

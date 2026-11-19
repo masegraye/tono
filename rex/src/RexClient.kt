@@ -100,6 +100,7 @@ class RexClient(
     private val mutableSounds = MutableStateFlow(workspace.sounds)
     private val mutableNotifications = MutableStateFlow(workspace.notifications)
     private val mutableSelection = MutableStateFlow(workspace.selection)
+    private val mutableSmoothScrolling = MutableStateFlow(workspace.smoothScrolling)
 
     /*
      * The switches a person sets, as they stand. Each is kept in the workspace, and is here so
@@ -115,6 +116,17 @@ class RexClient(
 
     /** What selecting with the pointer copies, and whether the middle button pastes. */
     val selection: StateFlow<SelectionSwitches> get() = mutableSelection
+
+    /** Whether the wheel glides through a terminal's history, and doesn't jump a few rows at a time. */
+    val smoothScrolling: StateFlow<Boolean> get() = mutableSmoothScrolling
+
+    /** Turns smooth scrolling on or off. Applies at once, and is remembered. */
+    fun setSmoothScrolling(enabled: Boolean) {
+        if (mutableSmoothScrolling.value == enabled) return
+        mutableSmoothScrolling.value = enabled
+        workspace.smoothScrolling = enabled
+        workspace.save()
+    }
 
     /** Turns the sounds on or off. Applies at once, and is remembered. */
     fun setSounds(enabled: Boolean) {

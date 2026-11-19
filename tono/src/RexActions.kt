@@ -591,6 +591,15 @@ internal fun clientActions(): List<ClientAction> = buildList {
         selection = selection.copy(primarySelection = !selection.primarySelection)
         client.log.add("clipboard", "primary selection ${if (selection.primarySelection) "on" else "off"}")
     })
+    // Rex.app's action and its name there.
+    add(ClientAction(
+        "client.setting.terminal.scrolling.smooth", "Smooth Scrolling", "Terminal",
+        "smooth scroll scrolling pixel precise fluid glide wheel trackpad touchpad line by line history",
+        state = { if (smoothScrolling) "on" else "off" },
+    ) {
+        smoothScrolling = !smoothScrolling
+        client.log.add("app", "smooth scrolling ${if (smoothScrolling) "on" else "off"}")
+    })
     // Only where the app is what asks for it, which is a browser. There it is also the way to
     // get every key: a browser keeps some for itself in a tab, and gives them up in full screen.
     fullScreen?.let { screen ->

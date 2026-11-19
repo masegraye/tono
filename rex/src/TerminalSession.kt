@@ -132,6 +132,7 @@ class TerminalSession internal constructor(
         class SetColors(val colors: TerminalColors) : Command
         class Scroll(val rows: Int) : Command
         class Mouse(val input: MouseInput, val scrollRows: Int, val timeMillis: Long, val middlePastes: Boolean, val wheel: Int) : Command
+        class Overscan(val rows: Int) : Command
         class PointAt(val at: MouseInput?) : Command
         data object ScrollToBottom : Command
         data object SelectAll : Command
@@ -198,6 +199,13 @@ class TerminalSession internal constructor(
      * [wheel] is the number [ScrollTelemetry] gave a turn of the wheel, while it is measuring.
      */
     fun mouse(input: MouseInput, scrollRows: Int = 0, middlePastes: Boolean = false, wheel: Int = 0) { commands.trySend(Command.Mouse(input, scrollRows, nowMillis(), middlePastes, wheel)) }
+
+    /**
+     * Asks for [rows] rows past the top and the bottom of the view in every [frame] from now
+     * on, where there are any, for whoever draws the terminal part of a row away from where
+     * it rests. None is the way it starts.
+     */
+    fun overscan(rows: Int) { commands.trySend(Command.Overscan(rows)) }
 
     /** Adds a line to the app's debug log, under this terminal's name. */
     fun note(message: String) = log(message)
@@ -312,7 +320,7 @@ class TerminalSession internal constructor(
             fun apply(bytes: ByteArray, offset: Int) =
                 scanner.feed(bytes, offset, onOutput = live::write, onMessage = { handleMessage(live, it) })
             apply(snapshot, restored.snapshotBytes)
-            mutableFrame.value = renderer.render(terminal)
+            mutableFrame.value = renderer.render(terminal).scrolled(pointer.scrolled)
             bracketedPaste = terminal.bracketedPaste
             mutableStatus.value = Status.Live
 
@@ -361,11 +369,11 @@ class TerminalSession internal constructor(
                 searching.refresh()
                 if (ScrollTelemetry.enabled) {
                     val before = ScrollTelemetry.micros()
-                    val next = renderer.render(terminal)
+                    val next = renderer.render(terminal).scrolled(pointer.scrolled)
                     ScrollTelemetry.frame(this, next, ScrollTelemetry.micros() - before, output)
                     mutableFrame.value = next
                 } else {
-                    mutableFrame.value = renderer.render(terminal)
+                    mutableFrame.value = renderer.render(terminal).scrolled(pointer.scrolled)
                 }
                 // Asked again every time, since what is under a pointer that hasn't moved may have changed.
                 mutableLink.value = pointingAt?.let { pointer.linkUnder(live, it) }
@@ -468,13 +476,16 @@ class TerminalSession internal constructor(
             is Command.Mouse -> {
                 val input = command.input
                 val wasScrolling = pointer.scrollingAt != null
+                val before = pointer.scrolled
                 val report = pointer.handle(terminal, input, command.scrollRows, command.timeMillis, command.middlePastes)
+                val moved = (pointer.scrolled - before).toInt()
                 if (!wasScrolling) scrollNextMillis = nowMillis() + AUTOSCROLL_MILLIS
-                ScrollTelemetry.wheelHandled(command.wheel, if (report.isEmpty()) command.scrollRows else 0, report.size)
+                ScrollTelemetry.wheelHandled(command.wheel, moved, report.size)
                 // A click claims the terminal as a key press does; passing over it doesn't.
                 if (report.isNotEmpty()) onInput(report.latin1(), input.action == MouseAction.Press && input.button != MouseButton.WheelUp && input.button != MouseButton.WheelDown)
             }
             is Command.PointAt -> pointingAt = command.at
+            is Command.Overscan -> renderer.overscan = command.rows
             Command.ScrollToBottom -> terminal.scrollToBottom()
             Command.SelectAll -> selection.selectAll(terminal)
             Command.ClearSelection -> selection.clear(terminal)

@@ -65,6 +65,7 @@ class ScrollMeasureTest {
     /** One terminal drawn offscreen, with the pieces the app uses between the wheel and the picture. */
     private inner class Bench(screen: Screen, val smooth: Boolean = false) : AutoCloseable {
         private var frame by mutableStateOf<TerminalFrame?>(null)
+        val scroll = TerminalScroll().also { it.smooth = smooth }
         lateinit var cell: CellSize
         lateinit var layouts: RowLayouts
         private val scene = ImageComposeScene(screen.width, screen.height, Density(screen.density)) {
@@ -74,7 +75,7 @@ class ScrollMeasureTest {
             val rowLayouts = remember { RowLayouts(measured).also { layouts = it } }
             val pictures = remember { Pictures() }
             Canvas(Modifier.fillMaxSize()) {
-                frame?.let { drawTerminal(it, measured, rowLayouts, measurer, style, pictures) }
+                frame?.let { drawTerminal(it, measured, rowLayouts, measurer, style, pictures, offset = scroll.offset(it, measured.height)) }
             }
         }
         private var clock = 0L
@@ -86,7 +87,7 @@ class ScrollMeasureTest {
         val columns = (screen.width / cell.width).toInt()
         val rows = (screen.height / cell.height).toInt()
         val terminal = GhosttyTerminal.create(columns, rows)
-        val renderer = GhosttyRenderer()
+        val renderer = GhosttyRenderer().also { if (smooth) it.overscan = TerminalScroll.OVERSCAN_ROWS }
         private val mouse = GhosttyMouse()
         private val selection = GhosttySelection()
         private val pointer = TerminalPointer(mouse, selection)
@@ -102,12 +103,33 @@ class ScrollMeasureTest {
             return pointer.handle(terminal, input, rows, time)
         }
 
-        fun read(): TerminalFrame = renderer.render(terminal).also { frame = it }
+        fun read(): TerminalFrame = renderer.render(terminal).scrolled(pointer.scrolled).also {
+            scroll.frame(it)
+            frame = it
+        }
 
         /** Composes, lays out, draws and rasterizes one frame of the window. */
         fun draw() {
             clock += 16_000_000
             scene.render(clock).close()
+        }
+
+        /** The same, and what was drawn, a pixel at a time. */
+        fun picture(): IntArray {
+            clock += 16_000_000
+            val image = scene.render(clock)
+            val bitmap = org.jetbrains.skia.Bitmap.makeFromImage(image)
+            return IntArray(image.width * image.height) { bitmap.getColor(it % image.width, it / image.width) }.also { image.close() }
+        }
+
+        /** The window's frames until a glide has come to rest: how long each took. */
+        fun glide(): List<Long> = buildList {
+            while (scroll.moving) {
+                val start = System.nanoTime()
+                scroll.advance(16f, cell.height)
+                draw()
+                add((System.nanoTime() - start) / 1000)
+            }
         }
 
         override fun close() {
@@ -256,6 +278,18 @@ class ScrollMeasureTest {
             results += Result("agent's output, wheel up while a spinner turns", List(wheelSteps) { spin(it); bench.step(-3) })
             assertTrue(results.last().steps.all { it.moved == -3L }, "every step moves the view three rows while the spinner turns")
         }
+        Bench(screen, smooth = true).use { bench ->
+            // With smooth scrolling: the frame the wheel asks for, and then the frames of the glide to it.
+            bench.terminal.write(agent(400, bench.columns))
+            bench.read(); bench.draw()
+            repeat(5) { bench.step(-3); bench.glide() }
+            val steps = ArrayList<Step>()
+            repeat(wheelSteps) {
+                steps += bench.step(-3)
+                for (micros in bench.glide()) steps += Step(0, 0, micros, 0, 0, steps.last().rows, steps.last().runs, 0)
+            }
+            results += Result("agent's output, wheel up with smooth scrolling: every frame, the glide's too", steps)
+        }
         return results
     }
 
@@ -278,6 +312,52 @@ class ScrollMeasureTest {
         append("\n")
     }
 
+    /**
+     * Where two pictures of the small screen differ, or nothing when they don't. Not counting
+     * the two lines of pixels at the top and those from two above the last row's foot: a
+     * letter's tail hangs a pixel or two out of its row, and whether the row past the edge
+     * is there to have one differs between a picture at rest and one on its way.
+     */
+    private fun differences(one: IntArray, other: IntArray, bottom: Int): String {
+        val rows = one.indices.filter { one[it] != other[it] }.map { it / small.width }.filter { it in 2 until bottom - 2 }
+        return if (rows.isEmpty()) "" else "${rows.size} pixels differ, in the lines of pixels ${rows.first()} to ${rows.last()}"
+    }
+
+    @Test
+    fun `with smooth scrolling a frame that scrolled is first drawn exactly where the one before was, and comes to rest where it would have jumped to`() {
+        fun bench(smooth: Boolean) = Bench(small, smooth).also {
+            it.terminal.write(agent(40, it.columns))
+            it.read()
+            it.draw()
+        }
+        bench(smooth = true).use { smooth ->
+            // Somewhere in the middle of the history, at rest.
+            smooth.wheel(-9)
+            smooth.read()
+            smooth.glide()
+            val before = smooth.picture()
+            val bottom = (smooth.rows * smooth.cell.height).toInt()
+
+            for (rows in listOf(-3, 3, 3, -3)) {
+                val was = smooth.picture()
+                smooth.wheel(rows)
+                smooth.read()
+                assertTrue(smooth.scroll.moving)
+                assertEquals("", differences(was, smooth.picture(), bottom), "the frame that scrolled $rows rows is drawn where the picture was")
+                smooth.glide()
+                assertTrue(differences(was, smooth.picture(), bottom).isNotEmpty(), "and has moved once the glide is over")
+            }
+            // Three up, six down, three up: back where it started.
+            assertEquals("", differences(before, smooth.picture(), bottom))
+
+            bench(smooth = false).use { plain ->
+                plain.wheel(-9)
+                plain.read()
+                assertTrue(plain.picture().contentEquals(smooth.picture()), "at rest it is the picture that scrolling by whole rows draws")
+            }
+        }
+    }
+
     @Test
     fun `scrolling is measured from the wheel to the picture`() {
         val lines = ArrayList<String>()
@@ -285,7 +365,7 @@ class ScrollMeasureTest {
         try {
             if (label == null) {
                 val results = measure(small, wheelSteps = 6)
-                assertEquals(8, results.size)
+                assertEquals(9, results.size)
                 for (result in results) assertTrue(result.steps.all { it.rows > 0 && it.drawMicros > 0 }, result.name)
                 // Rows that only moved keep their layouts: a step lays out the rows it brings in, and none on the way back.
                 for (result in results) {

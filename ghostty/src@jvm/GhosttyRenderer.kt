@@ -76,6 +76,19 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
         GhosttyRenderStateRowSelection.size(selectionOut, GhosttyRenderStateRowSelection.sizeof())
     }
 
+    private val overscanOut = arena.allocate(JAVA_SHORT, 2)
+
+    actual var overscan: Int = 0
+        set(value) {
+            val rows = value.coerceIn(0, 0xFFFF)
+            if (rows == field) return
+            field = rows
+            // GhosttyRenderStateOverscan: how many rows above, and how many below.
+            overscanOut.setAtIndex(JAVA_SHORT, 0, rows.toShort())
+            overscanOut.setAtIndex(JAVA_SHORT, 1, rows.toShort())
+            check("render_state_set", GhosttyVt.ghostty_render_state_set(state, GhosttyVt.GHOSTTY_RENDER_STATE_OPTION_OVERSCAN(), overscanOut))
+        }
+
     /** Forgets the cached rows, so the next [render] rebuilds every one. Call it after changing colors. */
     actual fun invalidate() {
         rebuildEverything = true
@@ -98,6 +111,14 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
         check("render_state_get", GhosttyVt.ghostty_render_state_get(state, GhosttyVt.GHOSTTY_RENDER_STATE_DATA_COLS(), intOut))
         val columns = intOut.get(JAVA_SHORT, 0).toInt() and 0xFFFF
 
+        // The rows read past the view's edges, which come before and after the view's own.
+        var above = 0
+        var below = 0
+        if (overscan > 0 && GhosttyVt.ghostty_render_state_get(state, GhosttyVt.GHOSTTY_RENDER_STATE_DATA_OVERSCAN(), overscanOut) == GhosttyVt.GHOSTTY_SUCCESS()) {
+            above = overscanOut.getAtIndex(JAVA_SHORT, 0).toInt() and 0xFFFF
+            below = overscanOut.getAtIndex(JAVA_SHORT, 1).toInt() and 0xFFFF
+        }
+
         check("render_state_get", GhosttyVt.ghostty_render_state_get(state, GhosttyVt.GHOSTTY_RENDER_STATE_DATA_ROW_ITERATOR(), iteratorRef))
         val rows = ArrayList<TerminalRow>()
         val nextCache = HashMap<RowId, TerminalRow>()
@@ -106,7 +127,7 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
             // Asked of every row, changed or not: selecting changes no row's content.
             if (GhosttyVt.ghostty_render_state_row_get(iterator, GhosttyVt.GHOSTTY_RENDER_STATE_ROW_DATA_SELECTION(), selectionOut) == GhosttyVt.GHOSTTY_SUCCESS()) {
                 val cells = SelectedCells(
-                    row = rows.size,
+                    row = rows.size - above,
                     firstColumn = GhosttyRenderStateRowSelection.start_x(selectionOut).toInt() and 0xFFFF,
                     lastColumn = GhosttyRenderStateRowSelection.end_x(selectionOut).toInt() and 0xFFFF,
                 )
@@ -133,7 +154,13 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
         val cursor = readCursor(cursorColor)
         readImages(terminal)
         check("render_state_clean", GhosttyVt.ghostty_render_state_clean(state))
-        return TerminalFrame(columns, rows, background, foreground, cursor, placements, terminal.cellWidthPx, terminal.cellHeightPx, selection ?: emptyList())
+        if (above + below > rows.size) { above = 0; below = 0 } // never, unless the library and this disagree about what it read
+        return TerminalFrame(
+            columns, if (above + below == 0) rows else rows.subList(above, rows.size - below), background, foreground, cursor, placements,
+            terminal.cellWidthPx, terminal.cellHeightPx, selection ?: emptyList(),
+            above = if (above == 0) emptyList() else rows.subList(0, above),
+            below = if (below == 0) emptyList() else rows.subList(rows.size - below, rows.size),
+        )
     }
 
     /**

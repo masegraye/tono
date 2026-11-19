@@ -59,6 +59,13 @@ class TerminalPointer(
     private var rightHeld = false
 
     /**
+     * How many rows the wheel has scrolled the view in all, down counting up and up counting
+     * down: what it was asked to, less what there was no history left for.
+     */
+    var scrolled = 0L
+        private set
+
+    /**
      * Where the pointer is held past the top or bottom edge while selecting, or null. While
      * it is set, [scroll] is to be called every so often.
      */
@@ -162,7 +169,12 @@ class TerminalPointer(
         val report = if (forProgram) mouse.encode(terminal, input) else NOTHING
         when {
             report.isNotEmpty() -> return report
-            scrollRows != 0 -> terminal.scrollViewport(scrollRows)
+            scrollRows != 0 -> {
+                // Where the view is before and after says how far it really moved, which at either end of the history is less than was asked.
+                val top = terminal.viewportTop
+                terminal.scrollViewport(scrollRows)
+                scrolled += terminal.viewportTop - top
+            }
             inside && left && input.action == MouseAction.Press -> {
                 selection.press(terminal, input, timeMillis)
                 selecting = true

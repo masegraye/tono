@@ -159,6 +159,84 @@ class GhosttyTerminalTest {
     }
 
     @Test
+    fun `rows that draw the same are equal, wherever they are and whenever they were read`() = terminal(rows = 3).use { terminal ->
+        GhosttyRenderer().use { renderer ->
+            terminal.write((1..6).joinToString("\r\n") { "$ESC[3${it}mline $it$ESC[0m" })
+            val before = renderer.render(terminal)
+
+            // The library reads every row again after the view moves, so these are new objects.
+            terminal.scrollViewport(-1)
+            val after = renderer.render(terminal)
+
+            assertEquals(listOf("line 3", "line 4", "line 5"), after.rows.map { it.text() })
+            assertNotSame(before.rows[0], after.rows[1])
+            assertEquals(before.rows[0], after.rows[1])
+            assertEquals(before.rows[0].hashCode(), after.rows[1].hashCode())
+            assertEquals(before.rows[1], after.rows[2])
+            // The same text in another color is another row.
+            assertTrue(before.rows[0] != before.rows[1])
+            assertTrue(after.rows[0] != before.rows[0])
+        }
+    }
+
+    @Test
+    fun `the view says where it is in the history, and stops at both ends`() = terminal(rows = 3).use { terminal ->
+        terminal.write((1..6).joinToString("\r\n") { "line $it" })
+        val bottom = terminal.viewportTop
+        assertEquals(3, bottom)
+
+        terminal.scrollViewport(-2)
+        assertEquals(bottom - 2, terminal.viewportTop)
+        // Asked for more than there is.
+        terminal.scrollViewport(-5)
+        assertEquals(0, terminal.viewportTop)
+        terminal.scrollViewport(50)
+        assertEquals(bottom, terminal.viewportTop)
+    }
+
+    @Test
+    fun `asked for rows past the view's edges, a frame has the ones there are`() = terminal(rows = 3).use { terminal ->
+        GhosttyRenderer().use { renderer ->
+            terminal.write((1..9).joinToString("\r\n") { "line $it" })
+            assertTrue(renderer.render(terminal).let { it.above.isEmpty() && it.below.isEmpty() })
+
+            renderer.overscan = 2
+            val live = renderer.render(terminal)
+            assertEquals(listOf("line 7", "line 8", "line 9"), live.rows.map { it.text() })
+            assertEquals(listOf("line 5", "line 6"), live.above.map { it.text() })
+            // There is nothing below the live screen.
+            assertEquals(emptyList(), live.below)
+            assertEquals(2, assertNotNull(live.cursor).row)
+
+            terminal.scrollViewport(-5)
+            val back = renderer.render(terminal)
+            assertEquals(listOf("line 2", "line 3", "line 4"), back.rows.map { it.text() })
+            assertEquals(listOf("line 1"), back.above.map { it.text() })
+            assertEquals(listOf("line 5", "line 6"), back.below.map { it.text() })
+
+            renderer.overscan = 0
+            assertTrue(renderer.render(terminal).let { it.above.isEmpty() && it.below.isEmpty() && it.rows.size == 3 })
+        }
+    }
+
+    @Test
+    fun `a selection in the rows past the view's edges is placed by the view's rows`() = terminal(rows = 3).use { terminal ->
+        GhosttyRenderer().use { renderer ->
+            GhosttySelection().use { selection ->
+                terminal.write((1..9).joinToString("\r\n") { "line $it" })
+                selection.selectAll(terminal)
+                terminal.scrollViewport(-3)
+                renderer.overscan = 1
+
+                val frame = renderer.render(terminal)
+
+                assertEquals(listOf("line 4", "line 5", "line 6"), frame.rows.map { it.text() })
+                assertEquals(listOf(-1, 0, 1, 2, 3), frame.selection.map { it.row })
+            }
+        }
+    }
+
+    @Test
     fun `a program can ask for pastes to be bracketed`() = terminal().use { terminal ->
         assertEquals(false, terminal.bracketedPaste)
         terminal.write("$ESC[?2004h")

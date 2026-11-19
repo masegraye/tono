@@ -40,6 +40,7 @@ private fun gluePasteEncode(binary: String, bracketed: Boolean): String = js("gl
 private fun glueRendererNew(): Int = js("globalThis.GhosttyGlue.rendererNew()")
 private fun glueRendererFree(state: Int): Unit = js("globalThis.GhosttyGlue.rendererFree(state)")
 private fun glueRendererInvalidate(state: Int): Unit = js("globalThis.GhosttyGlue.rendererInvalidate(state)")
+private fun glueRendererOverscan(state: Int, rows: Int): Unit = js("globalThis.GhosttyGlue.rendererOverscan(state, rows)")
 private fun glueRender(state: Int, terminal: Int): String = js("globalThis.GhosttyGlue.render(state, terminal)")
 private fun glueImageRead(terminal: Int, id: Int): String = js("globalThis.GhosttyGlue.imageRead(terminal, id)")
 private fun glueMouseNew(): String = js("globalThis.GhosttyGlue.mouseNew()")
@@ -165,6 +166,14 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
 
     actual fun invalidate() = glueRendererInvalidate(state)
 
+    actual var overscan: Int = 0
+        set(value) {
+            val rows = value.coerceIn(0, 0xFFFF)
+            if (rows == field) return
+            field = rows
+            glueRendererOverscan(state, rows)
+        }
+
     actual fun render(terminal: GhosttyTerminal): TerminalFrame {
         // The glue describes the frame as one string; its `render` says how it is laid out.
         val records = glueRender(state, terminal.handle).split(RECORD)
@@ -226,9 +235,15 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
             val (row, first, last) = cells.split(',')
             SelectedCells(row.toInt(), first.toInt(), last.toInt())
         }
+        // How many of the rows are from past the view's top and bottom, which come before and after its own.
+        var above = header.getOrNull(6)?.toIntOrNull() ?: 0
+        var below = header.getOrNull(7)?.toIntOrNull() ?: 0
+        if (above + below > shown.size) { above = 0; below = 0 }
         return TerminalFrame(
+            above = if (above == 0) emptyList() else shown.subList(0, above),
+            below = if (below == 0) emptyList() else shown.subList(shown.size - below, shown.size),
             columns = header[0].toInt(),
-            rows = shown,
+            rows = if (above + below == 0) shown else shown.subList(above, shown.size - below),
             background = header[1].toInt(),
             foreground = foreground,
             cursor = cursor,

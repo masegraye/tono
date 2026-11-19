@@ -58,12 +58,34 @@ class SettingSwitchesTest {
     }
 
     @Test
+    fun `smooth scrolling is off until it is turned on, and is kept with the terminal's other switches`() = runBlocking {
+        RexClient(this, Workspace(WorkspaceFile(file), hosts, selection = SelectionSwitches(copyOnSelection = true))).use { client ->
+            assertFalse(client.smoothScrolling.value)
+            client.setSmoothScrolling(true)
+            assertTrue(client.smoothScrolling.value)
+        }
+        val kept = Workspace.load(file)
+        assertTrue(kept.smoothScrolling)
+        assertEquals(SelectionSwitches(copyOnSelection = true), kept.selection)
+        val terminal = Json.parseToJsonElement(Files.readString(file)).jsonObject["terminal"]!!.jsonObject
+        assertEquals("true", terminal["smooth_scrolling"].toString())
+        assertEquals("true", terminal["copy_on_selection"].toString())
+
+        RexClient(this, kept).use { client ->
+            assertTrue(client.smoothScrolling.value)
+            client.setSmoothScrolling(false)
+        }
+        assertFalse(Workspace.load(file).smoothScrolling)
+    }
+
+    @Test
     fun `setting a switch to what it is writes nothing`() = runBlocking {
         RexClient(this, Workspace(WorkspaceFile(file), hosts)).use { client ->
             Files.deleteIfExists(file)
             client.setSounds(true)
             client.setNotifications(NotificationSwitches())
             client.setSelection(SelectionSwitches())
+            client.setSmoothScrolling(false)
             assertFalse(Files.exists(file))
             client.setSounds(false)
             assertTrue(Files.exists(file))

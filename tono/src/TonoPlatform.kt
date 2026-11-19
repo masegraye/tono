@@ -200,5 +200,12 @@ internal enum class LocalServerCommand(val title: String, val arguments: List<St
  */
 internal expect suspend fun runRex(command: LocalServerCommand): String?
 
+/**
+ * A wheel event as rows of a terminal whose rows are [cellHeight] pixels high, of which it
+ * shows [rows]: see [notchedWheelTurn] and [browserWheelTurn]. [delta] is what Compose
+ * gives for the event, which is not the same thing everywhere.
+ */
+internal expect fun wheelTurn(event: androidx.compose.ui.input.pointer.PointerEvent, delta: Float, cellHeight: Float, density: Float, rows: Int): WheelTurn
+
 /** What the window system said of a turn of the wheel, for [org.example.kotlintest.rex.ScrollTelemetry]. Null where it can't be read. */
 internal expect fun wheelDetails(event: androidx.compose.ui.input.pointer.PointerEvent): String?

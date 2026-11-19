@@ -100,6 +100,12 @@ expect class GhosttyTerminal : AutoCloseable {
  * on the terminal's thread.
  */
 expect class GhosttyRenderer() : AutoCloseable {
+    /**
+     * How many rows past the top and the bottom of the view to read as well, where there
+     * are any ([TerminalFrame.above] and [TerminalFrame.below]). None unless asked for.
+     */
+    var overscan: Int
+
     /** Forgets the cached rows, so the next [render] rebuilds every one. Call it after changing colors. */
     fun invalidate()
 

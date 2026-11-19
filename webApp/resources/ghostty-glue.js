@@ -266,6 +266,15 @@
     renderers.get(state).everything = true;
   }
 
+  /** Asks for `rows` rows past the top and the bottom of the view to be read as well, where there are any: see `render`. */
+  function rendererOverscan(state, rows) {
+    const request = slots + SLOT.a;
+    view().setUint16(request + F('GhosttyRenderStateOverscan', 'above'), rows, true);
+    view().setUint16(request + F('GhosttyRenderStateOverscan', 'below'), rows, true);
+    check('render_state_set', ex.ghostty_render_state_set(state, E('GhosttyRenderStateOption', 'OVERSCAN'), request));
+    renderers.get(state).overscan = rows;
+  }
+
   /** Whether a monospace font can be trusted to draw this character exactly one cell wide. */
   const isPlain = (c) => (c >= 0x20 && c <= 0x7e) || (c >= 0xa0 && c <= 0x17f) || (c >= 0x2500 && c <= 0x259f);
   /** Halfway between two colors, for faint text. */
@@ -278,10 +287,11 @@
    * Describes what to draw, as one string.
    *
    * The first record is "columns US background US foreground US cursor US images US
-   * selection", where cursor is empty when it is hidden and otherwise
+   * selection US above US below", where cursor is empty when it is hidden and otherwise
    * "column,row,shape,blinking,color" (color -1 for the foreground), images is as
    * `describeImages` says, and selection is the selected cells on screen, "row,first
-   * column,last column" for each row that has some, with ";" between. Then one record per visible row, top to bottom: "=" and the row's id when
+   * column,last column" for each row that has some, with ";" between: a row above the view counts down from -1, and one below it on from the view's last. Above and below
+   * are how many rows from past the view's top and bottom were read (`rendererOverscan`). Then one record per row read, top to bottom, those above the view first and those below it last: "=" and the row's id when
    * the row is unchanged since the last frame, or "+" and its id followed by its runs, each
    * seven fields: column, cells, foreground, background (-1 for none), flags (1 bold, 2 italic,
    * 8 strikethrough, 16 overline, and 256 times the kind of underline: 0 none, 1 single,
@@ -308,6 +318,13 @@
     get('COLS', slots + SLOT.a);
     const columns = view().getUint16(slots + SLOT.a, true);
 
+    let above = 0;
+    let below = 0;
+    if (renderer.overscan && ex.ghostty_render_state_get(state, E('GhosttyRenderStateData', 'OVERSCAN'), slots + SLOT.a) === OK) {
+      above = view().getUint16(slots + SLOT.a + F('GhosttyRenderStateOverscan', 'above'), true);
+      below = view().getUint16(slots + SLOT.a + F('GhosttyRenderStateOverscan', 'below'), true);
+    }
+
     get('ROW_ITERATOR', renderer.iteratorRef);
     const iterator = view().getUint32(renderer.iteratorRef, true);
     const rowGet = (data, out) => check('render_state_row_get', ex.ghostty_render_state_row_get(iterator, E('GhosttyRenderStateRowData', data), out));
@@ -319,7 +336,7 @@
       // Asked of every row, changed or not: selecting changes no row's content.
       view().setUint32(rowSelection, sizeOf('GhosttyRenderStateRowSelection'), true);
       if (ex.ghostty_render_state_row_get(iterator, E('GhosttyRenderStateRowData', 'SELECTION'), rowSelection) === OK) {
-        selected.push(out.length + ',' + view().getUint16(rowSelection + F('GhosttyRenderStateRowSelection', 'start_x'), true) +
+        selected.push((out.length - above) + ',' + view().getUint16(rowSelection + F('GhosttyRenderStateRowSelection', 'start_x'), true) +
           ',' + view().getUint16(rowSelection + F('GhosttyRenderStateRowSelection', 'end_x'), true));
       }
       rowGet('ID', slots + SLOT.b);
@@ -349,7 +366,7 @@
       : '';
     const images = describeImages(state, renderer);
     check('render_state_clean', ex.ghostty_render_state_clean(state));
-    return [columns, background, foreground, cursorText, images, selected.join(';')].join(US) + (out.length ? RS + out.join(RS) : '');
+    return [columns, background, foreground, cursorText, images, selected.join(';'), above, below].join(US) + (out.length ? RS + out.join(RS) : '');
   }
 
   /**
@@ -928,6 +945,6 @@
     selectionNew, selectionFree, selectionPress, selectionDrag, selectionRelease, selectionAutoscroll, selectionAll, selectionClear, selectionText,
     init, terminalNew, terminalRestore, terminalFree, terminalWrite, terminalResize, terminalColumns, terminalRows,
     terminalWidthPx, terminalHeightPx, terminalSetColors, terminalScrollBy, terminalViewportTop, terminalScrollByPrompts, terminalScrollToBottom, terminalBracketedPaste,
-    pasteEncode, rendererNew, rendererFree, rendererInvalidate, render, imageRead, mouseNew, mouseFree, mouseEncode,
+    pasteEncode, rendererNew, rendererFree, rendererInvalidate, rendererOverscan, render, imageRead, mouseNew, mouseFree, mouseEncode,
   };
 })();

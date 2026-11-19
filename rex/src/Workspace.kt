@@ -165,6 +165,11 @@ class Workspace(
     var notifications: NotificationSwitches = NotificationSwitches(),
     /** What selecting with the pointer copies, and whether the middle button pastes. */
     var selection: SelectionSwitches = SelectionSwitches(),
+    /**
+     * Whether the wheel glides through a terminal's history, and doesn't jump a few rows at
+     * a time. Rex for Mac's Smooth Scrolling, and off unless turned on, as there.
+     */
+    var smoothScrolling: Boolean = false,
     /** The tabs this app keeps quiet. This client's alone: the servers never hear of them. */
     var mutedTabs: List<MutedTab> = emptyList(),
     /** The shortcuts changed in this app, for this app alone: see Shortcuts.kt. */
@@ -234,7 +239,7 @@ class Workspace(
         // Always written, every switch, so that the file shows what there is to set.
         put("notifications", notifications.toJson().withUnknownOf(readNotifications))
         // The same goes for these, which Rex Rune keeps under its terminal settings.
-        put("terminal", selection.toJson().withUnknownOf(readTerminal))
+        put("terminal", JsonObject(selection.toJson() + ("smooth_scrolling" to JsonPrimitive(smoothScrolling))).withUnknownOf(readTerminal))
         if (!shortcuts.isEmpty) put("shortcuts", shortcuts.toJson())
         // Only what was chosen: a file without it follows the desktop, as before there was a choice.
         val look = appearance.toJson().withUnknownOf(readAppearance, APPEARANCE_KEYS)
@@ -357,6 +362,7 @@ class Workspace(
                 sounds = (settings["sounds"] as? JsonPrimitive)?.content != "false",
                 notifications = NotificationSwitches.parse(settings.obj("notifications")),
                 selection = SelectionSwitches.parse(settings.obj("terminal")),
+                smoothScrolling = (settings.obj("terminal")?.get("smooth_scrolling") as? JsonPrimitive)?.content == "true",
                 mutedTabs = (state["muted_tabs"] as? JsonArray).orEmpty().mapNotNull { element ->
                     val tab = element as? JsonObject ?: return@mapNotNull null
                     MutedTab(tab.string("endpoint") ?: return@mapNotNull null, tab.string("session") ?: return@mapNotNull null, tab.string("window") ?: return@mapNotNull null)

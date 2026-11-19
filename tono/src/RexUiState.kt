@@ -174,11 +174,21 @@ class RexUiState(val client: RexClient) {
         }
     private var selectionSwitches by mutableStateOf(client.selection.value)
 
+    /** Whether the wheel glides through a terminal's history: see TerminalScroll.kt. Remembered between runs. */
+    var smoothScrolling: Boolean
+        get() = smoothScrollingOn
+        set(enabled) {
+            smoothScrollingOn = enabled
+            client.setSmoothScrolling(enabled)
+        }
+    private var smoothScrollingOn by mutableStateOf(client.smoothScrolling.value)
+
     /** Keeps the switches here in step with the client's, whoever changes those. Runs until cancelled. */
     suspend fun followSettings(): Unit = coroutineScope {
         launch { client.sounds.collect { soundsEnabled = it } }
         launch { client.notifications.collect { notificationSwitches = it } }
         launch { client.selection.collect { selectionSwitches = it } }
+        launch { client.smoothScrolling.collect { smoothScrollingOn = it } }
     }
 
     /**

@@ -19,9 +19,29 @@ class TerminalFrame(
     /** The size of a cell in the terminal's own pixels, which image sizes are given in. Zero if it was never told one. */
     val cellWidthPx: Int = 0,
     val cellHeightPx: Int = 0,
-    /** The selected cells that are on screen, top to bottom. */
+    /** The selected cells that are on screen, top to bottom. In a row of [above] the row is negative, and in one of [below] it is past the last of [rows]. */
     val selection: List<SelectedCells> = emptyList(),
-)
+    /**
+     * The rows just above the view, top to bottom, the last being the one next to the
+     * view, and those just [below] it. Only where the renderer was asked for them
+     * ([GhosttyRenderer.overscan]) and there are any: there is nothing below the live
+     * screen. They are what shows at an edge while the picture is drawn part of a row
+     * away from where it rests, which is how scrolling is made smooth.
+     */
+    val above: List<TerminalRow> = emptyList(),
+    val below: List<TerminalRow> = emptyList(),
+    /**
+     * How many rows the wheel has scrolled the view in all, down counting up and up
+     * counting down. Whoever draws compares it with the frame drawn before, to tell that
+     * the view moved and how far, which the rows themselves don't say.
+     */
+    val scrolled: Long = 0,
+) {
+    /** This frame, said to be after the wheel has scrolled the view [scrolled] rows in all. */
+    fun scrolled(scrolled: Long): TerminalFrame =
+        if (scrolled == this.scrolled) this
+        else TerminalFrame(columns, rows, background, foreground, cursor, images, cellWidthPx, cellHeightPx, selection, above, below, scrolled)
+}
 
 /** Cells of one visible row that are selected, or that a search matched: columns [firstColumn] to [lastColumn], both included. */
 data class SelectedCells(val row: Int, val firstColumn: Int, val lastColumn: Int)
