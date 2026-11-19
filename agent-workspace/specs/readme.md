@@ -25,4 +25,4 @@ Each spec says which backlog entries it was promoted from, and those entries poi
 
 | # | Spec | Status |
 |---|------|--------|
-| | _none yet_ | |
+| 001 | [spec-001-settings-window](spec-001-settings-window/spec.md): a settings window, its own on the desktop, a panel in the web app | accepted |
