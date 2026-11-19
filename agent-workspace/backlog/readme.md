@@ -31,7 +31,7 @@ The order proposed in inv-001, not yet agreed:
 | 001 | [Program copies reach the clipboard (OSC 52)](backlog-001-program-copies-reach-the-clipboard.md) | Clipboard | small | done |
 | 002 | [Select and copy text](backlog-002-select-and-copy-text.md) | Clipboard | large | done |
 | 003 | [Paste or drop files and images](backlog-003-paste-files-and-images.md) | Clipboard | medium | done |
-| 004 | [Copy on select, and middle-click paste](backlog-004-copy-on-select-and-middle-click-paste.md) | Clipboard | small | captured |
+| 004 | [Copy on select, and middle-click paste](backlog-004-copy-on-select-and-middle-click-paste.md) | Clipboard | small | done |
 | 005 | [Open links with Ctrl+click](backlog-005-open-links.md) | Reading a terminal | medium | done |
 | 006 | [Search a terminal](backlog-006-search-scrollback.md) | Reading a terminal | medium | done |
 | 007 | [Jump between shell prompts](backlog-007-jump-between-prompts.md) | Reading a terminal | small | captured |
