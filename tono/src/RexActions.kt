@@ -11,7 +11,6 @@ import org.example.kotlintest.rex.KeyBinding
 import org.example.kotlintest.rex.KeyChord
 import org.example.kotlintest.rex.PaneSide
 import org.example.kotlintest.rex.RESIZE_STEP_PERCENT
-import org.example.kotlintest.rex.neighbourOf
 import kotlinx.serialization.json.doubleOrNull
 import org.example.kotlintest.rex.RexAction
 import org.example.kotlintest.rex.SplitDirection
@@ -237,7 +236,10 @@ internal fun clientActions(): List<ClientAction> = buildList {
         add(ClientAction(
             "pane.move.$name", "Move Pane ${side.name}", "Pane", "swap rearrange trade places",
             keys = listOf("ctrl+alt+shift+$name"),
-            available = { focusedBlockId?.let { window?.neighbourOf(it, side) } != null },
+            // Offered wherever there is a pane to trade with, including at the tab's edge, where
+            // it does nothing: a key that isn't offered goes to the terminal, and a shell
+            // shown Control+Alt+Shift+Left prints the end of its escape sequence, a stray "D".
+            available = severalPanes,
         ) { focusedBlockId?.let { host?.swapPane(it, side) } })
     }
     add(ClientAction("pane.move", "Move Pane", "Pane", inPalette = false) { args ->
