@@ -71,4 +71,4 @@ The order proposed in inv-001, not yet agreed:
 | 041 | [In the web app, a host the relay refuses lingers at "Connecting…"](backlog-041-web-hosts-linger-at-connecting.md) | The sidebar | small | done |
 | 042 | [Change a shortcut in Tono itself](backlog-042-change-a-shortcut.md) | Typing and keys | medium | done |
 | 043 | [A relay test sometimes fails under load](backlog-043-relay-gone-page-test-is-flaky.md) | Tests | small | captured |
-| 044 | [Switching tabs sometimes says the server refused the terminal stream (reason 2)](backlog-044-server-refuses-terminal-stream-reason-2.md) | Connecting to servers | unknown | captured |
+| 044 | [Switching tabs sometimes says the server refused the terminal stream (reason 2)](backlog-044-server-refuses-terminal-stream-reason-2.md) | Connecting to servers | small | done |
