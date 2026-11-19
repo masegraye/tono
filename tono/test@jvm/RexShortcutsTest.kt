@@ -85,6 +85,28 @@ class RexShortcutsTest {
         }
     }
 
+    @Test
+    fun `a path is inserted and a directory gone to by Rex's names, and both are in the palette`() {
+        val actions = clientActions().associateBy { it.name }
+        val insert = actions.getValue("pane.insert_path")
+        val go = actions.getValue("pane.go_to_directory")
+        assertEquals("Insert Path…", insert.title)
+        assertEquals("Go to Directory…", go.title)
+        assertTrue(insert.inPalette && go.inPalette)
+        // Control+Shift+I opens a browser's developer tools, and the find keys have both G's.
+        assertEquals(listOf("ctrl+alt+i"), insert.keys)
+        assertEquals(emptyList(), go.keys)
+    }
+
+    @Test
+    fun `the browser says what choosing each row does`() {
+        val typed = org.example.kotlintest.rex.PathRow("~/dev", "/home/dev/dev", org.example.kotlintest.rex.PathRow.Kind.Typed)
+        val folder = org.example.kotlintest.rex.PathRow("src", "/home/dev/src", org.example.kotlintest.rex.PathRow.Kind.Folder)
+        val file = org.example.kotlintest.rex.PathRow("a.txt", "/home/dev/a.txt", org.example.kotlintest.rex.PathRow.Kind.File)
+        assertEquals(listOf("Insert typed path", "Folder", "File"), listOf(typed, folder, file).map { pathRowDetail(it, foldersOnly = false) })
+        assertEquals(listOf("Go to typed folder", "Folder"), listOf(typed, folder).map { pathRowDetail(it, foldersOnly = true) })
+    }
+
     private fun bound(action: String) = org.example.kotlintest.rex.KeyBinding(listOf(KeyChord("x")), action)
 
     @Test

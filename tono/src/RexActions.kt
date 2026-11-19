@@ -363,6 +363,17 @@ internal fun clientActions(): List<ClientAction> = buildList {
         // A browser hands the clipboard over only when it is ready to, so this doesn't wait.
         scope?.launch { clipboardText()?.takeIf { it.isNotEmpty() }?.let { owner.paste(blockId, it) } }
     })
+    // Rex.app's names and titles. Insert Path is Control+Command+I there, and Control+Alt+I
+    // here: Control+Shift+I is a browser's, for its developer tools, and Control+I is Tab.
+    // Go to Directory is Shift+Command+G there, the same key as its Find Previous. Here
+    // Control+Shift+G is Find Next and Control+Alt+G Find Previous, so it has no key, as in
+    // Rex Rune: bind one in Rex's configuration file.
+    add(ClientAction("pane.insert_path", "Insert Path…", "Pane", "file folder directory browse type quote filename", keys = listOf("ctrl+alt+i"), available = hasTerminal) {
+        palette = PaletteMode.InsertPath
+    })
+    add(ClientAction("pane.go_to_directory", "Go to Directory…", "Pane", "cd folder change directory browse path", available = hasTerminal) {
+        palette = PaletteMode.GoToDirectory
+    })
     add(ClientAction("pane.copy", "Copy from Pane", "Pane", "copy selection clipboard text terminal", keys = listOf("ctrl+shift+c"), available = hasTerminal) {
         val terminal = focusedTerminal ?: return@ClientAction
         scope?.launch {

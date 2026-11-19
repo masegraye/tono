@@ -33,6 +33,10 @@ enum class PaletteMode {
     RemoveHost,
     /** Choosing which other tab of the session the focused pane goes to. */
     MoveToTab,
+    /** Browsing the terminal's machine for a file or folder, whose path is typed at the prompt. */
+    InsertPath,
+    /** Browsing it for a folder, to type `cd` and its path. */
+    GoToDirectory,
 }
 
 /**

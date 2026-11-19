@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -224,6 +225,11 @@ private fun isSubsequence(word: String, text: String): Boolean {
 /** The palette itself: a search field over a list, drawn above everything else. */
 @Composable
 fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
+    // Browsing for a path fills the same frame from somewhere else: the terminal's machine.
+    if (mode == PaletteMode.InsertPath || mode == PaletteMode.GoToDirectory) {
+        PathBrowser(ui, mode)
+        return
+    }
     val keymap by ui.client.keymap.collectAsState()
     var query by remember(mode) { mutableStateOf("") }
     var selected by remember(mode) { mutableIntStateOf(0) }
@@ -251,12 +257,76 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
         ui.returnFocusToTerminal()
     }
 
+    PaletteFrame(onDismiss = ui::closePalette) {
+        TextField(
+            value = query,
+            onValueChange = { query = it; selected = 0 },
+            singleLine = true,
+            placeholder = {
+                Text(
+                    when (mode) {
+                        PaletteMode.Commands -> "Run a command, or go to a session, tab or host"
+                        PaletteMode.Sessions -> "Go to a session"
+                        PaletteMode.Hosts -> "Switch to a host"
+                        PaletteMode.AddHost -> "Add a server from your tailnet, or type an address"
+                        PaletteMode.RemoveHost -> "Remove a host"
+                        PaletteMode.MoveToTab -> "Move this pane to a tab"
+                        PaletteMode.InsertPath, PaletteMode.GoToDirectory -> "" // drawn by PathBrowser
+                    },
+                )
+            },
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
+                focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+            ),
+            modifier = Modifier.fillMaxWidth().focusRequester(focus).onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (event.key) {
+                    Key.Escape -> ui.closePalette()
+                    Key.DirectionDown -> if (shown.isNotEmpty()) selected = (selected + 1) % shown.size
+                    Key.DirectionUp -> if (shown.isNotEmpty()) selected = (selected - 1).mod(shown.size)
+                    Key.Enter, Key.NumPadEnter -> shown.getOrNull(selected)?.let(::choose)
+                    else -> {
+                        // The key that opened the palette closes it again.
+                        val chord = keyChord(event) ?: return@onPreviewKeyEvent false
+                        if (keymap.bindingsFor(chord).firstOrNull()?.action != "client.palette.toggle") return@onPreviewKeyEvent false
+                        ui.closePalette()
+                    }
+                }
+                true
+            },
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        if (shown.isEmpty()) {
+            Text(
+                when {
+                    mode != PaletteMode.AddHost -> "Nothing matches"
+                    tailnet == null -> "Looking for Rex servers on your tailnet…"
+                    query.isBlank() -> "Every Rex server on your tailnet is already a host. Type an address to add another."
+                    else -> "No server on your tailnet matches. Type a full address to add it."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(16.dp),
+            )
+        }
+        LazyColumn(state = listState, modifier = Modifier.heightIn(max = 420.dp).padding(vertical = 4.dp)) {
+            itemsIndexed(shown) { index, item ->
+                PaletteRow(item.title, item.detail, item.shortcut, selected = index == selected, onClick = { choose(item) })
+            }
+        }
+    }
+}
+
+/** What the palette and the path browser are drawn in: a panel near the top of the window, over a dimmed app. */
+@Composable
+internal fun PaletteFrame(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     Box(
         Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
             // A pointer handler, not clickable: clickable also answers Space and Enter, and
             // those belong to the search field.
-            .pointerInput(Unit) { detectTapGestures { ui.closePalette() } },
+            .pointerInput(Unit) { detectTapGestures { onDismiss() } },
     ) {
         Surface(
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 72.dp).widthIn(max = 640.dp).fillMaxWidth(0.8f)
@@ -267,85 +337,34 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
             tonalElevation = 6.dp,
             shadowElevation = 12.dp,
         ) {
-            Column {
-                TextField(
-                    value = query,
-                    onValueChange = { query = it; selected = 0 },
-                    singleLine = true,
-                    placeholder = {
-                        Text(
-                            when (mode) {
-                                PaletteMode.Commands -> "Run a command, or go to a session, tab or host"
-                                PaletteMode.Sessions -> "Go to a session"
-                                PaletteMode.Hosts -> "Switch to a host"
-                                PaletteMode.AddHost -> "Add a server from your tailnet, or type an address"
-                                PaletteMode.RemoveHost -> "Remove a host"
-                                PaletteMode.MoveToTab -> "Move this pane to a tab"
-                            },
-                        )
-                    },
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
-                    ),
-                    modifier = Modifier.fillMaxWidth().focusRequester(focus).onPreviewKeyEvent { event ->
-                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                        when (event.key) {
-                            Key.Escape -> ui.closePalette()
-                            Key.DirectionDown -> if (shown.isNotEmpty()) selected = (selected + 1) % shown.size
-                            Key.DirectionUp -> if (shown.isNotEmpty()) selected = (selected - 1).mod(shown.size)
-                            Key.Enter, Key.NumPadEnter -> shown.getOrNull(selected)?.let(::choose)
-                            else -> {
-                                // The key that opened the palette closes it again.
-                                val chord = keyChord(event) ?: return@onPreviewKeyEvent false
-                                if (keymap.bindingsFor(chord).firstOrNull()?.action != "client.palette.toggle") return@onPreviewKeyEvent false
-                                ui.closePalette()
-                            }
-                        }
-                        true
-                    },
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                if (shown.isEmpty()) {
-                    Text(
-                        when {
-                            mode != PaletteMode.AddHost -> "Nothing matches"
-                            tailnet == null -> "Looking for Rex servers on your tailnet…"
-                            query.isBlank() -> "Every Rex server on your tailnet is already a host. Type an address to add another."
-                            else -> "No server on your tailnet matches. Type a full address to add it."
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(16.dp),
-                    )
-                }
-                LazyColumn(state = listState, modifier = Modifier.heightIn(max = 420.dp).padding(vertical = 4.dp)) {
-                    itemsIndexed(shown) { index, item ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 6.dp)
-                                .clip(MaterialTheme.shapes.small)
-                                .background(if (index == selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
-                                .clickable { choose(item) }
-                                .padding(horizontal = 10.dp, vertical = 7.dp),
-                        ) {
-                            Text(item.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(
-                                item.detail,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                modifier = Modifier.padding(start = 10.dp).weight(1f),
-                            )
-                            item.shortcut?.let {
-                                Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
-                }
-            }
+            Column(content = content)
+        }
+    }
+}
+
+/** One line of the list: what it is, something about it, and the key for it if there is one. */
+@Composable
+internal fun PaletteRow(title: String, detail: String, shortcut: String?, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp)
+            .clip(MaterialTheme.shapes.small)
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            detail,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            modifier = Modifier.padding(start = 10.dp).weight(1f),
+        )
+        shortcut?.let {
+            Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         }
     }
 }
