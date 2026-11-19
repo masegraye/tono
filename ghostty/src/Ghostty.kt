@@ -63,6 +63,16 @@ expect class GhosttyTerminal : AutoCloseable {
      */
     val bracketedPaste: Boolean
 
+    /**
+     * Where the cell at [column] in the view's row [row] leads, if its program made it a
+     * link (OSC 8): the address as the program gave it, which is not to be trusted. Null
+     * when the cell is no link, or there is no such cell.
+     */
+    fun hyperlinkAt(column: Int, row: Int): String?
+
+    /** Whether the view's row [row] ran out of room and goes on in the row below it. */
+    fun rowWraps(row: Int): Boolean
+
     override fun close()
 }
 

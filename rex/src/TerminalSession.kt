@@ -8,7 +8,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -75,6 +77,19 @@ class TerminalSession internal constructor(
     /** Set once the terminal's program has exited. */
     val exitCode: StateFlow<Int?> get() = mutableExitCode
 
+    private val mutableLink = MutableStateFlow<TerminalLink?>(null)
+    private val mutableOpened = MutableSharedFlow<String>(extraBufferCapacity = 4)
+
+    /** The link under the pointer while it is held over one to follow it (see [pointAt]), to mark and to say where it leads. */
+    val link: StateFlow<TerminalLink?> get() = mutableLink
+
+    /**
+     * The addresses of links as they are clicked with Control held, for whoever shows this
+     * terminal to open. Each has been through [openableLink]. One clicked while nobody is
+     * listening is not kept.
+     */
+    val opened: SharedFlow<String> get() = mutableOpened
+
     /** Whether the terminal's program currently wants pasted text bracketed. */
     @Volatile
     var bracketedPaste: Boolean = false
@@ -84,11 +99,15 @@ class TerminalSession internal constructor(
         class SetColors(val colors: TerminalColors) : Command
         class Scroll(val rows: Int) : Command
         class Mouse(val input: MouseInput, val scrollRows: Int, val timeMillis: Long) : Command
+        class PointAt(val at: MouseInput?) : Command
         data object ScrollToBottom : Command
         data object SelectAll : Command
         data object ClearSelection : Command
         class ReadSelection(val text: CompletableDeferred<String>) : Command
     }
+
+    /** Where the pointer is held to follow a link, or null. */
+    private var pointingAt: MouseInput? = null
 
     /** When to scroll the next row, while a selection is dragged past the top or bottom edge. */
     private var scrollNextMillis = 0L
@@ -125,6 +144,14 @@ class TerminalSession internal constructor(
      */
     fun mouse(input: MouseInput, scrollRows: Int = 0) { commands.trySend(Command.Mouse(input, scrollRows, nowMillis())) }
 
+    /**
+     * Says where the pointer is while Control is held, which is how a link is followed: if
+     * there is a link there, [link] becomes it, and goes on being whatever is there as the
+     * output changes. Null when the pointer has left or Control is up, and [link] with it.
+     * Only the position and the cell size of [at] are read.
+     */
+    fun pointAt(at: MouseInput?) { commands.trySend(Command.PointAt(at)) }
+
     /** Selects everything in the terminal, its scrollback included. */
     fun selectAll() { commands.trySend(Command.SelectAll) }
 
@@ -159,7 +186,15 @@ class TerminalSession internal constructor(
             renderer = GhosttyRenderer()
             mouse = GhosttyMouse()
             selection = GhosttySelection()
-            val pointer = TerminalPointer(mouse, selection)
+            val pointer = TerminalPointer(
+                mouse, selection,
+                // The frame is the one drawn after the terminal last changed, so it is what the terminal holds now.
+                linkAt = { at, column, row -> mutableFrame.value?.let { linkAt(DrawnScreen(it, at), column, row) } },
+                open = { url ->
+                    log("a link was clicked: $url")
+                    mutableOpened.tryEmit(url)
+                },
+            )
             colors?.let(terminal::setColors)
             mutableGrid.value = GridSize(terminal.columns, terminal.rows)
             log("restored from a ${restored.snapshotBytes}-byte snapshot at ${terminal.columns}×${terminal.rows}")
@@ -203,6 +238,8 @@ class TerminalSession internal constructor(
                 }
                 if (!more) break
                 mutableFrame.value = renderer.render(terminal)
+                // Asked again every time, since what is under a pointer that hasn't moved may have changed.
+                mutableLink.value = pointingAt?.let { pointer.linkUnder(live, it) }
                 bracketedPaste = terminal.bracketedPaste
                 delay(FRAME_INTERVAL_MILLIS)
             }
@@ -219,6 +256,7 @@ class TerminalSession internal constructor(
             log("stream failed: ${failure.message ?: failure}")
             mutableStatus.value = Status.Ended(failure.message ?: failure.toString())
         } finally {
+            mutableLink.value = null
             withContext(NonCancellable) { stream?.close() }
             renderer?.close()
             mouse?.close()
@@ -281,6 +319,7 @@ class TerminalSession internal constructor(
                 // A click claims the terminal as a key press does; passing over it doesn't.
                 if (report.isNotEmpty()) onInput(report.latin1(), input.action == MouseAction.Press && input.button != MouseButton.WheelUp && input.button != MouseButton.WheelDown)
             }
+            is Command.PointAt -> pointingAt = command.at
             Command.ScrollToBottom -> terminal.scrollToBottom()
             Command.SelectAll -> selection.selectAll(terminal)
             Command.ClearSelection -> selection.clear(terminal)

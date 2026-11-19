@@ -709,7 +709,55 @@
     }
   }
 
+  // --- Links ---
+  //
+  // See hyperlinkAt and rowWraps in ghostty/src@jvm/GhosttyTerminal.kt, which these mirror.
+
+  /** A link's address longer than this is not read. */
+  const MAX_HYPERLINK_BYTES = 8192;
+
+  /** Points SEL.cell at a cell of the view. False if there is no such cell. */
+  function cellAt(terminal, column, row) {
+    if (column < 0 || row < 0 || column >= terminalColumns(terminal) || row >= terminalRows(terminal)) return false;
+    const point = selecting + SEL.point;
+    bytes().fill(0, point, point + sizeOf('GhosttyPoint'));
+    const coordinate = point + F('GhosttyPoint', 'value') + F('GhosttyPointValue', 'coordinate');
+    view().setInt32(point + F('GhosttyPoint', 'tag'), E('GhosttyPointTag', 'VIEWPORT'), true);
+    view().setUint16(coordinate + F('GhosttyPointCoordinate', 'x'), column, true);
+    view().setUint32(coordinate + F('GhosttyPointCoordinate', 'y'), row, true);
+    const cell = selecting + SEL.cell;
+    view().setUint32(cell, sizeOf('GhosttyGridRef'), true);
+    return ex.ghostty_terminal_grid_ref(terminal, point, cell) === OK;
+  }
+
+  /**
+   * Where a cell of the view leads, if its program made it a link (OSC 8): the address as
+   * UTF-8 bytes, or empty when the cell is no link.
+   */
+  function terminalHyperlinkAt(terminal, column, row) {
+    if (!cellAt(terminal, column, row)) return '';
+    const cell = selecting + SEL.cell;
+    const lengthOut = slots + SLOT.a;
+    // Asked twice: first for how long the address is, then for the address.
+    if (ex.ghostty_grid_ref_hyperlink_uri(cell, 0, 0, lengthOut) !== E('GhosttyResult', 'OUT_OF_SPACE')) return '';
+    const length = view().getUint32(lengthOut, true);
+    if (length <= 0 || length > MAX_HYPERLINK_BYTES) return '';
+    const buffer = room(length);
+    if (ex.ghostty_grid_ref_hyperlink_uri(cell, buffer, length, lengthOut) !== OK) return '';
+    return take(buffer, view().getUint32(lengthOut, true));
+  }
+
+  /** Whether a row of the view ran out of room and goes on in the row below it. */
+  function terminalRowWraps(terminal, row) {
+    if (!cellAt(terminal, 0, row)) return false;
+    const rowOut = slots + SLOT.a; // a GhosttyRow, which is 64 bits
+    if (ex.ghostty_grid_ref_row(selecting + SEL.cell, rowOut) !== OK) return false;
+    const wraps = slots + SLOT.b;
+    return ex.ghostty_row_get(view().getBigUint64(rowOut, true), E('GhosttyRowData', 'WRAP'), wraps) === OK && bytes()[wraps] !== 0;
+  }
+
   globalThis.GhosttyGlue = {
+    terminalHyperlinkAt, terminalRowWraps,
     selectionNew, selectionFree, selectionPress, selectionDrag, selectionRelease, selectionAutoscroll, selectionAll, selectionClear, selectionText,
     init, terminalNew, terminalRestore, terminalFree, terminalWrite, terminalResize, terminalColumns, terminalRows,
     terminalWidthPx, terminalHeightPx, terminalSetColors, terminalScrollBy, terminalScrollToBottom, terminalBracketedPaste,

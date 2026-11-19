@@ -824,6 +824,8 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, a
                     onPointerOver = { host.pointerOver(pane.blockId) },
                     fontSize = ui.fontSize.sp,
                     focusRequests = ui.focusRequests,
+                    controlHeld = ui.controlHeld,
+                    onOpenLink = { url -> openLink(url) { message, isError -> ui.client.log.add("links", message, isError = isError) } },
                 )
                 when (val current = status) {
                     TerminalSession.Status.Connecting -> Notice("Restoring…")

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.input.key.KeyEvent
 import org.example.kotlintest.rex.KeyChord
 import org.example.kotlintest.rex.RexKey
+import org.example.kotlintest.rex.openableLink
 
 /*
  * What the interface needs from wherever it runs. The desktop has a window toolkit with its
@@ -81,3 +82,20 @@ internal interface FullScreen {
  * says in [log] how that went.
  */
 internal expect suspend fun playSound(id: String, log: (message: String, isError: Boolean) -> Unit)
+
+/**
+ * Opens a link from a terminal's output, and says in [log] how that went. Only an address
+ * that [openableLink] passes is opened: web pages, FTP and mail, and never a file or
+ * anything that starts a program, since what a terminal shows may come from another machine.
+ */
+internal fun openLink(url: String, log: (message: String, isError: Boolean) -> Unit) {
+    val safe = openableLink(url)
+    if (safe == null) log("didn't open $url: only http, https, ftp and mailto links are opened", true) else openUrl(safe, log)
+}
+
+/**
+ * Hands an address to what opens such addresses: the desktop's default browser or mail
+ * program, or a new tab of the browser the app runs in, which is told nothing of the page
+ * it came from. Returns at once. [url] is to have been through [openableLink].
+ */
+internal expect fun openUrl(url: String, log: (message: String, isError: Boolean) -> Unit)

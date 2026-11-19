@@ -80,3 +80,9 @@ GhosttyRenderStateRowSelection
 GHOSTTY_SELECTION_GESTURE_(EVENT_TYPE|EVENT_OPT|DATA|AUTOSCROLL)_.*
 GHOSTTY_POINT_TAG_.*
 GHOSTTY_TERMINAL_OPT_SELECTION
+
+# Links: the target a program gave a cell (OSC 8), and whether a row is wrapped into the
+# next, which a URL in the text may run across
+ghostty_grid_ref_(hyperlink_uri|row)
+ghostty_row_get
+GHOSTTY_ROW_DATA_WRAP

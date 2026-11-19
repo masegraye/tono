@@ -32,6 +32,8 @@ private fun glueTerminalSetColors(terminal: Int, foreground: Int, background: In
 private fun glueTerminalScrollBy(terminal: Int, rows: Int): Unit = js("globalThis.GhosttyGlue.terminalScrollBy(terminal, rows)")
 private fun glueTerminalScrollToBottom(terminal: Int): Unit = js("globalThis.GhosttyGlue.terminalScrollToBottom(terminal)")
 private fun glueTerminalBracketedPaste(terminal: Int): Boolean = js("globalThis.GhosttyGlue.terminalBracketedPaste(terminal)")
+private fun glueTerminalHyperlinkAt(terminal: Int, column: Int, row: Int): String = js("globalThis.GhosttyGlue.terminalHyperlinkAt(terminal, column, row)")
+private fun glueTerminalRowWraps(terminal: Int, row: Int): Boolean = js("globalThis.GhosttyGlue.terminalRowWraps(terminal, row)")
 private fun gluePasteEncode(binary: String, bracketed: Boolean): String = js("globalThis.GhosttyGlue.pasteEncode(binary, bracketed)")
 private fun glueRendererNew(): Int = js("globalThis.GhosttyGlue.rendererNew()")
 private fun glueRendererFree(state: Int): Unit = js("globalThis.GhosttyGlue.rendererFree(state)")
@@ -111,6 +113,11 @@ actual class GhosttyTerminal private constructor(internal val handle: Int) : Aut
     actual fun scrollToBottom() = glueTerminalScrollToBottom(handle)
 
     actual val bracketedPaste: Boolean get() = glueTerminalBracketedPaste(handle)
+
+    actual fun hyperlinkAt(column: Int, row: Int): String? =
+        glueTerminalHyperlinkAt(handle, column, row).takeIf { it.isNotEmpty() }?.binaryToBytes()?.decodeToString()
+
+    actual fun rowWraps(row: Int): Boolean = glueTerminalRowWraps(handle, row)
 
     /**
      * Copies out the pixels of an image a program sent, as RGBA. Null if there is no such

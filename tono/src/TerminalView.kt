@@ -1,6 +1,18 @@
 package org.example.kotlintest
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import org.example.kotlintest.rex.TerminalLink
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -95,6 +107,8 @@ import kotlin.math.roundToInt
  * @param onKey a key was pressed, released, or is repeating while this view had focus
  * @param onText text was typed that no key press stands for, as a keyboard on a screen does
  * @param focusRequests change it to hand the keyboard back to this view, if it is the focused one
+ * @param controlHeld whether Control is down, which marks the link under the pointer, to be opened with a click
+ * @param onOpenLink a link was clicked with Control held; the address is one of the kinds that are opened
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -109,6 +123,8 @@ fun TerminalView(
     onPointerOver: () -> Unit = {},
     fontSize: TextUnit = 13.sp,
     focusRequests: Int = 0,
+    controlHeld: Boolean = false,
+    onOpenLink: (url: String) -> Unit = {},
 ) {
     val frame by terminal.frame.collectAsState()
     val fontFamily = MaterialTheme.typography.bodyMedium.fontFamily ?: FontFamily.Monospace
@@ -141,25 +157,53 @@ fun TerminalView(
         if (columns >= 2 && rows >= 1) onDesiredGrid(GridSize(columns, rows, cell.width.roundToInt(), cell.height.roundToInt()))
     }
 
-    fun report(event: PointerEvent, action: MouseAction, button: MouseButton?, scrollRows: Int = 0) {
-        val position = event.changes.firstOrNull()?.position ?: return
-        // Wherever it is: the terminal knows its own edges, and a selection is dragged past them.
-        val modifiers = event.keyboardModifiers
+    fun input(position: Offset, action: MouseAction, button: MouseButton?, event: PointerEvent? = null): MouseInput {
         // The encoder counts in whole pixels and cells are drawn a fraction wide, so the
         // position is restated on a whole-pixel grid, where it falls in the same cell.
         val cellWidth = cell.width.roundToInt().coerceAtLeast(1)
         val cellHeight = cell.height.roundToInt().coerceAtLeast(1)
-        terminal.mouse(
-            MouseInput(
-                action, button,
-                x = position.x / cell.width * cellWidth,
-                y = position.y / cell.height * cellHeight,
-                cellWidth = cellWidth, cellHeight = cellHeight,
-                shift = modifiers.isShiftPressed, control = modifiers.isCtrlPressed, alt = modifiers.isAltPressed,
-                anyButtonDown = event.buttons.areAnyPressed,
-            ),
-            scrollRows,
+        val modifiers = event?.keyboardModifiers
+        return MouseInput(
+            action, button,
+            x = position.x / cell.width * cellWidth,
+            y = position.y / cell.height * cellHeight,
+            cellWidth = cellWidth, cellHeight = cellHeight,
+            shift = modifiers?.isShiftPressed == true, control = modifiers?.isCtrlPressed == true, alt = modifiers?.isAltPressed == true,
+            anyButtonDown = event?.buttons?.areAnyPressed == true,
         )
+    }
+
+    fun report(event: PointerEvent, action: MouseAction, button: MouseButton?, scrollRows: Int = 0) {
+        // Wherever it is: the terminal knows its own edges, and a selection is dragged past them.
+        val position = event.changes.firstOrNull()?.position ?: return
+        terminal.mouse(input(position, action, button, event), scrollRows)
+    }
+
+    // Links. With Control held the terminal is told where the pointer is, and says which
+    // link is there, if any: it is underlined, and where it leads is shown beside it, since
+    // the text of a link can say anything. A click then opens it (see TerminalPointer).
+    val link by terminal.link.collectAsState()
+    val pointing = remember(terminal) { Pointing() }
+    fun point(position: Offset?, control: Boolean) {
+        pointing.position = position
+        val at = position?.takeIf { control }
+        if (at != null) terminal.pointAt(input(at, MouseAction.Motion, null)) else if (pointing.told) terminal.pointAt(null)
+        pointing.told = at != null
+    }
+    // Control going down or coming up with the pointer at rest, which no pointer event says.
+    LaunchedEffect(terminal, controlHeld) { point(pointing.position, controlHeld) }
+    DisposableEffect(terminal) { onDispose { terminal.pointAt(null) } }
+    val openLink by rememberUpdatedState(onOpenLink)
+    LaunchedEffect(terminal) { terminal.opened.collect { openLink(it) } }
+    // Where a link leads is shown once the pointer has been on it a moment, as Rex Rune
+    // does, so that Control pressed for a shortcut doesn't flash it.
+    var linkTargetShown by remember { mutableStateOf(false) }
+    LaunchedEffect(link?.url) {
+        linkTargetShown = false
+        if (link != null) {
+            delay(LINK_TARGET_DELAY_MILLIS)
+            linkTargetShown = true
+        }
     }
 
     val focusRequester = remember { FocusRequester() }
@@ -214,6 +258,7 @@ fun TerminalView(
             .onFocusChanged { hasKeyboard = it.isFocused }
             .focusable()
             .then(keys)
+            .pointerHoverIcon(if (link != null) PointerIcon.Hand else PointerIcon.Default)
             .onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event -> touched = event.changes.any { it.type == PointerType.Touch } }
             .pointerInput(Unit) {
                 detectTapGestures {
@@ -229,11 +274,16 @@ fun TerminalView(
             // selection is dragged past the edge, and the crossing itself arrives as one of these.
             .onPointerEvent(PointerEventType.Enter) { event ->
                 onPointerOver()
+                point(event.changes.firstOrNull()?.position, event.keyboardModifiers.isCtrlPressed)
                 if (event.buttons.isPrimaryPressed) report(event, MouseAction.Motion, MouseButton.Left)
             }
-            .onPointerEvent(PointerEventType.Exit) { event -> if (event.buttons.isPrimaryPressed) report(event, MouseAction.Motion, MouseButton.Left) }
+            .onPointerEvent(PointerEventType.Exit) { event ->
+                point(null, control = false)
+                if (event.buttons.isPrimaryPressed) report(event, MouseAction.Motion, MouseButton.Left)
+            }
             .onPointerEvent(PointerEventType.Move) { event ->
                 onPointerOver()
+                point(event.changes.firstOrNull()?.position, event.keyboardModifiers.isCtrlPressed)
                 val held = when {
                     event.buttons.isPrimaryPressed -> MouseButton.Left
                     event.buttons.isSecondaryPressed -> MouseButton.Right
@@ -264,8 +314,10 @@ fun TerminalView(
         }
         current.images.forEach { if (it.layer == TerminalImagePlacement.Layer.AboveText) drawImage(it, current, cell, pictures) }
         current.selection.forEach { drawSelection(it, current, cell) }
+        link?.cells?.forEach { drawLinkUnderline(it, current, cell) }
         current.cursor?.let { drawCursor(it, current, cell, active = focused && (hasKeyboard || screenKeyboard)) }
     }
+    link?.takeIf { linkTargetShown }?.let { LinkTarget(it, cell) }
     // A keyboard that has real keys as well (a tablet's) sends them here while this has the focus.
     ScreenKeyboardField(screenTyping, ::typed, Modifier.focusRequester(screenField).onFocusChanged { screenKeyboard = it.isFocused; if (!it.isFocused) controlHeld = false }.then(keys))
     }
@@ -392,6 +444,56 @@ private fun DrawScope.drawSelection(cells: SelectedCells, frame: TerminalFrame, 
 }
 
 private const val SELECTION_ALPHA = 0.3f
+
+/** Where the pointer was last seen over a terminal's view, and whether the terminal was told, for finding the link under it. */
+private class Pointing {
+    var position: Offset? = null
+    var told = false
+}
+
+/** Underlines the cells of a link that a click would open, in the terminal's foreground color whatever the text's own. */
+private fun DrawScope.drawLinkUnderline(cells: TerminalLink.Cells, frame: TerminalFrame, cell: CellSize) {
+    val left = (cells.firstColumn * cell.width).toInt().toFloat()
+    val right = ceil((cells.lastColumn + 1) * cell.width)
+    val thickness = (cell.height / 14f).roundToInt().coerceAtLeast(1).toFloat()
+    drawRect(
+        color = Color(0xFF000000 or frame.foreground.toLong()),
+        topLeft = Offset(left, (cells.row + 1) * cell.height - thickness - 1f),
+        size = Size(right - left, thickness),
+    )
+}
+
+/**
+ * Says where a link leads, under it, or over it when there is no room under. The address is
+ * shown whole and as it will be opened, since that is the point of showing it; a very long
+ * one loses its end.
+ */
+@Composable
+private fun LinkTarget(link: TerminalLink, cell: CellSize) {
+    val colors = MaterialTheme.colorScheme
+    val shape = MaterialTheme.shapes.extraSmall
+    // Drawn without taking the pointer, which stays the terminal's.
+    Box(
+        Modifier
+            .layout { measurable, constraints ->
+                val label = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+                val gap = 4.dp.roundToPx()
+                val below = ((link.cells.last().row + 1) * cell.height).roundToInt() + gap
+                val above = (link.cells.first().row * cell.height).roundToInt() - gap - label.height
+                val x = (link.cells.last().firstColumn * cell.width).roundToInt().coerceAtMost(constraints.maxWidth - label.width).coerceAtLeast(0)
+                val y = if (below + label.height <= constraints.maxHeight || above < 0) below else above
+                layout(constraints.maxWidth, constraints.maxHeight) { label.place(x, y) }
+            }
+            .shadow(4.dp, shape)
+            .background(colors.surfaceContainerHighest, shape)
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+    ) {
+        Text(link.url, style = MaterialTheme.typography.labelMedium, color = colors.onSurface, maxLines = 3, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** How long the pointer rests on a link before where it leads is shown. */
+private const val LINK_TARGET_DELAY_MILLIS = 300L
 
 private fun DrawScope.drawCursor(cursor: TerminalCursor, frame: TerminalFrame, cell: CellSize, active: Boolean) {
     val color = Color(0xFF000000 or (cursor.color ?: frame.foreground).toLong())

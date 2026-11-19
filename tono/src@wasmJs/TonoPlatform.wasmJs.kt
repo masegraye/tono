@@ -253,3 +253,16 @@ internal actual suspend fun playSound(id: String, log: (message: String, isError
         .onSuccess { log("played $id", false) }
         .onFailure { log("couldn't play $id: the browser refused, or the sound isn't there", true) }
 }
+
+/** A new tab that is given no way back to this page, and isn't told where it was sent from. */
+private fun openTab(url: String): Unit = js("{ window.open(url, '_blank', 'noopener,noreferrer'); }")
+
+/**
+ * A browser opens a tab for a page only while it is handling a click or a key press, or
+ * shortly after, which is when this is called. It doesn't say whether it did.
+ */
+internal actual fun openUrl(url: String, log: (message: String, isError: Boolean) -> Unit) {
+    runCatching { openTab(url) }
+        .onSuccess { log("asked the browser to open $url", false) }
+        .onFailure { log("couldn't open $url: the browser refused", true) }
+}

@@ -544,6 +544,15 @@ public class GhosttyVt extends GhosttyVt$shared {
     public static int GHOSTTY_CELL_DATA_MAX_VALUE() {
         return GHOSTTY_CELL_DATA_MAX_VALUE;
     }
+    private static final int GHOSTTY_ROW_DATA_WRAP = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_ROW_DATA_WRAP = 1
+     * }
+     */
+    public static int GHOSTTY_ROW_DATA_WRAP() {
+        return GHOSTTY_ROW_DATA_WRAP;
+    }
 
     private static class ghostty_cell_get {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
@@ -606,6 +615,68 @@ public class GhosttyVt extends GhosttyVt$shared {
            throw new AssertionError("should not reach here", ex$);
         }
     }
+
+    private static class ghostty_row_get {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_LONG,
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_row_get");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_row_get(GhosttyRow row, GhosttyRowData data, void *out)
+     * }
+     */
+    public static FunctionDescriptor ghostty_row_get$descriptor() {
+        return ghostty_row_get.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_row_get(GhosttyRow row, GhosttyRowData data, void *out)
+     * }
+     */
+    public static MethodHandle ghostty_row_get$handle() {
+        return ghostty_row_get.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_row_get(GhosttyRow row, GhosttyRowData data, void *out)
+     * }
+     */
+    public static MemorySegment ghostty_row_get$address() {
+        return ghostty_row_get.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_row_get(GhosttyRow row, GhosttyRowData data, void *out)
+     * }
+     */
+    public static int ghostty_row_get(long row, int data, MemorySegment out) {
+        var mh$ = ghostty_row_get.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_row_get", row, data, out);
+            }
+            return (int)mh$.invokeExact(row, data, out);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
     private static final int GHOSTTY_STYLE_COLOR_NONE = (int)0L;
     /**
      * {@snippet lang=c :
@@ -641,6 +712,130 @@ public class GhosttyVt extends GhosttyVt$shared {
      */
     public static int GHOSTTY_STYLE_COLOR_TAG_MAX_VALUE() {
         return GHOSTTY_STYLE_COLOR_TAG_MAX_VALUE;
+    }
+
+    private static class ghostty_grid_ref_row {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_grid_ref_row");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_grid_ref_row(const GhosttyGridRef *ref, GhosttyRow *out_row)
+     * }
+     */
+    public static FunctionDescriptor ghostty_grid_ref_row$descriptor() {
+        return ghostty_grid_ref_row.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_grid_ref_row(const GhosttyGridRef *ref, GhosttyRow *out_row)
+     * }
+     */
+    public static MethodHandle ghostty_grid_ref_row$handle() {
+        return ghostty_grid_ref_row.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_grid_ref_row(const GhosttyGridRef *ref, GhosttyRow *out_row)
+     * }
+     */
+    public static MemorySegment ghostty_grid_ref_row$address() {
+        return ghostty_grid_ref_row.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_grid_ref_row(const GhosttyGridRef *ref, GhosttyRow *out_row)
+     * }
+     */
+    public static int ghostty_grid_ref_row(MemorySegment ref, MemorySegment out_row) {
+        var mh$ = ghostty_grid_ref_row.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_grid_ref_row", ref, out_row);
+            }
+            return (int)mh$.invokeExact(ref, out_row);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_grid_ref_hyperlink_uri {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_LONG,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_grid_ref_hyperlink_uri");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_grid_ref_hyperlink_uri(const GhosttyGridRef *ref, uint8_t *buf, size_t buf_len, size_t *out_len)
+     * }
+     */
+    public static FunctionDescriptor ghostty_grid_ref_hyperlink_uri$descriptor() {
+        return ghostty_grid_ref_hyperlink_uri.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_grid_ref_hyperlink_uri(const GhosttyGridRef *ref, uint8_t *buf, size_t buf_len, size_t *out_len)
+     * }
+     */
+    public static MethodHandle ghostty_grid_ref_hyperlink_uri$handle() {
+        return ghostty_grid_ref_hyperlink_uri.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_grid_ref_hyperlink_uri(const GhosttyGridRef *ref, uint8_t *buf, size_t buf_len, size_t *out_len)
+     * }
+     */
+    public static MemorySegment ghostty_grid_ref_hyperlink_uri$address() {
+        return ghostty_grid_ref_hyperlink_uri.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_grid_ref_hyperlink_uri(const GhosttyGridRef *ref, uint8_t *buf, size_t buf_len, size_t *out_len)
+     * }
+     */
+    public static int ghostty_grid_ref_hyperlink_uri(MemorySegment ref, MemorySegment buf, long buf_len, MemorySegment out_len) {
+        var mh$ = ghostty_grid_ref_hyperlink_uri.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_grid_ref_hyperlink_uri", ref, buf, buf_len, out_len);
+            }
+            return (int)mh$.invokeExact(ref, buf, buf_len, out_len);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
     }
     private static final int GHOSTTY_POINT_TAG_ACTIVE = (int)0L;
     /**

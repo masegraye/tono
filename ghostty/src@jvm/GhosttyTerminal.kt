@@ -4,6 +4,10 @@ import org.example.kotlintest.ghostty.ffi.GhosttyColorRgb
 import org.example.kotlintest.ghostty.ffi.GhosttyFormatterScreenExtra
 import org.example.kotlintest.ghostty.ffi.GhosttyFormatterTerminalExtra
 import org.example.kotlintest.ghostty.ffi.GhosttyFormatterTerminalOptions
+import org.example.kotlintest.ghostty.ffi.GhosttyGridRef
+import org.example.kotlintest.ghostty.ffi.GhosttyPoint
+import org.example.kotlintest.ghostty.ffi.GhosttyPointCoordinate
+import org.example.kotlintest.ghostty.ffi.GhosttyPointValue
 import org.example.kotlintest.ghostty.ffi.GhosttyTerminalModeConfig
 import org.example.kotlintest.ghostty.ffi.GhosttyTerminalScrollViewport
 import org.example.kotlintest.ghostty.ffi.GhosttyTerminalScrollViewportValue
@@ -11,6 +15,7 @@ import org.example.kotlintest.ghostty.ffi.GhosttyVt
 import java.lang.foreign.Arena
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.ValueLayout.ADDRESS
+import java.lang.foreign.ValueLayout.JAVA_BOOLEAN
 import java.lang.foreign.ValueLayout.JAVA_BYTE
 import java.lang.foreign.ValueLayout.JAVA_LONG
 import java.lang.foreign.ValueLayout.JAVA_SHORT
@@ -166,6 +171,39 @@ actual class GhosttyTerminal private constructor(internal val handle: MemorySegm
             GhosttyTerminalModeConfig.value(config)
         }
 
+    actual fun hyperlinkAt(column: Int, row: Int): String? = cellAt(column, row) { arena, cell ->
+        val lengthOut = arena.allocate(JAVA_LONG)
+        // Asked twice: first for how long the address is, then for the address.
+        if (GhosttyVt.ghostty_grid_ref_hyperlink_uri(cell, NULL, 0, lengthOut) != GhosttyVt.GHOSTTY_OUT_OF_SPACE()) return@cellAt null
+        val length = lengthOut.get(JAVA_LONG, 0)
+        if (length <= 0 || length > MAX_HYPERLINK_BYTES) return@cellAt null
+        val buffer = arena.allocate(length)
+        if (GhosttyVt.ghostty_grid_ref_hyperlink_uri(cell, buffer, length, lengthOut) != GhosttyVt.GHOSTTY_SUCCESS()) return@cellAt null
+        String(buffer.asSlice(0, lengthOut.get(JAVA_LONG, 0)).toArray(JAVA_BYTE), Charsets.UTF_8)
+    }
+
+    actual fun rowWraps(row: Int): Boolean = cellAt(0, row) { arena, cell ->
+        val rowOut = arena.allocate(JAVA_LONG)
+        if (GhosttyVt.ghostty_grid_ref_row(cell, rowOut) != GhosttyVt.GHOSTTY_SUCCESS()) return@cellAt false
+        val wraps = arena.allocate(JAVA_BOOLEAN)
+        GhosttyVt.ghostty_row_get(rowOut.get(JAVA_LONG, 0), GhosttyVt.GHOSTTY_ROW_DATA_WRAP(), wraps) == GhosttyVt.GHOSTTY_SUCCESS() && wraps.get(JAVA_BOOLEAN, 0)
+    } ?: false
+
+    /** Looks at one cell of the view. Null if there is no such cell. The reference to it is good only until the terminal next changes. */
+    private inline fun <T> cellAt(column: Int, row: Int, read: (Arena, MemorySegment) -> T?): T? {
+        if (column !in 0 until columns || row !in 0 until rows) return null
+        return Arena.ofConfined().use { arena ->
+            val point = GhosttyPoint.allocate(arena)
+            GhosttyPoint.tag(point, GhosttyVt.GHOSTTY_POINT_TAG_VIEWPORT())
+            val coordinate = GhosttyPointValue.coordinate(GhosttyPoint.value(point))
+            GhosttyPointCoordinate.x(coordinate, column.toShort())
+            GhosttyPointCoordinate.y(coordinate, row)
+            val cell = GhosttyGridRef.allocate(arena)
+            GhosttyGridRef.size(cell, GhosttyGridRef.sizeof())
+            if (GhosttyVt.ghostty_terminal_grid_ref(handle, point, cell) != GhosttyVt.GHOSTTY_SUCCESS()) null else read(arena, cell)
+        }
+    }
+
     /** A snapshot that [restore] can rebuild this terminal from. */
     fun snapshot(): ByteArray = Arena.ofConfined().use { arena ->
         val pointerOut = arena.allocate(ADDRESS)
@@ -240,6 +278,9 @@ actual class GhosttyTerminal private constructor(internal val handle: MemorySegm
 }
 
 internal val NULL: MemorySegment = MemorySegment.NULL
+
+/** A link's address longer than this is not read. Nothing that long is one a person would follow. */
+private const val MAX_HYPERLINK_BYTES = 8192L
 
 /** DEC private mode 2004. A mode is its number, with the top bit set for ANSI modes. */
 private const val MODE_BRACKETED_PASTE: Short = 2004

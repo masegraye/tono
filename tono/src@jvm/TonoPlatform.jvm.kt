@@ -100,6 +100,36 @@ internal actual suspend fun playSound(id: String, log: (message: String, isError
 
 private const val PLAY_TIMEOUT_SECONDS = 5L
 
+/**
+ * The command that opens an address with the desktop's choice of program for it: `xdg-open`
+ * on Linux, `open` on a Mac. Null if there is none. The address is one argument of its own
+ * and no shell reads it, and it starts with its scheme, so it can't be taken for an option.
+ */
+internal fun openCommand(url: String, osName: String, program: (String) -> Path?): List<String>? =
+    (if (osName.startsWith("Mac", ignoreCase = true)) Path.of("/usr/bin/open") else program("xdg-open"))?.let { listOf(it.toString(), url) }
+
+internal actual fun openUrl(url: String, log: (message: String, isError: Boolean) -> Unit) {
+    val command = openCommand(url, System.getProperty("os.name").orEmpty(), ::findProgram)
+    if (command == null) {
+        log("couldn't open $url: there is no xdg-open", true)
+        return
+    }
+    // Off the interface's thread: starting a program can take a moment, and so can its answer.
+    Thread({
+        runCatching {
+            val process = ProcessBuilder(command).redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start()
+            process.outputStream.close()
+            // It hands the address on and exits; one that stays is left to finish in its own time.
+            if (process.waitFor(OPEN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) process.exitValue() else 0
+        }.onSuccess { code ->
+            val opener = Path.of(command.first()).fileName
+            if (code == 0) log("opened $url with $opener", false) else log("couldn't open $url: $opener exited with $code", true)
+        }.onFailure { log("couldn't open $url: ${it.message}", true) }
+    }, "open-link").apply { isDaemon = true }.start()
+}
+
+private const val OPEN_TIMEOUT_SECONDS = 10L
+
 /** Looks on PATH, in its absolute directories only, so nothing in the current folder is ever run. */
 private fun findProgram(name: String): Path? = System.getenv("PATH").orEmpty().split(':')
     .filter { it.startsWith("/") }
