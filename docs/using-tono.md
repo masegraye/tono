@@ -304,6 +304,13 @@ screen, and back goes from a section to the list of sections first.
 There's nothing to save. A switch takes effect as you turn it, and Tono remembers it. The palette's toggles are the
 same switches, so turning one there shows in Settings at once, and the other way round.
 
+The sections are listed as Rex for Mac lists them, under a **Search Settings** field that finds a setting by name
+in any section:
+
+- **Server** comes first, with the home server's name and whether it's connected. It says which Tono this is, where
+  its workspace file is, which server is its home and the API revision it speaks, and where Rex's configuration
+  file is.
+- **Terminal** has Copy on Selection and Primary Selection.
 - **Shortcuts** lists every command with its keys and where they come from, with a search field over the list.
   Choose a command to record new keys for it, as [Change Shortcut…](#changing-a-shortcut) does. A command you've
   changed has a button that puts it back, and Reset All Shortcuts puts them all back after asking. On a phone or
@@ -311,12 +318,10 @@ same switches, so turning one there shows in Settings at once, and the other way
 - **Notifications** has the sound and the notifications for tabs you aren't looking at, a switch for each kind of
   news (Blocked, Error, Done) and for the notifications programs ask for themselves. In a browser it also says
   whether the browser allows notifications, and offers to ask if it hasn't been asked.
-- **Terminal** has Copy on Selection and Primary Selection.
-- **About** says which Tono this is, where its workspace file is, which server is its home and the API revision it
-  speaks, and where Rex's configuration file is.
 
-In a wide window the sections are listed down the left. In a narrow one, such as a third of the screen, the list
-comes first and each section has a way back to it.
+In a wide window the sections are listed down the left, and the arrows over a section go back and forward through
+the ones you've been in. In a narrow one, such as a third of the screen, the list comes first and each section has
+a way back to it.
 
 ## Selecting and copying
 

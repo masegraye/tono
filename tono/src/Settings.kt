@@ -63,6 +63,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import org.example.kotlintest.rex.HostReach
 import org.example.kotlintest.rex.HostState
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
@@ -89,12 +102,16 @@ import org.example.kotlintest.rex.TonoClient
  * the palette's toggles are. Turned in the palette, it shows here as promptly.
  */
 
-/** The parts of the settings, in the order they are listed. */
+/**
+ * The parts of the settings, in the order they are listed, which is Rex.app's for the ones
+ * it has too. Server comes first and stands apart, as there: it is the server the app
+ * follows, and says what this app is and where it keeps things.
+ */
 internal enum class SettingsSection(val title: String, val summary: String) {
+    Server("Server", "The server this app follows, and where things are kept"),
+    Terminal("Terminal", "What selecting text copies"),
     Shortcuts("Shortcuts", "The keys for every action, and changing them"),
     Notifications("Notifications", "Sounds and notifications for tabs out of view"),
-    Terminal("Terminal", "What selecting text copies"),
-    About("About", "Versions, and where things are kept"),
 }
 
 /** How the settings are laid out, which goes by how wide they are. */
@@ -111,11 +128,109 @@ internal val SETTINGS_WIDE = 640.dp
 
 internal fun settingsLayout(width: Dp): SettingsLayout = if (width >= SETTINGS_WIDE) SettingsLayout.Wide else SettingsLayout.Narrow
 
-/** What of the settings is showing. It outlives the window, so that opening them again shows the section they were left on. */
+/**
+ * Somewhere in the settings: a section, or something opened within one.
+ *
+ * @param detail what is open within the section, by a name the section knows it by, or null for the section itself
+ */
+internal data class SettingsPlace(val section: SettingsSection, val detail: String? = null)
+
+/** One setting, for finding it by name: where it is, what it is called there, and other words for it. */
+internal class SettingEntry(val section: SettingsSection, val title: String, val keywords: String = "")
+
+/** Everything Search Settings can find. A section is found by its own name too. */
+internal val SETTING_ENTRIES: List<SettingEntry> = listOf(
+    SettingEntry(SettingsSection.Server, "Server", "home rex about status"),
+    SettingEntry(SettingsSection.Server, "Version", "about tono app"),
+    SettingEntry(SettingsSection.Server, "Workspace", "file path json settings kept saved"),
+    SettingEntry(SettingsSection.Server, "Home server", "rex local socket address api revision"),
+    SettingEntry(SettingsSection.Server, "Configuration file", "init.lua config rex lua path"),
+    SettingEntry(SettingsSection.Terminal, "Terminal", "selection"),
+    SettingEntry(SettingsSection.Terminal, "Copy on Selection", "copy select clipboard automatic mouse drag highlight"),
+    SettingEntry(SettingsSection.Terminal, "Primary Selection", "middle click button paste mouse x11 wayland linux"),
+    SettingEntry(SettingsSection.Shortcuts, "Shortcuts", "keyboard keys key bindings keybindings hotkey record rebind change"),
+    SettingEntry(SettingsSection.Shortcuts, "Reset All Shortcuts", "default restore keys bindings"),
+    SettingEntry(SettingsSection.Notifications, "Notifications", "alerts program activity"),
+    SettingEntry(SettingsSection.Notifications, "Play Activity Sounds", "sound audio chime alert beep bell mute silence"),
+    SettingEntry(SettingsSection.Notifications, "Show System Notifications", "desktop notification notify alert popup banner allow permission browser"),
+    SettingEntry(SettingsSection.Notifications, "Blocked", "waiting question permission approval sign in needs you notification"),
+    SettingEntry(SettingsSection.Notifications, "Error", "failed failure notification"),
+    SettingEntry(SettingsSection.Notifications, "Done", "finished complete notification"),
+    SettingEntry(SettingsSection.Notifications, "Terminal Notifications", "osc 9 777 program messages desktop notification notify-send"),
+)
+
+/**
+ * The settings matching every word of [query], in the order the sections list them. A word
+ * matches a setting's name, its section's, or its other words. Nothing typed finds nothing:
+ * the list of sections stands then.
+ */
+internal fun searchSettings(query: String, entries: List<SettingEntry> = SETTING_ENTRIES): List<SettingEntry> {
+    val words = query.lowercase().split(' ').filter { it.isNotEmpty() }
+    if (words.isEmpty()) return emptyList()
+    return entries.filter { entry ->
+        val text = "${entry.title} ${entry.section.title} ${entry.keywords}".lowercase()
+        words.all { it in text }
+    }
+}
+
+/**
+ * What of the settings is showing, and where one has been in them. It outlives the window,
+ * so that opening them again shows the place they were left at.
+ */
 @Stable
 internal class SettingsState {
-    /** The section chosen, or null if none has been: the first then shows beside the list, and the list alone where there is one column. */
-    var section: SettingsSection? by mutableStateOf(null)
+    /** Where one is, or null if nowhere has been chosen: the first section then shows beside the list, and the list alone where there is one column. */
+    var place: SettingsPlace? by mutableStateOf(null)
+        private set
+
+    /** The places before this one, oldest first, and the ones gone back from, nearest first. */
+    private val before = mutableStateListOf<SettingsPlace?>()
+    private val after = mutableStateListOf<SettingsPlace?>()
+
+    /** The section showing, if one was chosen. Setting it goes there, as choosing it in the list does. */
+    var section: SettingsSection?
+        get() = place?.section
+        set(section) = go(section?.let { SettingsPlace(it) })
+
+    /** Goes somewhere, remembering where from. */
+    fun go(to: SettingsPlace?) {
+        if (to == place) return
+        before += place
+        after.clear()
+        place = to
+    }
+
+    val canGoBack: Boolean get() = before.isNotEmpty()
+    val canGoForward: Boolean get() = after.isNotEmpty()
+
+    /** Back to where one was before, as a browser goes back. */
+    fun back() {
+        if (before.isEmpty()) return
+        after.add(0, place)
+        place = before.removeAt(before.lastIndex)
+    }
+
+    fun forward() {
+        if (after.isEmpty()) return
+        before += place
+        place = after.removeAt(0)
+    }
+
+    /**
+     * How many steps [place] is from the list of sections: none for the list itself, one for a
+     * section, two for something open within it.
+     */
+    val depth: Int get() = place.let { if (it == null) 0 else if (it.detail == null) 1 else 2 }
+
+    /** One step out, towards the list of sections: what the way back does where there is one column. False if there was nowhere to go. */
+    fun up(): Boolean {
+        val here = place ?: return false
+        go(if (here.detail != null) here.copy(detail = null) else null)
+        return true
+    }
+
+    /** What is typed in Search Settings, over the list of sections. */
+    var query by mutableStateOf("")
 
     /** A question the settings are asking, which is theirs to show: on the desktop they are not in the main window. */
     var confirmation: Confirmation? by mutableStateOf(null)
@@ -168,10 +283,10 @@ internal fun SettingsPanel(ui: RexUiState, commands: RexCommands) {
             .pointerInput(Unit) { detectTapGestures { ui.closeSettings() } },
     ) {
         // On a phone the panel is the whole screen, and the browser's back is how one goes
-        // back: from a section to the list, and from the list out of the settings. It never
-        // leaves the page while they are open.
-        val inSection = settingsLayout(minOf(maxWidth, SETTINGS_PANEL_WIDTH)) == SettingsLayout.Narrow && ui.settings.section != null
-        WatchBrowserBack(depth = if (inSection) 2 else 1) { settingsBack(ui, inSection) }
+        // back: out of what is open in a section, from a section to the list, and from the
+        // list out of the settings. It never leaves the page while they are open.
+        val narrow = settingsLayout(minOf(maxWidth, SETTINGS_PANEL_WIDTH)) == SettingsLayout.Narrow
+        WatchBrowserBack(depth = 1 + if (narrow) ui.settings.depth else 0) { settingsBack(ui, narrow) }
         Box(
             Modifier.align(Alignment.CenterEnd).fillMaxHeight().widthIn(max = SETTINGS_PANEL_WIDTH).fillMaxWidth()
                 // Clicks inside the panel stop here instead of closing it.
@@ -183,9 +298,13 @@ internal fun SettingsPanel(ui: RexUiState, commands: RexCommands) {
     }
 }
 
-/** One step back in a panel: out of a section that was chosen from the list, and otherwise out of the settings. */
-internal fun settingsBack(ui: RexUiState, inSection: Boolean) {
-    if (inSection) ui.settings.section = null else ui.closeSettings()
+/**
+ * One step back in a panel, as the browser's back takes it: where there is one column, out
+ * of whatever was chosen, one step at a time, and from the list of sections, or where the
+ * list is always there, out of the settings.
+ */
+internal fun settingsBack(ui: RexUiState, narrow: Boolean) {
+    if (!(narrow && ui.settings.up())) ui.closeSettings()
 }
 
 /** How wide the panel is where the page has the room, which is also how wide a settings window opens where windows float. */
@@ -209,35 +328,33 @@ internal fun SettingsContent(ui: RexUiState, commands: RexCommands, modifier: Mo
         BoxWithConstraints(Modifier.fillMaxSize().focusRequester(focus).focusable().pointerInput(Unit) { detectTapGestures { focus.requestFocus() } }) {
             when (settingsLayout(maxWidth)) {
                 SettingsLayout.Wide -> {
-                    val shown = state.section ?: SettingsSection.entries.first()
+                    val shown = state.place ?: SettingsPlace(SettingsSection.entries.first())
                     Row(Modifier.fillMaxSize()) {
-                        Column(Modifier.width(SECTION_LIST_WIDTH).fillMaxHeight().verticalScroll(rememberScrollState()).padding(bottom = 12.dp)) {
-                            Text("Settings", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 20.dp, end = 12.dp, top = 18.dp, bottom = 12.dp))
-                            for (section in SettingsSection.entries) {
-                                SectionRow(section, selected = section == shown, summary = false, onClick = { state.section = section })
-                            }
-                        }
+                        SectionList(ui, shown.section, summaries = false, Modifier.width(SECTION_LIST_WIDTH).fillMaxHeight())
                         // The section is on a panel raised over the window's surface, as the terminals are in the main window.
                         SectionPanel(Modifier.weight(1f).fillMaxHeight().padding(top = PANEL_GAP, end = PANEL_GAP, bottom = PANEL_GAP)) {
-                            SectionHeading(shown.title, onBack = null, onClose = onClose)
+                            // Back and forward through the places one has been, as in Rex.app's settings.
+                            SectionHeading(placeTitle(shown), onClose = onClose) {
+                                HeadingButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", state::back, enabled = state.canGoBack)
+                                HeadingButton(Icons.AutoMirrored.Filled.ArrowForward, "Forward", state::forward, enabled = state.canGoForward)
+                            }
                             SectionBody(shown, ui, commands)
                         }
                     }
                 }
                 SettingsLayout.Narrow -> {
-                    val shown = state.section
+                    val shown = state.place
                     if (shown == null) {
                         Column(Modifier.fillMaxSize()) {
-                            SectionHeading("Settings", onBack = null, onClose = onClose)
-                            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 12.dp)) {
-                                for (section in SettingsSection.entries) {
-                                    SectionRow(section, selected = false, summary = true, onClick = { state.section = section })
-                                }
-                            }
+                            SectionHeading("Settings", onClose = onClose)
+                            SectionList(ui, selected = null, summaries = true, Modifier.fillMaxSize())
                         }
                     } else {
                         SectionPanel(Modifier.fillMaxSize().padding(PANEL_GAP)) {
-                            SectionHeading(shown.title, onBack = { state.section = null }, onClose = onClose)
+                            // One way back, a step out at a time: the same step the browser's back takes on a phone.
+                            SectionHeading(placeTitle(shown), onClose = onClose) {
+                                HeadingButton(Icons.AutoMirrored.Filled.ArrowBack, if (shown.detail != null) "Back to ${shown.section.title}" else "Back to Settings", { state.up() })
+                            }
                             SectionBody(shown, ui, commands)
                         }
                     }
@@ -264,18 +381,87 @@ internal fun SettingsContent(ui: RexUiState, commands: RexCommands, modifier: Mo
     }
 }
 
-private val SECTION_LIST_WIDTH = 200.dp
+/** What a place is called over it: its section's name, or the name of what is open within the section. */
+internal fun placeTitle(place: SettingsPlace): String = place.detail ?: place.section.title
+
+private val SECTION_LIST_WIDTH = 220.dp
 
 /** Nothing to press is smaller than this either way: a finger needs it, and the settings are a phone's too. */
 internal val TOUCH_TARGET = 48.dp
 private val PANEL_GAP = 6.dp
 
 /** No line of settings is wider than this, however wide the window: a switch a screen's width from its name is hard to pair with it. */
-private val SECTION_WIDTH = 720.dp
+internal val SECTION_WIDTH = 720.dp
 
-/** One section in the list of them. With [summary], a line under its name says what is in it, and an arrow that it leads somewhere. */
+/**
+ * The list of sections, as in Rex.app's settings: a field that searches every setting by
+ * name, then the server, then the sections. While something is typed in the field, the
+ * settings it finds are listed in place of the sections, each going to its section.
+ *
+ * @param summaries whether each section has a line under its name saying what is in it, and
+ *   an arrow that it leads somewhere: where the list is all there is to see
+ */
 @Composable
-private fun SectionRow(section: SettingsSection, selected: Boolean, summary: Boolean, onClick: () -> Unit) {
+private fun SectionList(ui: RexUiState, selected: SettingsSection?, summaries: Boolean, modifier: Modifier) {
+    val state = ui.settings
+    Column(modifier) {
+        TextField(
+            value = state.query,
+            onValueChange = { state.query = it },
+            singleLine = true,
+            placeholder = { Text("Search Settings", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+            textStyle = MaterialTheme.typography.bodyMedium,
+            shape = MaterialTheme.shapes.medium,
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh, unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+            ),
+            modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 6.dp),
+        )
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 12.dp)) {
+            if (state.query.isBlank()) {
+                for (section in SettingsSection.entries) {
+                    SectionRow(
+                        section, selected = section == selected,
+                        // The server's line says which server and how it is, in the sidebar's words.
+                        summary = if (section == SettingsSection.Server) homeServerSummary(ui) else section.summary.takeIf { summaries },
+                        arrow = summaries,
+                        onClick = { state.section = section },
+                    ) { SectionIcon(section, ui) }
+                    // The server stands apart from the sections under it.
+                    if (section == SettingsSection.Server) Spacer(Modifier.height(10.dp))
+                }
+            } else {
+                val found = remember(state.query) { searchSettings(state.query) }
+                if (found.isEmpty()) Text("No setting matches", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+                for (entry in found) {
+                    ListRow(entry.title, entry.section.title.takeIf { it != entry.title }, selected = false, arrow = summaries, onClick = { state.section = entry.section }) { SectionIcon(entry.section, ui) }
+                }
+            }
+        }
+    }
+}
+
+/** The home server in a line: what it is called here, and how reaching it stands. */
+@Composable
+private fun homeServerSummary(ui: RexUiState): String {
+    val hosts by ui.client.hosts.collectAsState()
+    val home = hosts.firstOrNull { it.saved.label == ui.client.homeLabel } ?: return "No home server"
+    val state by home.state.collectAsState()
+    return "${home.saved.label} · ${hostStatusWords(state.reach)}"
+}
+
+/** How reaching a host stands, in a word or two, as the sidebar says it, with the word for a connected one that the sidebar leaves out. */
+internal fun hostStatusWords(reach: HostReach): String = (hostReachWords(reach) ?: "connected").replaceFirstChar { it.uppercase() }
+
+@Composable
+private fun SectionRow(section: SettingsSection, selected: Boolean, summary: String?, arrow: Boolean, onClick: () -> Unit, icon: @Composable () -> Unit) =
+    ListRow(section.title, summary, selected, arrow, onClick, icon)
+
+/** One line of the list: a picture, a name, perhaps a line under it, and perhaps an arrow saying that it leads somewhere. */
+@Composable
+private fun ListRow(title: String, summary: String?, selected: Boolean, arrow: Boolean, onClick: () -> Unit, icon: @Composable () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -284,13 +470,59 @@ private fun SectionRow(section: SettingsSection, selected: Boolean, summary: Boo
             .background(if (selected) colors.secondaryContainer else Color.Transparent)
             .clickable(onClick = onClick)
             .heightIn(min = TOUCH_TARGET)
-            .padding(start = 14.dp, end = 8.dp, top = 7.dp, bottom = 7.dp),
+            .padding(start = 10.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(section.title, style = MaterialTheme.typography.bodyMedium, color = if (selected) colors.onSecondaryContainer else colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (summary) Text(section.summary, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
+        icon()
+        Column(Modifier.weight(1f).padding(start = 10.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium, color = if (selected) colors.onSecondaryContainer else colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (summary != null) Text(summary, style = MaterialTheme.typography.labelMedium, color = if (selected) colors.onSecondaryContainer.copy(alpha = 0.75f) else colors.onSurfaceVariant, modifier = Modifier.padding(top = 1.dp))
         }
-        if (summary) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        if (arrow) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
+    }
+}
+
+/**
+ * A section's picture: a small drawing on a rounded square, each section in a color of its
+ * own from the theme, as Rex.app's are in colors of its own. The server's is the home
+ * server's picture, as its heading in the sidebar has it.
+ */
+@Composable
+internal fun SectionIcon(section: SettingsSection, ui: RexUiState) {
+    val colors = MaterialTheme.colorScheme
+    val square = when (section) {
+        SettingsSection.Server -> colors.primary
+        SettingsSection.Terminal -> colors.tertiaryContainer
+        SettingsSection.Shortcuts -> colors.secondary
+        SettingsSection.Notifications -> colors.error
+    }
+    // The drawing is in the window's own dark, or light, whichever the square stands out from.
+    val ink = colors.surfaceContainerLowest
+    Box(Modifier.size(26.dp).background(square, RoundedCornerShape(7.dp)), contentAlignment = Alignment.Center) {
+        when (section) {
+            SettingsSection.Server -> {
+                val icons by ui.client.hostIcons.collectAsState()
+                MachineIcon(HostIcon.of(ui.client.homeLabel?.let { icons[it] }, isHome = true), ink)
+            }
+            SettingsSection.Notifications -> Icon(Icons.Filled.Notifications, contentDescription = null, tint = ink, modifier = Modifier.size(16.dp))
+            SettingsSection.Terminal, SettingsSection.Shortcuts -> Canvas(Modifier.size(16.dp)) {
+                val unit = size.width / 16f
+                val width = 1.6f * unit
+                fun at(x: Float, y: Float) = Offset(x * unit, y * unit)
+                fun stroke(fromX: Float, fromY: Float, toX: Float, toY: Float) = drawLine(ink, at(fromX, fromY), at(toX, toY), width, StrokeCap.Round)
+                if (section == SettingsSection.Terminal) {
+                    // A prompt: an arrowhead, and the line where typing goes.
+                    stroke(3f, 4.5f, 7f, 8f)
+                    stroke(7f, 8f, 3f, 11.5f)
+                    stroke(8.5f, 11.5f, 13f, 11.5f)
+                } else {
+                    // A key: its cap, with a mark on it.
+                    drawRoundRect(ink, at(2f, 2.5f), Size(12f * unit, 11f * unit), CornerRadius(2.5f * unit), Stroke(width))
+                    stroke(5.5f, 6f, 5.5f, 10f)
+                    stroke(5.5f, 8f, 8.5f, 6f)
+                    stroke(5.5f, 8f, 10.5f, 10f)
+                }
+            }
+        }
     }
 }
 
@@ -301,36 +533,37 @@ private fun SectionPanel(modifier: Modifier, content: @Composable ColumnScope.()
     Column(modifier.clip(shape).background(MaterialTheme.colorScheme.background).border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape), content = content)
 }
 
-/** The line over a section, or over the list of them: its name, with the way back before it and the way out after, where there is one. */
+/** The line over a place, or over the list of sections: the ways back and forward where there are any, its name, and the way out where there is one. */
 @Composable
-private fun SectionHeading(title: String, onBack: (() -> Unit)?, onClose: (() -> Unit)?) {
-    Row(Modifier.fillMaxWidth().padding(start = if (onBack != null) 4.dp else 20.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (onBack != null) HeadingButton(Icons.AutoMirrored.Filled.ArrowBack, "Back to Settings", onBack)
-        Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).heightIn(min = TOUCH_TARGET).wrapContentHeight().padding(start = if (onBack != null) 2.dp else 0.dp))
+private fun SectionHeading(title: String, onClose: (() -> Unit)?, arrows: (@Composable RowScope.() -> Unit)? = null) {
+    Row(Modifier.fillMaxWidth().padding(start = if (arrows != null) 4.dp else 20.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        arrows?.invoke(this)
+        Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).heightIn(min = TOUCH_TARGET).wrapContentHeight().padding(start = if (arrows != null) 4.dp else 0.dp))
         if (onClose != null) HeadingButton(Icons.Filled.Close, "Close Settings", onClose)
     }
 }
 
+/** A button that is a small picture, with room round it for a finger. Faded, and not to be pressed, where there is nothing for it to do. */
 @Composable
-private fun HeadingButton(icon: ImageVector, description: String, onClick: () -> Unit) {
-    Box(Modifier.size(TOUCH_TARGET).clip(MaterialTheme.shapes.small).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
-        Icon(icon, contentDescription = description, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+internal fun HeadingButton(icon: ImageVector, description: String, onClick: () -> Unit, enabled: Boolean = true) {
+    Box(Modifier.size(TOUCH_TARGET).clip(MaterialTheme.shapes.small).clickable(enabled = enabled, onClick = onClick), contentAlignment = Alignment.Center) {
+        Icon(icon, contentDescription = description, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.3f), modifier = Modifier.size(18.dp))
     }
 }
 
 @Composable
-private fun SectionBody(section: SettingsSection, ui: RexUiState, commands: RexCommands) {
-    when (section) {
+private fun SectionBody(place: SettingsPlace, ui: RexUiState, commands: RexCommands) {
+    when (place.section) {
+        SettingsSection.Server -> ScrollingSection { ServerSettings(ui) }
+        SettingsSection.Terminal -> ScrollingSection { TerminalSettings(ui) }
         SettingsSection.Shortcuts -> ShortcutSettings(ui, commands)
         SettingsSection.Notifications -> ScrollingSection { NotificationSettings(ui) }
-        SettingsSection.Terminal -> ScrollingSection { TerminalSettings(ui) }
-        SettingsSection.About -> ScrollingSection { AboutSettings(ui) }
     }
 }
 
 /** A section that is a column of groups: it scrolls down when there is more than fits, and never sideways. */
 @Composable
-private fun ScrollingSection(content: @Composable ColumnScope.() -> Unit) {
+internal fun ScrollingSection(content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 14.dp, end = 14.dp, bottom = 20.dp)) {
         Column(Modifier.widthIn(max = SECTION_WIDTH).fillMaxWidth(), content = content)
     }
@@ -338,7 +571,7 @@ private fun ScrollingSection(content: @Composable ColumnScope.() -> Unit) {
 
 /** Settings that belong together: a quiet name over a card of them, and under it anything that needs saying about them all. */
 @Composable
-private fun SettingsGroup(title: String, note: String? = null, content: @Composable ColumnScope.() -> Unit) {
+internal fun SettingsGroup(title: String, note: String? = null, content: @Composable ColumnScope.() -> Unit) {
     val colors = MaterialTheme.colorScheme
     Text(title, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp, top = 14.dp, bottom = 6.dp))
     Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(colors.surfaceContainerHigh), content = content)
@@ -346,7 +579,7 @@ private fun SettingsGroup(title: String, note: String? = null, content: @Composa
 }
 
 @Composable
-private fun RowDivider() = HorizontalDivider(Modifier.padding(horizontal = 14.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+internal fun RowDivider() = HorizontalDivider(Modifier.padding(horizontal = 14.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
 
 /**
  * A setting that is on or off. The whole line turns it, not only the switch.
@@ -355,7 +588,7 @@ private fun RowDivider() = HorizontalDivider(Modifier.padding(horizontal = 14.dp
  *   shows how it is set, faded.
  */
 @Composable
-private fun SwitchRow(title: String, description: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
+internal fun SwitchRow(title: String, description: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
@@ -375,7 +608,7 @@ private fun SwitchRow(title: String, description: String, checked: Boolean, enab
 
 /** Something to read, not to set: what it is, over what it says, which can be selected and copied. */
 @Composable
-private fun InfoRow(label: String, value: String) {
+internal fun InfoRow(label: String, value: String) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 9.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         SelectionContainer { Text(value, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp)) }
@@ -440,7 +673,8 @@ private fun ShortcutSettings(ui: RexUiState, commands: RexCommands) {
                 value = state.shortcutQuery,
                 onValueChange = { state.shortcutQuery = it },
                 singleLine = true,
-                placeholder = { Text("Search actions and keys", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                placeholder = { Text("Search actions and keys", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                textStyle = MaterialTheme.typography.bodyMedium,
                 shape = MaterialTheme.shapes.medium,
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh, unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -612,9 +846,9 @@ internal fun primarySelectionWords(primary: PrimarySelection): String = when (pr
     PrimarySelection.None -> "This desktop has no primary selection, so this does nothing here."
 }
 
-/** What is running, and where what it reads is kept. Nothing here can be changed. */
+/** What is running, the server it follows, and where what it reads is kept. Rex.app's About and its Server, in one. */
 @Composable
-private fun AboutSettings(ui: RexUiState) {
+private fun ServerSettings(ui: RexUiState) {
     val client = ui.client
     val hosts by client.hosts.collectAsState()
     val keymap by client.keymap.collectAsState()

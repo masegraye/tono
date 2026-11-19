@@ -108,14 +108,15 @@ class SettingsRenderTest {
 
     /** The rows where a switch that is on is drawn: each run of lines that have its color in them, as its middle. */
     private fun Bitmap.switchesOn(): List<Offset> {
-        val lines = (0 until height).filter { y -> (0 until width).any { x -> isSwitchOn(getColor(x, y)) } }
+        val lines = (0 until height).filter { y -> (width / 2 until width).any { x -> isSwitchOn(getColor(x, y)) } }
         val runs = ArrayList<IntRange>()
         for (y in lines) if (runs.isNotEmpty() && runs.last().last == y - 1) runs[runs.lastIndex] = runs.last().first..y else runs += y..y
         // A switch is some twenty lines high; a line of text in the color would be less.
-        return runs.filter { it.count() >= 20 }.map { run ->
+        // And it is at the end of its line: the server's picture in the list, at the start of one, is in the same color.
+        return runs.filter { it.count() >= 20 }.mapNotNull { run ->
             val y = (run.first + run.last) / 2
-            val across = (0 until width).filter { x -> isSwitchOn(getColor(x, y)) }
-            Offset((across.first() + across.last()) / 2f, y.toFloat())
+            val across = (width / 2 until width).filter { x -> isSwitchOn(getColor(x, y)) }
+            if (across.isEmpty()) null else Offset((across.first() + across.last()) / 2f, y.toFloat())
         }
     }
 
@@ -138,13 +139,13 @@ class SettingsRenderTest {
             ui.settings.section = null
             settings(width).use { settings ->
                 // Nothing chosen yet: the first section shows, marked in the list down the left.
-                assertTrue(settings.draw("first-$width").has(scheme.secondaryContainer, 0 until 200), "$width: the first section is marked")
-                // The second line of the list: Notifications.
-                settings.click(Offset(100f, 52f + 48f + 24f))
+                assertTrue(settings.draw("first-$width").has(scheme.secondaryContainer, 0 until 220), "$width: the first section is marked")
+                // The last line of the list: Notifications.
+                settings.click(Offset(100f, 257f))
                 assertEquals(SettingsSection.Notifications, ui.settings.section)
                 val first = settings.draw()
                 assertEquals(6, first.switchesOn().size, "$width: Notifications has six switches, all on")
-                assertTrue(first.switchesOn().all { it.x > 200 && it.x < width }, "$width: the switches are beside the list, and within the window")
+                assertTrue(first.switchesOn().all { it.x > 220 && it.x < width }, "$width: the switches are beside the list, and within the window")
             }
         }
     }
@@ -157,8 +158,8 @@ class SettingsRenderTest {
             assertFalse(list.has(scheme.secondaryContainer), "nothing is chosen in the list")
             assertTrue(list.switchesOn().isEmpty(), "and no section is showing")
 
-            // The third line of the list: Terminal.
-            settings.click(Offset(120f, 52f + 2 * 54f + 27f))
+            // The second line of the list, under the server's: Terminal.
+            settings.click(Offset(120f, 210f))
             assertEquals(SettingsSection.Terminal, ui.settings.section)
             val section = settings.draw("list-420-chosen")
             assertTrue(section.switchesOn().isEmpty(), "Terminal's two switches start off")
@@ -166,6 +167,29 @@ class SettingsRenderTest {
             // The way back, at the start of the heading.
             settings.click(Offset(30f, 36f))
             assertEquals(null, ui.settings.section)
+
+            // Typed in Search Settings, a word lists the settings it finds, and one of them goes to its section.
+            ui.settings.query = "sound"
+            settings.draw("list-420-search")
+            settings.click(Offset(120f, 146f))
+            assertEquals(SettingsSection.Notifications, ui.settings.section)
+            ui.settings.query = ""
+        }
+    }
+
+    @Test
+    fun `wide, the arrows over a section go back and forward through the sections one has been in`() {
+        ui.settings.section = SettingsSection.Terminal
+        ui.settings.section = SettingsSection.Notifications
+        settings(700).use { settings ->
+            settings.draw("arrows-700")
+            // Back, the first thing in the heading; forward, beside it.
+            settings.click(Offset(220f + 4f + 24f, 6f + 4f + 24f))
+            assertEquals(SettingsSection.Terminal, ui.settings.section)
+            // Forward can be pressed once there is somewhere ahead, which the next frame draws.
+            settings.draw()
+            settings.click(Offset(220f + 4f + 48f + 24f, 6f + 4f + 24f))
+            assertEquals(SettingsSection.Notifications, ui.settings.section)
         }
     }
 
@@ -266,7 +290,7 @@ class SettingsRenderTest {
 
     @Test
     fun `a panel has a close button, and a window does not`() {
-        ui.settings.section = SettingsSection.About
+        ui.settings.section = SettingsSection.Server
         ui.openSettings()
         settings(700, closes = true).use { settings ->
             settings.draw("about-700-panel")

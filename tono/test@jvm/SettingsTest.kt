@@ -255,14 +255,82 @@ class SettingsTest {
     }
 
     @Test
-    fun `back in a panel goes from a section to the list, and from the list out of the settings`() = withApp { ui, _ ->
+    fun `back in a panel goes a step out at a time where there is one column, and then out of the settings`() = withApp { ui, _ ->
         ui.openSettings()
-        ui.settings.section = SettingsSection.Terminal
-        settingsBack(ui, inSection = true)
-        assertNull(ui.settings.section)
+        ui.settings.go(SettingsPlace(SettingsSection.Terminal, detail = "something"))
+        assertEquals(2, ui.settings.depth)
+        settingsBack(ui, narrow = true)
+        assertEquals(SettingsPlace(SettingsSection.Terminal), ui.settings.place)
+        settingsBack(ui, narrow = true)
+        assertNull(ui.settings.place)
+        assertEquals(0, ui.settings.depth)
         assertTrue(ui.settingsOpen)
-        settingsBack(ui, inSection = false)
+        settingsBack(ui, narrow = true)
         assertFalse(ui.settingsOpen)
+
+        // Where the list is always beside the section, back has only the settings to leave.
+        ui.openSettings()
+        ui.settings.section = SettingsSection.Shortcuts
+        settingsBack(ui, narrow = false)
+        assertFalse(ui.settingsOpen)
+        assertEquals(SettingsSection.Shortcuts, ui.settings.section, "and they open again where they were")
+    }
+
+    @Test
+    fun `back and forward go through the places one has been`() {
+        val settings = SettingsState()
+        assertFalse(settings.canGoBack)
+        assertFalse(settings.canGoForward)
+        settings.section = SettingsSection.Terminal
+        settings.section = SettingsSection.Terminal // choosing where one is goes nowhere
+        settings.section = SettingsSection.Notifications
+        settings.go(SettingsPlace(SettingsSection.Notifications, "a detail"))
+        assertEquals("a detail", placeTitle(settings.place!!))
+
+        settings.back()
+        assertEquals(SettingsPlace(SettingsSection.Notifications), settings.place)
+        assertEquals("Notifications", placeTitle(settings.place!!))
+        settings.back()
+        assertEquals(SettingsSection.Terminal, settings.section)
+        assertTrue(settings.canGoForward)
+        settings.forward()
+        assertEquals(SettingsSection.Notifications, settings.section)
+
+        // Going somewhere new from the middle forgets what was ahead.
+        settings.section = SettingsSection.Shortcuts
+        assertFalse(settings.canGoForward)
+        settings.back(); settings.back(); settings.back()
+        assertNull(settings.place, "all the way back is where it started: nowhere chosen")
+        assertFalse(settings.canGoBack)
+    }
+
+    @Test
+    fun `the sections are Rex's, in its order, with the server first`() {
+        assertEquals(listOf("Server", "Terminal", "Shortcuts", "Notifications"), SettingsSection.entries.map { it.title }.filter { it != "Remote Hosts" })
+    }
+
+    @Test
+    fun `Search Settings finds a setting by its name, its section or another word for it`() {
+        assertTrue(searchSettings("").isEmpty())
+        assertTrue(searchSettings("   ").isEmpty())
+        assertEquals(listOf("Copy on Selection" to SettingsSection.Terminal), searchSettings("copy").map { it.title to it.section })
+        assertEquals(listOf("Play Activity Sounds"), searchSettings("sound").map { it.title })
+        assertEquals(listOf("Terminal Notifications"), searchSettings("osc").map { it.title })
+        assertEquals(listOf("Configuration file"), searchSettings("init.lua").map { it.title })
+        // A section's name finds everything in it, the section itself first.
+        assertEquals(listOf("Terminal", "Copy on Selection", "Primary Selection", "Terminal Notifications"), searchSettings("terminal").map { it.title })
+        assertEquals(setOf(SettingsSection.Shortcuts), searchSettings("shortcuts").map { it.section }.toSet())
+        assertEquals(listOf("Show System Notifications"), searchSettings("system notif").map { it.title })
+        assertTrue(searchSettings("no such setting").isEmpty())
+        // Every section can be found, and every entry is in a section that exists.
+        for (section in SettingsSection.entries) assertTrue(searchSettings(section.title).any { it.section == section }, section.title)
+    }
+
+    @Test
+    fun `a host's state is said in the sidebar's words, with one for a connected host`() {
+        assertEquals("Connected", hostStatusWords(org.example.kotlintest.rex.HostReach.Connected))
+        assertEquals("Connecting", hostStatusWords(org.example.kotlintest.rex.HostReach.Connecting))
+        assertEquals("Not connected", hostStatusWords(org.example.kotlintest.rex.HostReach.Down))
     }
 
     @Test
