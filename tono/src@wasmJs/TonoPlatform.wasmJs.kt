@@ -370,3 +370,7 @@ internal actual fun historyButton(button: PointerButton?): Boolean? = when (butt
     PointerButton.Forward -> true
     else -> null
 }
+
+/** Nothing to watch: in a browser the presses come through Compose, as [historyButton] says. */
+@Composable
+internal actual fun WatchHistoryButtons(onPress: (forward: Boolean) -> Unit) {}

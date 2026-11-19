@@ -161,6 +161,7 @@ place of Cmd, and with Shift added where Ctrl on its own already means something
 | Ctrl+1 … Ctrl+8, Ctrl+9 | Go to that tab; Ctrl+9 is the last tab |
 | Ctrl+Tab / Ctrl+Shift+Tab, Ctrl+PageDown / PageUp | Next / previous tab |
 | Ctrl+Shift+PageUp / Ctrl+Shift+PageDown | Move the tab up / down within its session |
+| Ctrl+Alt+[ / Ctrl+Alt+], or the mouse's back / forward buttons | Back to the tab you were on before / forward again |
 | Ctrl+Shift+T / Ctrl+Shift+N, or Ctrl+Alt+T / Ctrl+Alt+N | New tab / new session |
 | Ctrl+Shift+D / Ctrl+Alt+D | Split the pane right / down |
 | Ctrl+Alt+arrows | Focus the pane in that direction |
@@ -184,6 +185,12 @@ Tabs are numbered as one list, in sidebar order, across every session and machin
 tab whichever session it's in, and next and previous tab continue from one session into the next. Hold Ctrl to see
 each tab's number. Tabs inside a collapsed session or machine aren't numbered, so collapsing what you aren't using
 brings the other tabs within reach of a number.
+
+Tono remembers the tabs you've been on, across sessions and machines, the way a browser remembers pages.
+Ctrl+Alt+[ goes back to the one before, and Ctrl+Alt+] forward again; the two side buttons of a mouse do the same,
+in a browser too, where they no longer leave the page. A tab that has closed is passed over. Going to a tab any other
+way from the middle of that history starts afresh from there. The history is the window's own, and isn't kept
+between runs.
 
 A key that's bound to a command doesn't reach the terminal, and every other key does. That holds when the command
 has nothing to do: Ctrl+Alt+Left in a tab with one pane does nothing, and types nothing. The bindings aren't built

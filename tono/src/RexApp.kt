@@ -200,6 +200,14 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
     // shortcut would work until a tab was chosen with the pointer.
     LaunchedEffect(ui.narrow, ui.sidebarVisible) { if (ui.narrow && ui.sidebarVisible) rootFocus.requestFocus() }
 
+    // The mouse's back and forward buttons go through the tabs shown, wherever the pointer
+    // is, and are nothing to a terminal. Not while something is open over the terminals, as
+    // in Rex Rune. A browser's presses come through Compose, below; the desktop's don't.
+    val sideButton = { forward: Boolean ->
+        if (!ui.overlayOpen) commands.run(if (forward) "client.history.forward" else "client.history.back", origin = if (forward) "mouse forward" else "mouse back")
+    }
+    WatchHistoryButtons(sideButton)
+
     // Whether Control is down, for the sidebar's shortcut digits. Watched for the whole
     // window rather than through focus, so that it is right whatever has the keyboard, and
     // dropped when the window loses focus, since the release would then never be seen.
@@ -223,13 +231,10 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
                     else -> false
                 }
             }
-                // The mouse's back and forward buttons go through the tabs shown, wherever the
-                // pointer is, and are nothing to a terminal. Not while something is open over
-                // the terminals, as in Rex Rune.
                 .onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event ->
                     val forward = historyButton(event.button) ?: return@onPointerEvent
                     event.changes.forEach { it.consume() }
-                    if (!ui.overlayOpen) commands.run(if (forward) "client.history.forward" else "client.history.back", origin = if (forward) "mouse forward" else "mouse back")
+                    sideButton(forward)
                 },
         ) {
             Column(Modifier.fillMaxSize()) {

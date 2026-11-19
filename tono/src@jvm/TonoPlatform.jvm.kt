@@ -18,6 +18,7 @@ import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
 import java.awt.event.AWTEventListener
 import java.awt.event.KeyEvent
+import java.awt.event.MouseEvent
 import java.awt.event.WindowEvent
 import java.nio.file.Files
 import java.nio.file.Path
@@ -324,20 +325,37 @@ private const val CLOSE_TIMEOUT_SECONDS = 3L
 internal actual fun resizePointer(sideways: Boolean): androidx.compose.ui.input.pointer.PointerIcon =
     androidx.compose.ui.input.pointer.PointerIcon(java.awt.Cursor(if (sideways) java.awt.Cursor.E_RESIZE_CURSOR else java.awt.Cursor.N_RESIZE_CURSOR))
 
-internal actual fun historyButton(button: PointerButton?): Boolean? =
-    historyButton(button?.index, x11 = Toolkit.getDefaultToolkit().javaClass.name == "sun.awt.X11.XToolkit")
+/** Not on the desktop, where the toolkit is asked instead: see [WatchHistoryButtons]. */
+internal actual fun historyButton(button: PointerButton?): Boolean? = null
 
 /**
- * Which of a mouse's side buttons has the number Compose gives it, counting from 0.
- *
- * Elsewhere they are 3 and 4, Compose's Back and Forward. Under X11, which is also what the
- * toolkit speaks on Wayland, they are 5 and 6: X numbers the side buttons 8 and 9, after the
- * four directions of the wheel, and the toolkit takes two off for the vertical wheel only.
- * That leaves 3 and 4 for the wheel tilted left and right, which a touchpad sends for a
- * sideways scroll, and which must not go through history.
+ * The window toolkit is asked, since Compose doesn't pass these presses on under X11: it
+ * knows five buttons, and there the side buttons are the sixth and seventh.
  */
-internal fun historyButton(index: Int?, x11: Boolean): Boolean? = when (index) {
-    if (x11) 5 else 3 -> false
-    if (x11) 6 else 4 -> true
+@Composable
+internal actual fun WatchHistoryButtons(onPress: (forward: Boolean) -> Unit) {
+    val report by rememberUpdatedState(onPress)
+    DisposableEffect(Unit) {
+        val x11 = Toolkit.getDefaultToolkit().javaClass.name == "sun.awt.X11.XToolkit"
+        val listener = AWTEventListener { event ->
+            if (event is MouseEvent && event.id == MouseEvent.MOUSE_PRESSED) historyButton(event.button, x11)?.let { report(it) }
+        }
+        Toolkit.getDefaultToolkit().addAWTEventListener(listener, AWTEvent.MOUSE_EVENT_MASK)
+        onDispose { Toolkit.getDefaultToolkit().removeAWTEventListener(listener) }
+    }
+}
+
+/**
+ * Which of a mouse's side buttons has the number the window toolkit gives it, counting from 1.
+ *
+ * Elsewhere they are 4 and 5. Under X11, which is also what the toolkit speaks on Wayland,
+ * they are 6 and 7: X numbers the side buttons 8 and 9, after the four directions of the
+ * wheel, and the toolkit takes two off for the vertical wheel only. That leaves 4 and 5 for
+ * the wheel tilted left and right, which a touchpad sends for a sideways scroll, and which
+ * must not go through history. Seen with a real toolkit on a nested X server.
+ */
+internal fun historyButton(button: Int, x11: Boolean): Boolean? = when (button) {
+    if (x11) 6 else 4 -> false
+    if (x11) 7 else 5 -> true
     else -> null
 }

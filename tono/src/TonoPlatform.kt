@@ -132,7 +132,16 @@ internal expect fun bringWindowToFront()
 internal expect fun WatchPageFocus(onChange: (focused: Boolean) -> Unit)
 
 /**
- * Whether a pointer button is the mouse's forward button (true) or its back button (false),
- * the two on the side of a mouse that go through history. Null for every other button.
+ * Whether a pointer button Compose reports is the mouse's forward button (true) or its back
+ * button (false), the two on the side of a mouse that go through history. Null for every
+ * other button, and for all of them where Compose can't be trusted to say: see
+ * [WatchHistoryButtons].
  */
 internal expect fun historyButton(button: PointerButton?): Boolean?
+
+/**
+ * Says when one of the mouse's side buttons is pressed anywhere in the window, where
+ * Compose doesn't: on the desktop. Between this and [historyButton] a press is reported once.
+ */
+@Composable
+internal expect fun WatchHistoryButtons(onPress: (forward: Boolean) -> Unit)

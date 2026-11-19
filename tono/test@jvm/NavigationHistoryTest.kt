@@ -263,15 +263,15 @@ class NavigationHistoryTest {
 
     @Test
     fun `the side buttons of a mouse are the ones that go through history`() {
-        // Elsewhere, Compose's Back and Forward.
-        assertEquals(false, historyButton(3, x11 = false))
-        assertEquals(true, historyButton(4, x11 = false))
+        // Elsewhere, the fourth and fifth.
+        assertEquals(false, historyButton(4, x11 = false))
+        assertEquals(true, historyButton(5, x11 = false))
         // Under X11 those two are the wheel tilted sideways, and the side buttons come after.
-        assertNull(historyButton(3, x11 = true))
         assertNull(historyButton(4, x11 = true))
-        assertEquals(false, historyButton(5, x11 = true))
-        assertEquals(true, historyButton(6, x11 = true))
-        for (index in 0..2) assertNull(historyButton(index, x11 = true))
-        assertNull(historyButton(null, x11 = false))
+        assertNull(historyButton(5, x11 = true))
+        assertEquals(false, historyButton(6, x11 = true))
+        assertEquals(true, historyButton(7, x11 = true))
+        for (button in 0..3) assertNull(historyButton(button, x11 = true))
+        for (button in 0..3) assertNull(historyButton(button, x11 = false))
     }
 }
