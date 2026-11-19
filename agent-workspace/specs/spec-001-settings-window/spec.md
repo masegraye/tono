@@ -92,7 +92,8 @@ The native iOS app (inv-002) isn't built yet. When it is, it shows the same sett
 3. **Terminal:**
    - Copy on Selection;
    - Primary Selection, with the web note: browsers have no primary selection, so there selecting copies to the clipboard.
-4. **About:**
+4. **Hosts** (phase 3; see below).
+5. **About:**
    - Tono's version, and the path of the workspace file;
    - the home server and its API revision;
    - where Rex's configuration file is, when the server says.
@@ -106,8 +107,45 @@ Names and wording follow Rex for Mac's settings where a setting is the same (`re
 These are later backlog entries, not this spec:
 - the theme, font and colours: Tono takes them from Omarchy;
 - the cursor style and padding: Tono has no such settings yet;
-- adding and removing hosts: the palette has it;
 - muted tabs: the tab rows have them.
+
+### Hosts
+
+Asked for by Mase on 2026-11-19, as the most important part of the settings area. The model is Rex for Mac's **Settings › Remote Hosts**: add, reorder and manage remote hosts, see their connection status, and retry failures (`reference/mac-settings.md#remote-hosts-1` in the Rex docs). SSH hosts, SSH keys and port forwarding are in the Mac's section too, but they're backlog-024's and stay out of this spec.
+
+Today the palette has Switch Host, Add Host (from the tailnet, or by address) and Remove Host. This section gathers them in one place, and adds what the palette can't do.
+
+**The list:**
+- Every host Tono connects to, in sidebar order, with:
+  - its icon (backlog-027) and label;
+  - its address or addresses;
+  - its status in the sidebar's words (backlog-038: Connected, Connecting…, Reconnecting…, or down with the reason the last attempt gave).
+- **Where each host comes from:**
+  - the home server's host list, which every device following the home sees;
+  - Rex's configuration file (`rex.host`, with file and line);
+  - this app alone.
+
+  This decides what a change touches, so say it on every host.
+- The home server is marked, and can't be removed, as now.
+
+**For each host:**
+- **Try Again Now**, when it isn't connected.
+- **Edit:**
+  - the label;
+  - the addresses, in the order they're tried;
+  - the icon, from the seven that backlog-027 draws, or none. This is the icon picker 027 left out.
+
+  For a host in the home server's list, an edit is a `hosts.put` with the host's `id`, so every device sees it. Editing a host declared in the configuration file stores the host the server is sent, which then takes the place of the declared one; say so before saving, as `hosts.put`'s documentation describes. Labels must be unique and non-empty: show the server's own error (`conflict`, `bad_request`) next to the field.
+- **Remove**, asking first, with the words the palette uses today. Those say whether the host leaves the shared list or only this app.
+- **Reorder:** by dragging, and by Move Up and Move Down buttons that work by touch and keyboard. The sidebar follows the new order. Find out whether the host list has an order the server keeps (`hosts.list`, `hosts.put`). If it does, use it; otherwise keep the order for this app in the workspace file, and say which in the spec's notes.
+
+**Adding:**
+- **Add Host…** opens the same choice as the palette's: Rex servers found on the tailnet, or an address typed in. Optionally it also takes a label and an icon.
+- It goes where the palette's Add Host puts hosts today: read `RexClient` for whether that's the home list or this app's workspace. If the palette offers both, so does this.
+
+**Live:** the list follows `hosts_changed` events, so a host added or edited on another device, or with `rex hosts`, shows up at once.
+
+**Phones:** the same touch rules as the rest of the panel. Editing addresses works with the on-screen keyboard, and reordering by touch uses the Move Up and Move Down buttons; dragging is optional there.
 
 ## Phases
 
@@ -126,6 +164,10 @@ Phase 1 includes the phone rules for the panel and the switches: full screen, to
 ### Phase 2: Shortcuts
 
 The Shortcuts section on backlog-042's code: list, search, record, per-action reset, and Reset All. It's read-only on a touch-only device, and the search field must work with the on-screen keyboard.
+
+### Phase 3: Hosts
+
+The Hosts section as described above: the list with status and where each host comes from; Try Again Now, Edit (label, addresses, icon), Remove and reorder; and Add Host. It follows `hosts_changed`, and it works on a phone.
 
 Each phase is committed separately, with its tests, and leaves both apps working.
 
@@ -152,6 +194,10 @@ Each phase is committed separately, with its tests, and leaves both apps working
   - every target measures at least 48 dp in the screenshot.
 
   A real phone is backlog-029's and not required here.
+- **Hosts:**
+  - test against a scratch Rex server of your own, never Mase's host list, as backlog-027 did: `rex server run --listen unix:///tmp/<you>/rex.sock` with its own state directory, and `REX_SERVER` or a `--workspace` file pointed at it;
+  - check: add a host, edit its label, addresses and icon (seen by `rex hosts` from the CLI against the scratch server), reorder it (and see the sidebar follow), remove it, and see an edit made with `rex hosts` appear in the open settings at once;
+  - run render tests of the list with hosts in each status and from each source.
 - **Mase, by hand on the real desktop:** Ctrl+,, then check the window tiles beside the main one and looks right at that size.
 
 ## Not known yet
