@@ -34,3 +34,9 @@ Date: yyyy-mm-dd
 | # | Decision | Status |
 |---|----------|--------|
 | | _none yet_ | |
+
+The workspace readme's convention, `adr-<nnn>-<slug>.md`, is the one used: `adr-001-…`.
+
+| # | Decision | Status |
+|---|----------|--------|
+| 001 | [adr-001-app-identifier-and-where-files-go.md](adr-001-app-identifier-and-where-files-go.md): the app id is `dev.mg.tono`; files go where inv-003 says, Application Support only on macOS; font size is a setting | accepted |

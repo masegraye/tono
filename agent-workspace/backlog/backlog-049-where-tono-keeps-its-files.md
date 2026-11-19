@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | captured (investigated: inv-003, awaiting Mase's answers) |
+| Status | captured (decided: adr-001; being built) |
 | Area | Shipping |
 | Size | medium |
 | Source | Mase, 2026-11-19 |

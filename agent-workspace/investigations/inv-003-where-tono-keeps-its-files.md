@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | in-review |
+| Status | accepted (adr-001) |
 | Date | 2026-11-19 |
 | For | backlog-049, big-idea-001 |
 | Looked at | `rex/src/Workspace.kt`, the `rex`, `tono`, `server`, `desktopApp` and `packaging` code, Mase's own files (listed and their keys read, nothing changed), the XDG specification, Apple's, Android's and WebKit's documentation, the Rex documentation, and the repositories and documentation of the Kotlin libraries compared below |

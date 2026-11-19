@@ -17,7 +17,7 @@ Working memory for the people and agents working on Tono. This is where we keep 
 | `decisions/` | `adr` | Decisions and their reasons, one per file |
 | `handoffs/` | `handoff` | Where a session left off, so the next one can pick up |
 
-`backlog/`, `big-ideas/`, `design/`, `investigations/`, `ops/` and `specs/` have documents so far. The rest have a readme that says what belongs there.
+`backlog/`, `big-ideas/`, `decisions/`, `design/`, `investigations/`, `ops/` and `specs/` have documents so far. The rest have a readme that says what belongs there.
 
 ## Naming convention
 
@@ -56,7 +56,7 @@ Standing instructions from Mase, gathered from earlier sessions:
 - **Rex for Mac is the reference.** Action names, shortcuts and behaviour follow it, with Control or Control+Shift where the Mac has Command. Rex Rune is the second reference. Read the Rex documentation before guessing how the server behaves.
 - **Never disturb Mase's sessions or his other clients.** Test only in a throwaway session named `kt-*`, made with `rex session new` and removed with `rex session kill`. A focused client that shows someone's terminal takes over its size.
 - **Go for the outcome that was wanted**, not the literal wording of the request.
-- **Renaming to Tono covers what users see.** File, class and package names and the directory stay as they are. The configuration path (`~/.config/kotlin-test/`) is under review: backlog-049 and inv-003 decide where Tono keeps its files on each platform.
+- **Renaming to Tono covers what users see.** File, class and package names and the directory stay as they are. Tono's own files go where adr-001 says (`dev.mg.tono`; on Linux `~/.config/tono/` and `~/.local/state/tono/`), not `~/.config/kotlin-test/`.
 
 Practices that came out of mistakes made while testing:
 
