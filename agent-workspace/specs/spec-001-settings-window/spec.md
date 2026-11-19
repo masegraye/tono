@@ -193,6 +193,28 @@ Phase 1 includes the phone rules for the panel and the switches: full screen, to
 
 The Shortcuts section on backlog-042's code: list, search, record, per-action reset, and Reset All. It's read-only on a touch-only device, and the search field must work with the on-screen keyboard.
 
+### Phase 4: Server (promoted from backlog-046)
+
+Rex for Mac bundles its own server and manages it in Settings › Server. Tono doesn't bundle one, so its Server item shows what can be learned, and helps when there's no local server. Read backlog-046 for the reasons.
+
+- **What the server says about itself** (`server.status`, `server.version`, `server.whoami`):
+  - version and API revision;
+  - running since (from `started_at`), the process id, and the account it runs as;
+  - the number of sessions;
+  - its listeners: the Unix socket, any TCP address, the login server;
+  - Tailscale: state, its name on the tailnet, its HTTPS address, and the account;
+  - the configuration file's generation.
+
+  This is for the home server at the top of the section list. The same details for any connected host can be reached from its host details (phase 3's ⓘ).
+- **No local server:** when the home server is the local socket and nothing answers, say so plainly, not just "Couldn't connect". Then:
+  - find out whether `rex` is on `PATH`, and whether the `rex.socket` user unit is enabled or active (`systemctl --user is-enabled` / `is-active rex.socket`);
+  - offer what fits: **Start Server** (`rex server start`), **Start at Login** (`rex server install`), or, if `rex` isn't installed, a link to the Rex docs for installing on Linux;
+  - run nothing without the person pressing the button, and show the command's output if it fails;
+  - desktop only; the web app's server runs beside a Rex server already.
+- **Tailscale:** show its state. When it's signed out, offer **Sign In** (`server.tailscale.login` gives a link, opened in the browser). Turning Tailscale on or off and renaming it are later.
+- **Client Info:** the label Tono gives itself in `rex client ls` (`client.set_label`), editable and kept in the workspace file. It's the Mac's Settings › Server › Client Info.
+- **Checking:** run against the Local server, read-only, for the details. For "no local server", use a `--workspace` file whose home is a socket path that doesn't exist, with `rex` hidden from `PATH` and then present. Never stop, start or install Mase's real server: test **Start Server** only with a scratch server (`rex server run`/`start` with its own `--listen` socket and state directory).
+
 ### Phase 3: Hosts
 
 The Hosts section as described above: the list with status and where each host comes from; Try Again Now, Edit (label, addresses, icon), Remove and reorder; and Add Host. It follows `hosts_changed`, and it works on a phone.
