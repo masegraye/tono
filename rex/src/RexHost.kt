@@ -62,6 +62,8 @@ data class HostState(
     val failed: Boolean = false,
     /** Whether the host has been connected at some time since the app started. */
     val reached: Boolean = false,
+    /** Why the last attempt to reach the host failed, or its connection ended, in the words that came with it. Null once it connects. */
+    val lastFailure: String? = null,
     /** This app's identity on the server. Blocks it owns name it as their owner. */
     val clientId: String? = null,
     /** Identifies the machine and account the server runs as, whichever address reached it. */
@@ -115,7 +117,7 @@ data class HostState(
      * connection is stale and goes; that the host was once reached stays.
      */
     internal fun lost(reason: String): HostState = copy(
-        connection = HostConnection.Disconnected(reason), failed = true,
+        connection = HostConnection.Disconnected(reason), failed = true, lastFailure = reason,
         views = emptyMap(), terminals = emptyMap(), activity = emptyMap(), programs = emptyMap(), progress = emptyMap(), bells = emptySet(),
     )
 
@@ -854,7 +856,7 @@ class RexHost(
         val endpoint = endpoint ?: run {
             val reason = runCatching { RexEndpoint.parse(saved.endpoint) }.exceptionOrNull()?.message ?: "Invalid endpoint"
             log.add(saved.label, reason, isError = true)
-            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason, permanent = true), failed = true) }
+            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason, permanent = true), failed = true, lastFailure = reason) }
             return
         }
         var reconnectToken: String? = null
@@ -926,6 +928,7 @@ class RexHost(
                 connection = HostConnection.Connected,
                 failed = false,
                 reached = true,
+                lastFailure = null,
                 clientId = connection.clientId ?: boot.string("client_id"),
                 serverHostId = boot.obj("server_status")?.string("host_id"),
                 apiRevision = connection.apiRevision,

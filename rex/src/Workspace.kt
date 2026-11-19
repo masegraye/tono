@@ -149,6 +149,12 @@ class Workspace(
     var shortcuts: ShortcutOverrides = ShortcutOverrides(),
     /** The theme and terminal font the person chose, where they did. */
     var appearance: AppearanceChoice = AppearanceChoice(),
+    /**
+     * The order the hosts are listed in, by label, where someone has arranged them. Rex's
+     * host list has no order of its own (it is sorted by label), so this is this app's alone.
+     * Empty until they are arranged; a host not named here comes after those that are.
+     */
+    var hostOrder: List<String> = emptyList(),
 ) {
     val tabs: MutableMap<String, String> = tabs.toMutableMap()
     var hosts: List<SavedHost> = hosts
@@ -188,6 +194,7 @@ class Workspace(
                 if (!shortcuts.isEmpty) put("shortcuts", shortcuts.toJson())
                 // Only what was chosen: a file without it follows the desktop, as before there was a choice.
                 if (!appearance.isDefault) put("appearance", appearance.toJson())
+                if (hostOrder.isNotEmpty()) put("host_order", buildJsonArray { hostOrder.forEach { add(JsonPrimitive(it)) } })
             }
             runCatching { target.write(PRETTY.encodeToString(JsonObject.serializer(), json) + "\n") }
         }
@@ -219,6 +226,7 @@ class Workspace(
                 }.takeLast(MUTED_TABS_LIMIT),
                 shortcuts = ShortcutOverrides.parse(root.obj("shortcuts")),
                 appearance = AppearanceChoice.parse(root.obj("appearance")),
+                hostOrder = (root["host_order"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.takeIf { value -> value.isString }?.content }.distinct(),
             )
         }
     }

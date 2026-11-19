@@ -193,13 +193,7 @@ internal fun paletteItems(ui: RexUiState, commands: RexCommands, keymap: Keymap,
         for (host in hosts) {
             if (host.saved.label == ui.client.homeLabel) continue // the app follows its home; it stays
             add(PaletteItem(host.saved.label, host.saved.endpoint, keywords = "host server", host = hostPicture(ui, host)) {
-                ui.confirmation = Confirmation(
-                    title = "Remove host “${host.saved.label}”?",
-                    text = if (host.discovered) "It leaves your Rex host list, so the rex command and other clients that follow this machine stop listing it too. Its sessions keep running."
-                    else "This app stops connecting to it. Its sessions keep running.",
-                    confirmLabel = "Remove Host",
-                    onConfirm = { ui.client.removeHost(host.saved.label) },
-                )
+                ui.confirmation = removeHostQuestion(host) { ui.client.removeHost(host.saved.label) }
             })
         }
         return@buildList

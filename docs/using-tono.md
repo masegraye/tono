@@ -319,8 +319,27 @@ in any section:
   news (Blocked, Error, Done) and for the notifications programs ask for themselves. In a browser it also says
   whether the browser allows notifications, and offers to ask if it hasn't been asked.
 
+- **Remote Hosts** lists every machine Tono connects to, in the sidebar's order, each with its picture, its
+  address and whether it's connected. The ⓘ on a host (or, in a narrow window, the host's whole line) opens its
+  details:
+  - why it couldn't be reached, and **Try Again Now**;
+  - where it's kept, which is what a change touches: your home server's host list, which every device that
+    follows that server shares; Rex's configuration file, which declares it; or Tono alone;
+  - its label, its addresses (one to a line, in the order they're tried) and its icon. Saving a host from the
+    home server's list changes it for every device. Saving one the configuration file declares stores it in the
+    list in place of the declared one; the file isn't written. If the server refuses, for a label another host
+    has, say, its own message is shown under the label;
+  - **Move Up** and **Move Down**. You can also drag a host by the ≡ at the start of its line. Rex's host list
+    has no order of its own, so the order is Tono's, kept in its workspace file, and the sidebar follows it;
+  - **Remove Host…**, which asks first and says whether the host leaves the shared list or only Tono.
+
+  **Add Remote Host…** offers the Rex servers found on your tailnet, and an address to type. Choosing a found
+  server fills in the address and label; nothing is added until you press Add Host. You can give the host a
+  label and an icon. It goes where the palette's Add Host… puts it: the home server's list, or Tono alone when the
+  home server isn't connected.
+
 In a wide window the sections are listed down the left, and the arrows over a section go back and forward through
-the ones you've been in. In a narrow one, such as a third of the screen, the list comes first and each section has
+the places you've been in. In a narrow one, such as a third of the screen, the list comes first and each section has
 a way back to it.
 
 ## Selecting and copying

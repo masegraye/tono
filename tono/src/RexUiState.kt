@@ -25,6 +25,7 @@ import org.example.kotlintest.rex.RexClient
 import org.example.kotlintest.rex.RexHost
 import org.example.kotlintest.rex.SessionView
 import org.example.kotlintest.rex.TailnetServer
+import org.example.kotlintest.rex.tailnetRexServers
 import org.example.kotlintest.rex.TerminalSession
 import org.example.kotlintest.rex.ShortcutTarget
 import org.example.kotlintest.rex.WindowView
@@ -303,6 +304,9 @@ class RexUiState(val client: RexClient) {
 
     /** The Rex servers found on the tailnet, for the host picker. Null until they have been looked for. */
     var tailnetServers: List<TailnetServer>? by mutableStateOf(null)
+
+    /** Looks for the Rex servers on the tailnet. Somewhere to put another way of looking, for a test. */
+    var findTailnetServers: suspend () -> List<TailnetServer> = { tailnetRexServers() }
     var showcase by mutableStateOf(false)
 
     /** True while Control is down. The sidebar shows each tab's shortcut digit for as long as it is. */
@@ -408,7 +412,7 @@ class RexUiState(val client: RexClient) {
 
     /** The hosts in the order the sidebar lists them. */
     fun orderedHosts(): List<RexHost> =
-        sidebarOrder(client.hosts.value.map { it to it.state.value }, client.homeLabel) { it.saved.label }.map { it.first }
+        sidebarOrder(client.hosts.value.map { it to it.state.value }, client.homeLabel, client.hostOrder.value) { it.saved.label }.map { it.first }
 
     private fun hostStates(): List<Pair<String, HostState>> = orderedHosts().map { it.saved.label to it.state.value }
 
@@ -541,11 +545,14 @@ data class NavigationStop(val host: String, val sessionId: String, val windowId:
  * connected, then the ones that aren't, each group by name. A host that can't be reached
  * sinks to the bottom, where it takes no room from the ones in use.
  */
-internal fun <T> sidebarOrder(hosts: List<Pair<T, HostState>>, home: String?, label: (T) -> String): List<Pair<T, HostState>> =
+internal fun <T> sidebarOrder(hosts: List<Pair<T, HostState>>, home: String?, order: List<String> = emptyList(), label: (T) -> String): List<Pair<T, HostState>> =
     hosts.sortedWith(
         compareBy<Pair<T, HostState>>(
             { label(it.first) != home },
-            { it.second.connection != HostConnection.Connected },
+            // Hosts someone has arranged (in the settings, under Remote Hosts) keep that order,
+            // whether or not they can be reached, and come before any that weren't there to arrange.
+            { order.indexOf(label(it.first)).let { place -> if (place < 0) Int.MAX_VALUE else place } },
+            { label(it.first) !in order && it.second.connection != HostConnection.Connected },
             { label(it.first).lowercase() },
             { label(it.first) },
         ),

@@ -172,6 +172,40 @@ class RexClient(
     /** The label of the host being shown. */
     val selectedHost: StateFlow<String?> get() = mutableSelectedHost
 
+    private val mutableHostListings = MutableStateFlow<Map<String, HostListing>>(emptyMap())
+
+    /**
+     * The hosts shown that came from the home server's host list, by label, as the list has
+     * them: every address, the icon's name, and where the configuration file declares one
+     * that it declares. It follows the list as it changes.
+     */
+    val hostListings: StateFlow<Map<String, HostListing>> get() = mutableHostListings
+
+    private val mutableHostOrder = MutableStateFlow(workspace.hostOrder)
+
+    /** The order someone arranged the hosts in, by label: see [Workspace.hostOrder]. */
+    val hostOrder: StateFlow<List<String>> get() = mutableHostOrder
+
+    /** Arranges the hosts. Applies at once, and is remembered, for this app alone. */
+    fun setHostOrder(labels: List<String>) {
+        val order = labels.distinct()
+        if (mutableHostOrder.value == order) return
+        mutableHostOrder.value = order
+        workspace.hostOrder = order
+        workspace.save()
+    }
+
+    /** Where a host shown here is kept. Null for a label that isn't a host's. */
+    fun sourceOf(label: String): HostSource? {
+        val host = mutableHosts.value.firstOrNull { it.saved.label == label } ?: return null
+        return when {
+            host === home -> HostSource.Home
+            !host.discovered -> HostSource.ThisApp
+            mutableHostListings.value[label]?.source != null -> HostSource.ConfigurationFile
+            else -> HostSource.HomeList
+        }
+    }
+
     init {
         // The first time the app runs there is one host, the local server. It is written to
         // the workspace like any other, so the file shows what the app connects to.
@@ -203,49 +237,130 @@ class RexClient(
      * Rex keeps hosts, so the `rex` command and every other client that follows this home see
      * it too. Without a home to keep it, it is saved in this app's own workspace instead.
      */
-    fun addHost(label: String, endpoint: String) {
-        scope.launch {
-            val name = label.trim()
-            if (runCatching { RexEndpoint.parse(endpoint) }.isFailure || name.isEmpty()) {
-                log.add("hosts", "can't add $endpoint: not an address Rex can reach", isError = true)
-                return@launch
-            }
-            if (mutableHosts.value.any { it.saved.label.equals(name, ignoreCase = true) } || isConfigured(endpoint)) {
-                log.add("hosts", "$name ($endpoint) is already a host")
-                return@launch
-            }
-            val home = home?.takeIf { it.state.value.connection == HostConnection.Connected }
-            if (home == null) {
-                addSavedHost(name, endpoint)
-                return@launch
-            }
-            // Ask the server who it is: the home server under its tailnet name is not another host.
-            val serverId = serverHostIdAt(endpoint)
-            if (serverId != null && serverId == home.state.value.serverHostId) {
-                ownAddresses += endpointKey(endpoint)
-                log.add("hosts", "$endpoint is ${home.saved.label}, which is already here")
-                return@launch
-            }
-            runCatching {
-                home.call("hosts.put", buildJsonObject {
-                    putJsonObject("host") {
-                        put("label", name)
-                        putJsonArray("endpoints") { add(endpoint) }
-                        serverId?.let { put("host_id", it) }
-                        put("added_from", info.name)
-                    }
-                })
-            }.onSuccess {
-                log.add("hosts", "added $name ($endpoint) to ${home.saved.label}'s host list")
-                syncHostList(home)
-                if (mutableHosts.value.any { it.saved.label == name }) selectHost(name)
-            }.onFailure {
-                // A server without a state directory can't keep hosts. This app can.
-                log.add("hosts", "${home.saved.label} couldn't keep $name (${it.message}); saving it in this app instead", isError = true)
-                addSavedHost(name, endpoint)
-            }
-        }
+    fun addHost(label: String, endpoint: String, icon: String? = null) {
+        scope.launch { addHostNow(label, endpoint, icon) }
     }
+
+    /**
+     * Adds a host as [addHost] does, and says how it went: null once it is added, and
+     * otherwise why it wasn't, in words to show beside what was typed.
+     *
+     * @param icon the name of a picture for it, which only the home server's list can keep
+     */
+    suspend fun addHostNow(label: String, endpoint: String, icon: String? = null): String? {
+        val name = label.trim()
+        val address = endpoint.trim()
+        if (name.isEmpty()) return "A host needs a name."
+        if (address.isEmpty() || runCatching { RexEndpoint.parse(address) }.isFailure) {
+            log.add("hosts", "can't add $address: not an address Rex can reach", isError = true)
+            return "That isn't an address Rex can reach."
+        }
+        if (mutableHosts.value.any { it.saved.label.equals(name, ignoreCase = true) }) {
+            log.add("hosts", "$name ($address) is already a host")
+            return "There is a host called $name already."
+        }
+        if (isConfigured(address)) {
+            log.add("hosts", "$name ($address) is already a host")
+            return "That address is a host already."
+        }
+        val home = home?.takeIf { it.state.value.connection == HostConnection.Connected }
+        if (home == null) {
+            addSavedHost(name, address)
+            return null
+        }
+        // Ask the server who it is: the home server under its tailnet name is not another host.
+        val serverId = serverHostIdAt(address)
+        if (serverId != null && serverId == home.state.value.serverHostId) {
+            ownAddresses += endpointKey(address)
+            log.add("hosts", "$address is ${home.saved.label}, which is already here")
+            return "That address is ${home.saved.label}, which is here already."
+        }
+        runCatching {
+            home.call("hosts.put", buildJsonObject {
+                putJsonObject("host") {
+                    put("label", name)
+                    putJsonArray("endpoints") { add(address) }
+                    serverId?.let { put("host_id", it) }
+                    icon?.takeIf { it.isNotBlank() }?.let { put("icon", it) }
+                    put("added_from", info.name)
+                }
+            })
+        }.onSuccess {
+            log.add("hosts", "added $name ($address) to ${home.saved.label}'s host list")
+            syncHostList(home)
+            if (mutableHosts.value.any { it.saved.label == name }) selectHost(name)
+        }.onFailure {
+            // A label the configuration file uses, say: that is the person's to put right.
+            if (it is RexError && it.code != "not_supported") {
+                log.add("hosts", "${home.saved.label} wouldn't keep $name: ${it.message}", isError = true)
+                return it.message
+            }
+            // A server without a state directory can't keep hosts. This app can.
+            log.add("hosts", "${home.saved.label} couldn't keep $name (${it.message}); saving it in this app instead", isError = true)
+            addSavedHost(name, address)
+        }
+        return null
+    }
+
+    /**
+     * Changes a host: its name, its addresses, in the order to try them, and its picture.
+     * Returns null once it is changed, and otherwise why it wasn't, in the server's words
+     * where the server refused (a label another host has, an address it can't read).
+     *
+     * A host from the home server's host list is stored there under its id, so every device
+     * that follows the home sees the change. For one the configuration file declares, what is
+     * stored takes the place of the declared one; the file isn't written. A host of this
+     * app's alone has one address and no picture, and is changed in the workspace.
+     */
+    suspend fun changeHost(label: String, newLabel: String, endpoints: List<String>, icon: String?): String? {
+        val host = mutableHosts.value.firstOrNull { it.saved.label == label } ?: return "$label isn't a host any more."
+        if (host === home) return "$label is the home server, which this app follows as it is."
+        val name = newLabel.trim()
+        val addresses = endpoints.map { it.trim() }.filter { it.isNotEmpty() }
+        if (name.isEmpty()) return "A host needs a name."
+        if (addresses.isEmpty()) return "A host needs an address."
+        val listing = mutableHostListings.value[label]
+        // What the home server keeps is the home server's to judge: a name another host has, an
+        // address it can't read. Its refusal names the host in the way, and the line that declared it.
+        if (host.discovered) {
+            val home = home?.takeIf { it.state.value.connection == HostConnection.Connected } ?: return "The home server isn't connected, and it keeps this host."
+            if (listing?.id == null) return "The home server's list has no id for this host."
+            runCatching {
+                home.call("hosts.put", buildJsonObject { put("host", changedHostEntry(listing, name, addresses, icon)) })
+            }.onFailure {
+                log.add("hosts", "couldn't change $label: ${it.message}", isError = true)
+                return it.message ?: "The home server refused."
+            }
+            log.add("hosts", "changed $label in ${home.saved.label}'s host list")
+            renamed(label, name)
+            syncHostList(home)
+            return null
+        }
+        // This app's own: the workspace has it, with the one address, and there is nobody else to judge it.
+        addresses.firstOrNull { runCatching { RexEndpoint.parse(it) }.isFailure }?.let { return "$it isn't an address Rex can reach." }
+        if (mutableHosts.value.any { it !== host && it.saved.label.equals(name, ignoreCase = true) }) return "There is a host called $name already."
+        val saved = SavedHost(name, addresses.first())
+        if (saved == host.saved) return null
+        workspace.hosts = workspace.hosts.map { if (it.label == label) saved else it }
+        workspace.sessions.remove(label)?.let { workspace.sessions[name] = it }
+        host.close()
+        val changed = host(saved, discovered = false)
+        mutableHosts.update { current -> current.map { if (it === host) changed else it } }
+        renamed(label, name)
+        if (mutableSelectedHost.value == label) selectHost(name) else workspace.save()
+        log.add("hosts", "changed $label in this app's workspace")
+        return null
+    }
+
+    /** A host has a new name: what was kept under the old one follows it. */
+    private fun renamed(from: String, to: String) {
+        if (from == to) return
+        if (from in mutableHostOrder.value) setHostOrder(mutableHostOrder.value.map { if (it == from) to else it })
+        if (mutableSelectedHost.value == from) renamedSelection = to
+    }
+
+    /** The name a host that was showing is about to be listed under, so that it goes on showing. */
+    @Volatile private var renamedSelection: String? = null
 
     private fun addSavedHost(label: String, endpoint: String) {
         val saved = SavedHost(label, endpoint)
@@ -461,7 +576,8 @@ class RexClient(
             val entry = element as? JsonObject ?: return@mapNotNull null
             val label = entry.string("label") ?: return@mapNotNull null
             val endpoint = (entry["endpoints"] as? JsonArray)?.firstNotNullOfOrNull { (it as? JsonPrimitive)?.content } ?: return@mapNotNull null
-            ListedHost(entry.string("id"), label, endpoint, entry.string("host_id"), entry.string("icon"))
+            val endpoints = (entry["endpoints"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content }
+            ListedHost(entry.string("id"), label, endpoint, entry.string("host_id"), entry.string("icon"), endpoints, entry.string("source"), entry.string("added_from"), entry)
         }
 
         // Hosts that came from the list and are no longer in it as they were.
@@ -492,8 +608,17 @@ class RexClient(
             mutableHosts.update { it + host(SavedHost(entry.label, entry.endpoint), discovered = true) }
             log.add("hosts", "${entry.label} (${entry.endpoint}) from ${home.saved.label}'s host list")
         }
+        // A host renamed here while it was showing goes on showing, under its new name.
+        renamedSelection?.let { name ->
+            renamedSelection = null
+            if (mutableHosts.value.any { it.saved.label == name }) selectHost(name)
+        }
         // Read afresh each time, so an icon changed with `rex hosts edit` shows without a restart.
         mutableHostIcons.value = hostIconsByLabel(entries, mutableHosts.value.map { it.saved }, home.saved.label, ownAddresses)
+        // The hosts shown that came from the list, as the list has them now.
+        val fromList = mutableHosts.value.filter { it.discovered }.map { it.saved.label }.toSet()
+        mutableHostListings.value = entries.filter { it.label in fromList }
+            .associate { it.label to HostListing(it.id, it.label, it.endpoints, it.icon?.trim()?.takeIf { icon -> icon.isNotEmpty() }, it.source, it.hostId, it.addedFrom, it.raw) }
     }
 
     /**
@@ -520,8 +645,77 @@ class RexClient(
     }
 }
 
-/** One host of the home server's host list, as far as this app reads it. */
-internal class ListedHost(val id: String?, val label: String, val endpoint: String, val hostId: String?, val icon: String? = null)
+/** One host of the home server's host list, as far as this app reads it. [endpoint] is the first of [endpoints], the one this app connects to. */
+internal class ListedHost(
+    val id: String?, val label: String, val endpoint: String, val hostId: String?, val icon: String? = null,
+    val endpoints: List<String> = listOf(endpoint), val source: String? = null, val addedFrom: String? = null,
+    /** The entry whole, as the list gave it, with whatever fields this app doesn't read. */
+    val raw: JsonObject? = null,
+)
+
+/**
+ * A host shown here as the home server's host list has it, for showing and changing it.
+ *
+ * @param id its id in the list, which a change names it by
+ * @param endpoints its addresses, in the order to try them. This app connects to the first.
+ * @param icon the list's name for its picture, as written
+ * @param source where Rex's configuration file declares it, such as `init.lua:12`, or null for one stored through the API
+ * @param addedFrom the device or client that added it, for showing
+ */
+data class HostListing(
+    val id: String?, val label: String, val endpoints: List<String>, val icon: String?, val source: String?, val hostId: String? = null, val addedFrom: String? = null,
+    /** The entry whole, as the list gave it. A change sends it back with what changed, so that fields this app doesn't know are kept. */
+    val raw: JsonObject? = null,
+)
+
+/**
+ * A host as `hosts.put` takes it, to store in place of [listing]: everything the list had
+ * for it, known to this app or not, with its name, addresses and picture as given. What the
+ * server sets itself (where the configuration file declares it, when it last changed) is
+ * left for the server to set.
+ */
+internal fun changedHostEntry(listing: HostListing, label: String, endpoints: List<String>, icon: String?): JsonObject = buildJsonObject {
+    for ((name, value) in listing.raw.orEmpty()) if (name !in setOf("label", "endpoints", "icon", "source", "updated_at")) put(name, value)
+    listing.id?.let { put("id", it) }
+    put("label", label)
+    putJsonArray("endpoints") { endpoints.forEach { add(it) } }
+    icon?.takeIf { it.isNotBlank() }?.let { put("icon", it) }
+}
+
+/** Where a host shown here is kept, which is what a change to it touches. */
+enum class HostSource {
+    /** The server this app follows. It is in this app's workspace, and stays. */
+    Home,
+
+    /** The home server's host list, stored there: every device that follows the home sees it. */
+    HomeList,
+
+    /** Declared in Rex's configuration file on the home server, and listed from there. */
+    ConfigurationFile,
+
+    /** This app's workspace alone. */
+    ThisApp,
+}
+
+/**
+ * The labels of the hosts that aren't the home server, in the order to list them, after the
+ * one called [label] has moved to stand before [before], or to the end for null. For keeping
+ * as the workspace's order. Unchanged if [label] isn't among them.
+ */
+fun hostOrderAfterMove(labels: List<String>, label: String, before: String?): List<String> {
+    if (label !in labels || before == label) return labels
+    val rest = labels - label
+    val at = before?.let(rest::indexOf)?.takeIf { it >= 0 } ?: rest.size
+    return rest.take(at) + label + rest.drop(at)
+}
+
+/** The same, after [label] has moved one place up or down. Unchanged at either end. */
+fun hostOrderAfterStep(labels: List<String>, label: String, up: Boolean): List<String> {
+    val at = labels.indexOf(label)
+    val to = at + if (up) -1 else 1
+    if (at < 0 || to !in labels.indices) return labels
+    return labels.toMutableList().apply { this[at] = labels[to]; this[to] = label }
+}
 
 /**
  * Which icon the host list gives each host shown, by the label it is shown under.

@@ -282,7 +282,31 @@ Each phase is committed separately, with its tests, and leaves both apps working
 - **Search:** `filterShortcuts` matches every word against title, category, action name, keywords, keys as shown and source.
 - **Read-only without a keyboard:** `RexUiState.keyboardSeen` is true on the desktop, and in a browser becomes true at the first key pressed with Ctrl, Alt or the system's key. Until then no line can be pressed and Reset All isn't offered.
 
+### The layout after Rex for Mac's (2026-11-19, after phase 2)
+
+- **Search Settings** is over the list of sections (`SETTING_ENTRIES`, `searchSettings`): a word lists the settings it finds, each leading to its section.
+- **Server is first,** with the home server's label and state under it. It holds what About held; there is no About.
+- **Then Terminal, Shortcuts, Notifications, Remote Hosts,** each with a drawing on a rounded square in one of the theme's colors (`SectionIcon`: the accent, green, blue, red, magenta).
+- **Back and forward arrows** are in the heading where the list is beside the section (`SettingsState.back`, `.forward`). Where there is one column there is one way back, a step out at a time (`SettingsState.up`), which is also what the browser's back does on a phone.
+
+### Phase 3: Remote Hosts (2026-11-19)
+
+- **The section** is `tono/src/SettingsHosts.kt`: one card of lines (handle, picture, label over address, status, ⓘ), **Add Remote Host…** under it, a host's details, and the form that adds one. Details and the form are places within the section (`SettingsPlace.detail`), so the arrows and the phone's back go in and out of them.
+- **Status** is "Connected", "Connecting…", "Reconnecting…" or "Couldn't connect" with a warning mark; the reason is in the details (`HostState.lastFailure`, new, which outlives the pause between tries).
+- **Where a host comes from** is `RexClient.sourceOf`: the home server, its host list, the configuration file (with file and line), or this app. `RexClient.hostListings` carries what the list has for each host shown: id, every address, icon, source.
+- **Edit** is `RexClient.changeHost`. A listed host is sent back whole by `hosts.put` with its id, with the fields this app doesn't read (`changedHostEntry`), and the server's refusal is shown under the label in its own words. A host of this app's alone is changed in the workspace.
+- **Add** is `RexClient.addHostNow`, which the palette's Add Host… also runs, now with an icon.
+- **Remove** asks with `removeHostQuestion`, the palette's words, now one function.
+
 ### Decisions made while building, none of them asked for
+
+- **The order is this app's.** `hosts.list` says its hosts are "sorted by label, ignoring case, then by id", and `hosts.put` takes no place, so the server keeps no order. It is kept as `host_order` in the workspace file (`RexClient.hostOrder`), and `sidebarOrder` follows it: the home server first, then the hosts as arranged, reachable or not, then any that weren't there to arrange, by the old rule.
+- **A found tailnet server fills in the form; it isn't added at once,** unlike the palette. A mistaken press on a page where lines lead somewhere should add no machine. (A test click of mine did exactly that: see "What went wrong".)
+- **The home server can't be edited here.** Its details say what it is and where it is reached.
+- **A host of this app's alone has one address and no icon:** the workspace keeps a label and an endpoint.
+- **The warning mark is in the theme's error color,** which is what the sidebar draws a host that is down in. The Material scheme the theme makes has no warning color of its own.
+- **Where there is one column, a host's line has no handle and no ⓘ:** the whole line opens the details, and Move Up and Move Down are there. Dragging is for the wide layout.
+- **Adding a host goes to it in the main window,** as the palette's Add Host… does.
 
 - **A desktop browser starts read-only too,** until the first such key, which Ctrl+, itself is. Opened with the mouse, the list says "Press one on a keyboard here, and this list can be changed."
 - **The search field isn't given the keyboard when the section opens,** so that a phone's keyboard doesn't come up unasked.
@@ -310,6 +334,26 @@ Each phase is committed separately, with its tests, and leaves both apps working
   - About showed the workspace file, the home server, API revision 12 and `~/.config/rex/init.lua`.
 - **Web, headless Chromium, 1400 wide:** Ctrl+, reached the page (`defaultPrevented`) and opened the panel; a click on Play Activity Sounds wrote `sounds: false` to the browser's storage, the palette said "Notifications · off", and it was still off after a reload; Escape closed the panel.
 - **Phone size, Chromium's phone emulation (390×844, scale 3, touch):** Settings… chosen in the palette filled the screen with the list; a tap on Terminal opened it; a tap on the words of Copy on Selection turned its switch; the browser's back went to the list, and again closed the panel, on the same page. After closing with the panel's own ✕, one more back left the page, as it would have before the settings were opened.
+
+### What was checked in phase 3
+
+- **Unit tests:** moving a host before another, up and down; the order heard, kept and read back; a host of this app's alone renamed and readdressed, keeping its place and staying selected; refusals said in words; a changed host sent back whole (`rex/test@jvm/HostChangesTest.kt`); the sidebar's order with and without an arrangement, status and source wording, icon names, the places within the section (`SettingsTest`).
+- **Render tests** (`SettingsHostsRenderTest`): a host's line in each of the four states and what each of the four sources says, at 420 and 700; the section, a host's details, the home server's details and the add form at 420, 700 and 1100. Pictures `hosts-*.png` were looked at.
+- **Web app, headless Chromium 1400 wide, against a scratch Rex server of my own** (`rex server run --listen unix:///tmp/settings-window/rex/home.sock`, its own state directory and an `init.lua` declaring one host; the page's server started with `REX_SERVER` pointing at it):
+  - the list showed the declared host and one stored with `hosts.put`, with their icons;
+  - in a host's details, a new label, a second address and another icon were saved, and `hosts.list` on the scratch server had all three under the same id; the details stayed with the host under its new name;
+  - a label another host has was refused in the server's words: `conflict: the label "declared" is already used by the host at … declared at init.lua:2`;
+  - Move Up wrote `host_order` to the page's storage and the sidebar followed; dragging a host by its handle to the top did the same;
+  - a host stored from the command line (`rex api call hosts.put`) appeared in the open list and in the sidebar at once;
+  - Add Remote Host… with a found server chosen (from a stubbed tailnet list), an icon picked and Add Host pressed stored it in the scratch list with that icon;
+  - Remove Host… asked in the palette's words and, on Enter, the host left the scratch list.
+- **Phone size, Chromium's phone emulation:** Remote Hosts in the list of sections, a tap on a host's line opening its details (no handle, no ⓘ), the declared host's details saying so, and the browser's back returning to the list.
+
+Not checked in phase 3: the desktop app in a window (done with phase 4's desktop check, below); a connected remote host in the web app, which the relay refuses on a loopback address; saving a change to a host the configuration file declares; editing addresses with a real on-screen keyboard; Mase's own host list, on purpose.
+
+### What went wrong
+
+During the phase 3 web check a test click meant for the form's address field landed on a line of "On Your Tailnet", which was the real tailnet. The form added that server (spacepandaiii) to the scratch host list and the test page connected to the real machine for two or three seconds. Nothing was typed there and nothing of Mase's was changed; the orchestrator confirmed its session was intact. Since then a found server only fills in the form, and every test page is given a made-up tailnet list.
 
 ### What was checked in phase 2
 

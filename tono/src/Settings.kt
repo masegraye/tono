@@ -112,6 +112,7 @@ internal enum class SettingsSection(val title: String, val summary: String) {
     Terminal("Terminal", "What selecting text copies"),
     Shortcuts("Shortcuts", "The keys for every action, and changing them"),
     Notifications("Notifications", "Sounds and notifications for tabs out of view"),
+    RemoteHosts("Remote Hosts", "The other Rex servers this app connects to"),
 }
 
 /** How the settings are laid out, which goes by how wide they are. */
@@ -157,6 +158,8 @@ internal val SETTING_ENTRIES: List<SettingEntry> = listOf(
     SettingEntry(SettingsSection.Notifications, "Error", "failed failure notification"),
     SettingEntry(SettingsSection.Notifications, "Done", "finished complete notification"),
     SettingEntry(SettingsSection.Notifications, "Terminal Notifications", "osc 9 777 program messages desktop notification notify-send"),
+    SettingEntry(SettingsSection.RemoteHosts, "Remote Hosts", "host hosts server servers machine machines connect address label icon order reorder edit remove status"),
+    SettingEntry(SettingsSection.RemoteHosts, "Add Remote Host…", "new host server connect tailscale tailnet address"),
 )
 
 /**
@@ -221,6 +224,11 @@ internal class SettingsState {
      * section, two for something open within it.
      */
     val depth: Int get() = place.let { if (it == null) 0 else if (it.detail == null) 1 else 2 }
+
+    /** Stands somewhere else without having gone there: what was showing has a new name, or is gone, and isn't a place to come back to. */
+    fun replace(with: SettingsPlace?) {
+        place = with
+    }
 
     /** One step out, towards the list of sections: what the way back does where there is one column. False if there was nowhere to go. */
     fun up(): Boolean {
@@ -338,7 +346,7 @@ internal fun SettingsContent(ui: RexUiState, commands: RexCommands, modifier: Mo
                                 HeadingButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", state::back, enabled = state.canGoBack)
                                 HeadingButton(Icons.AutoMirrored.Filled.ArrowForward, "Forward", state::forward, enabled = state.canGoForward)
                             }
-                            SectionBody(shown, ui, commands)
+                            SectionBody(shown, ui, commands, wide = true)
                         }
                     }
                 }
@@ -355,7 +363,7 @@ internal fun SettingsContent(ui: RexUiState, commands: RexCommands, modifier: Mo
                             SectionHeading(placeTitle(shown), onClose = onClose) {
                                 HeadingButton(Icons.AutoMirrored.Filled.ArrowBack, if (shown.detail != null) "Back to ${shown.section.title}" else "Back to Settings", { state.up() })
                             }
-                            SectionBody(shown, ui, commands)
+                            SectionBody(shown, ui, commands, wide = false)
                         }
                     }
                 }
@@ -382,7 +390,11 @@ internal fun SettingsContent(ui: RexUiState, commands: RexCommands, modifier: Mo
 }
 
 /** What a place is called over it: its section's name, or the name of what is open within the section. */
-internal fun placeTitle(place: SettingsPlace): String = place.detail ?: place.section.title
+internal fun placeTitle(place: SettingsPlace): String = when {
+    place.detail == null -> place.section.title
+    place.section == SettingsSection.RemoteHosts -> hostOfDetail(place.detail) ?: "Add Remote Host"
+    else -> place.detail
+}
 
 private val SECTION_LIST_WIDTH = 220.dp
 
@@ -494,6 +506,7 @@ internal fun SectionIcon(section: SettingsSection, ui: RexUiState) {
         SettingsSection.Terminal -> colors.tertiaryContainer
         SettingsSection.Shortcuts -> colors.secondary
         SettingsSection.Notifications -> colors.error
+        SettingsSection.RemoteHosts -> colors.tertiary
     }
     // The drawing is in the window's own dark, or light, whichever the square stands out from.
     val ink = colors.surfaceContainerLowest
@@ -504,6 +517,7 @@ internal fun SectionIcon(section: SettingsSection, ui: RexUiState) {
                 MachineIcon(HostIcon.of(ui.client.homeLabel?.let { icons[it] }, isHome = true), ink)
             }
             SettingsSection.Notifications -> Icon(Icons.Filled.Notifications, contentDescription = null, tint = ink, modifier = Modifier.size(16.dp))
+            SettingsSection.RemoteHosts -> MachineIcon(HostIcon.Globe, ink)
             SettingsSection.Terminal, SettingsSection.Shortcuts -> Canvas(Modifier.size(16.dp)) {
                 val unit = size.width / 16f
                 val width = 1.6f * unit
@@ -552,12 +566,13 @@ internal fun HeadingButton(icon: ImageVector, description: String, onClick: () -
 }
 
 @Composable
-private fun SectionBody(place: SettingsPlace, ui: RexUiState, commands: RexCommands) {
+private fun SectionBody(place: SettingsPlace, ui: RexUiState, commands: RexCommands, wide: Boolean) {
     when (place.section) {
         SettingsSection.Server -> ScrollingSection { ServerSettings(ui) }
         SettingsSection.Terminal -> ScrollingSection { TerminalSettings(ui) }
         SettingsSection.Shortcuts -> ShortcutSettings(ui, commands)
         SettingsSection.Notifications -> ScrollingSection { NotificationSettings(ui) }
+        SettingsSection.RemoteHosts -> RemoteHostSettings(ui, place, wide)
     }
 }
 

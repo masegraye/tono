@@ -333,7 +333,8 @@ private fun Sidebar(
 ) {
     val paletteShortcut = keymap.shortcutFor("client.palette.toggle")?.display()
     // Every host's state, read here so that tabs can be numbered across all of them.
-    val ordered = sidebarOrder(hosts.map { host -> host to key(host) { host.state.collectAsState().value } }, ui.client.homeLabel) { it.saved.label }
+    val hostOrder by ui.client.hostOrder.collectAsState()
+    val ordered = sidebarOrder(hosts.map { host -> host to key(host) { host.state.collectAsState().value } }, ui.client.homeLabel, hostOrder) { it.saved.label }
     val hostIcons by ui.client.hostIcons.collectAsState()
     val activityOnly = ui.activityOnly
     val tabs = linearTabs(ordered.map { (host, state) -> host.saved.label to state }, ui.collapsedHosts, ui.collapsedSessions, activityOnly)

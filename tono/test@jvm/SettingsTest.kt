@@ -306,7 +306,7 @@ class SettingsTest {
 
     @Test
     fun `the sections are Rex's, in its order, with the server first`() {
-        assertEquals(listOf("Server", "Terminal", "Shortcuts", "Notifications"), SettingsSection.entries.map { it.title }.filter { it != "Remote Hosts" })
+        assertEquals(listOf("Server", "Terminal", "Shortcuts", "Notifications", "Remote Hosts"), SettingsSection.entries.map { it.title })
     }
 
     @Test
@@ -324,6 +324,75 @@ class SettingsTest {
         assertTrue(searchSettings("no such setting").isEmpty())
         // Every section can be found, and every entry is in a section that exists.
         for (section in SettingsSection.entries) assertTrue(searchSettings(section.title).any { it.section == section }, section.title)
+    }
+
+    @Test
+    fun `hosts someone arranged are listed in that order, after the home server, reachable or not`() {
+        val up = HostState(connection = HostConnection.Connected)
+        val down = HostState(connection = HostConnection.Disconnected("gone"), failed = true)
+        val hosts = listOf("zeta" to up, "Local" to up, "alpha" to down, "beta" to up, "new" to up, "lost" to down)
+        // Unarranged: the connected ones by name, then the ones that are down.
+        assertEquals(listOf("Local", "beta", "new", "zeta", "alpha", "lost"), sidebarOrder(hosts, home = "Local") { it }.map { it.first })
+        // Arranged: as arranged, then any that weren't there to arrange, by the old rule.
+        assertEquals(listOf("Local", "alpha", "zeta", "beta", "new", "lost"), sidebarOrder(hosts, home = "Local", order = listOf("alpha", "zeta", "beta", "gone")) { it }.map { it.first })
+        // The home server is first whatever the order says.
+        assertEquals("Local", sidebarOrder(hosts, home = "Local", order = listOf("zeta", "Local")) { it }.first().first)
+    }
+
+    @Test
+    fun `a host's line says how reaching it stands, in Rex's words`() {
+        assertEquals("Connected", hostStatusLine(org.example.kotlintest.rex.HostReach.Connected))
+        assertEquals("Connecting…", hostStatusLine(org.example.kotlintest.rex.HostReach.Connecting))
+        assertEquals("Reconnecting…", hostStatusLine(org.example.kotlintest.rex.HostReach.Reconnecting))
+        assertEquals("Couldn't connect", hostStatusLine(org.example.kotlintest.rex.HostReach.Down))
+    }
+
+    @Test
+    fun `every host says where it is kept, and what a change to it touches`() {
+        val listed = org.example.kotlintest.rex.HostListing("host:1", "studio", listOf("studio.ts.net"), "macstudio", source = null, addedFrom = "laptop")
+        val declared = listed.copy(source = "init.lua:4", addedFrom = null)
+        val home = hostSourceWords(org.example.kotlintest.rex.HostSource.Home, "Local", null)
+        assertTrue("home server" in home && "can't be removed" in home)
+        val list = hostSourceWords(org.example.kotlintest.rex.HostSource.HomeList, "Local", listed)
+        assertTrue("Local's host list" in list && "Every device" in list && "added from laptop" in list)
+        val file = hostSourceWords(org.example.kotlintest.rex.HostSource.ConfigurationFile, "Local", declared)
+        assertTrue("configuration file" in file && "init.lua:4" in file && "takes the declared host's place" in file && "file itself isn't changed" in file)
+        assertTrue("alone" in hostSourceWords(org.example.kotlintest.rex.HostSource.ThisApp, "Local", null))
+    }
+
+    @Test
+    fun `a picture is kept under the name Rex for Mac gives it, which reads back as the same picture`() {
+        for (icon in HostIcon.entries) assertEquals(icon, HostIcon.named(icon.listName), icon.name)
+        assertEquals(listOf("globe", "server.rack", "cloud", "macbook", "macmini", "macstudio", "desktopcomputer"), HostIcon.entries.map { it.listName })
+        assertEquals(HostIcon.entries.size, HostIcon.entries.map { it.title }.toSet().size)
+    }
+
+    @Test
+    fun `addresses are typed one to a line`() {
+        assertEquals(listOf("studio.ts.net", "192.168.1.20:7297"), addressesTyped(" studio.ts.net \n\n192.168.1.20:7297\n"))
+        assertTrue(addressesTyped("  \n").isEmpty())
+    }
+
+    @Test
+    fun `a host's details and the form that adds one are places within Remote Hosts`() {
+        val details = SettingsPlace(SettingsSection.RemoteHosts, hostDetail("studio"))
+        assertEquals("studio", placeTitle(details))
+        assertEquals("studio", hostOfDetail(details.detail))
+        assertEquals("Add Remote Host", placeTitle(SettingsPlace(SettingsSection.RemoteHosts, ADD_HOST_DETAIL)))
+        assertNull(hostOfDetail(ADD_HOST_DETAIL))
+        assertEquals("Remote Hosts", placeTitle(SettingsPlace(SettingsSection.RemoteHosts)))
+        // A host called "add" is still a host.
+        assertEquals("add", hostOfDetail(hostDetail("add")))
+        assertEquals(listOf("Remote Hosts", "Add Remote Host…"), searchSettings("host").map { it.title })
+    }
+
+    @Test
+    fun `removing a host asks in the palette's words, which say what it leaves`() = withApp { ui, _ ->
+        val host = ui.client.hosts.value.first()
+        val question = removeHostQuestion(host) {}
+        assertEquals("Remove host “Local”?", question.title)
+        assertEquals("This app stops connecting to it. Its sessions keep running.", question.text)
+        assertEquals("Remove Host", question.confirmLabel)
     }
 
     @Test
