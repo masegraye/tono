@@ -115,7 +115,7 @@ and not the frame cost.
 - **Rex for Mac** has Smooth scrolling in Settings › Terminal › Scrolling: "Move through terminal history by
   pixels instead of whole lines", for a trackpad or Magic Mouse, off by default (changelog, preview 22). It is
   for the history only: full-screen programs still move a line at a time, and there is an open request to
-  change that. Its page-scrolling actions jump even with it on.
+  change that. A user reports that its page-scrolling actions jump even with it on.
 - **Ghostty**, as I remember its `Surface.scrollCallback` and not read again for this: three rows to a notch; a
   touchpad's pixels add up until they come to a row, and the view moves by whole rows; on the alternate screen
   the wheel is sent as cursor keys while mode 1007 is on; a program that takes the mouse gets one report a notch.
@@ -148,7 +148,7 @@ Decisions made while building, none of them asked for:
   is never given those pixels, so a glide is all there is to do there. A browser does give them, and there a
   slow drag moves a row at a time, each one glided.
 - In a browser a notch is the rows its pixels cover, which is about six at the usual font size, and not three.
-  It follows what the browser and the desktop's own wheel settings say, as xterm.js does.
+  It follows what the browser and the desktop's own wheel settings say.
 - Page up and down, a jump to a prompt, and a search's jumps don't glide, as in Rex for Mac.
 - While it glides, the picture is clipped to the view's rows, and rests on whole pixels so that text stays sharp.
 - `TerminalPointer` is public now, so that the measure in `tono` can drive it.
@@ -172,5 +172,5 @@ Decisions made while building, none of them asked for:
   of text, or keeping a row's drawing, is the next thing.
 - **Pi erasing the history** when it redraws, which throws a scrolled-back view to the bottom. Nothing was
   done: it is what the program asked for.
-- Firefox and Safari, a browser that counts the wheel in lines or pages (unit tests only), macOS, and the
-  tail of a glide in a terminal showing images.
+- Firefox and Safari, a browser that counts the wheel in lines or pages (unit tests only), macOS, and a glide
+  over a terminal that is showing images.
