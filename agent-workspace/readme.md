@@ -58,6 +58,8 @@ Standing instructions from Mase, gathered from earlier sessions:
 - **Go for the outcome that was wanted**, not the literal wording of the request.
 - **Renaming to Tono covers what users see.** File, class and package names and the directory stay as they are. Tono's own files go where adr-001 says (`dev.mg.tono`; on Linux `~/.config/tono/` and `~/.local/state/tono/`), not `~/.config/kotlin-test/`.
 
+- **Keep the changelog.** A change people using Tono would notice adds a line under **Unreleased** in `CHANGELOG.md` (Added, Changed or Fixed), in plain words, one line, with no commit hashes or backlog numbers. A worker writes the line on its branch, and the orchestrator checks it when merging. A release moves Unreleased under a version number and date, tagged `v<version>` in git.
+
 Practices that came out of mistakes made while testing:
 
 - **Fold every other session away in a test's workspace**, so that a key meaning "tab 1" or "next tab" stays in the scratch session. A test that sent Control+1 once went to a real tab and acted there.

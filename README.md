@@ -93,6 +93,7 @@ is in [the backlog](agent-workspace/backlog/readme.md).
 
 ## Read more
 
+- [What's new](CHANGELOG.md) lists the changes since the repository was published.
 - [Installing](docs/install.md) covers what you need, and how to update or remove it.
 - [Using Tono](docs/using-tono.md) explains machines, the sidebar, tabs and shortcuts.
 - [Tono in a browser](docs/web.md) covers serving it, who can reach it, the keyboard and phones.
