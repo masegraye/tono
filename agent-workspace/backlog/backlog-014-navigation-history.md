@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | captured |
+| Status | done (commits `0dfb3a8`, `b27b4a6`, `d6f5a67`, 2026-11-18) |
 | Area | Panes, tabs and sessions |
 | Size | small |
 | Source | inv-001 |
