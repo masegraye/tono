@@ -12,6 +12,7 @@ class OmarchyTerminalColorsTest {
         assertEquals("#f6dcac", terminal.foreground)
         assertEquals("#05182e", terminal.background)
         assertEquals("#f6dcac", terminal.cursor)
+        assertEquals("#134e5a", terminal.selection)
         assertEquals(
             listOf(
                 "#05182e", "#f85525", "#028391", "#e97b3c", "#3f8f8a", "#3f8f8a", "#8cbfb8", "#f6dcac",
@@ -34,5 +35,6 @@ class OmarchyTerminalColorsTest {
         assertEquals("#eeeeee", terminal.ansi[8])   // muted -> foreground
         assertEquals("#33aaff", terminal.ansi[9])   // bright red -> red -> accent
         assertEquals("#eeeeee", terminal.cursor)
+        assertEquals("#eeeeee", terminal.selection) // selection -> ... -> foreground
     }
 }

@@ -80,6 +80,23 @@ class RexClient(
     /** The shortcuts changed in this app: its own layer of the keymap, above the configuration file. */
     val shortcuts: StateFlow<ShortcutOverrides> get() = mutableShortcuts
 
+    private val mutableAppearance = MutableStateFlow(workspace.appearance)
+
+    /**
+     * The theme and terminal font the person chose, as they stand. Kept in the workspace, and
+     * here so that everything drawn from them (every window of the app, a settings screen, a
+     * palette) hears of a change wherever it was made.
+     */
+    val appearance: StateFlow<AppearanceChoice> get() = mutableAppearance
+
+    /** Sets the theme and terminal font chosen. Applies at once, and is remembered. */
+    fun setAppearance(choice: AppearanceChoice) {
+        if (mutableAppearance.value == choice) return
+        mutableAppearance.value = choice
+        workspace.appearance = choice
+        workspace.save()
+    }
+
     private val mutableTabNews = MutableSharedFlow<TabNews>(extraBufferCapacity = 16, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     /**

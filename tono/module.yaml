@@ -15,9 +15,20 @@ dependencies:
   - $compose.material3
   - $compose.ui
   - $libs.compose.material.icons.core
+  # The font the app has of its own, for where the desktop gives it none (composeResources/font)
+  - $compose.components.resources
+
+# Fonts fetched from the page's server
+dependencies@wasmJs:
+  - $ktor.client.core
+  - $libs.ktor.client.js
 
 settings:
-  compose: enabled
+  compose:
+    enabled: true
+    resources:
+      packageName: org.example.kotlintest.tono.resources
+  ktor: enabled
   kotlin:
     freeCompilerArgs: [-Xexpect-actual-classes]
 

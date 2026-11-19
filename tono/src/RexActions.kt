@@ -498,6 +498,19 @@ internal fun clientActions(): List<ClientAction> = buildList {
     add(ClientAction("client.font.reset", "Reset Font Size", "View", "default zoom text", keys = listOf("ctrl+0")) {
         fontSize = RexUiState.DEFAULT_FONT_SIZE
     })
+    // How the app looks: see Appearance.kt. Each lists what there is, and shows the one highlighted as the list is gone through.
+    add(ClientAction("client.theme.select", "Theme…", "Appearance", "theme themes color colors colour colours dark light appearance omarchy palette scheme look", state = { appearance.themeTitle }) {
+        palette = PaletteMode.Themes
+    })
+    add(ClientAction("client.font.select", "Terminal Font…", "Appearance", "font family typeface monospace terminal text appearance", state = { appearance.fontTitle }) {
+        palette = PaletteMode.Fonts
+    })
+    add(ClientAction(
+        "client.font.weight", "Terminal Font Weight…", "Appearance", "font weight light regular medium bold thin heavy terminal text appearance",
+        available = { appearance.weights.size > 1 }, state = { fontWeightName(appearance.fontWeight) },
+    ) {
+        palette = PaletteMode.FontWeights
+    })
     add(ClientAction("client.sidebar.toggle", "Toggle Sidebar", "View", "hide show collapse hosts sessions tabs", keys = listOf("ctrl+shift+/")) {
         sidebarVisible = !sidebarVisible
     })

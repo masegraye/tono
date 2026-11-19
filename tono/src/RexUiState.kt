@@ -42,6 +42,12 @@ enum class PaletteMode {
     GoToDirectory,
     /** Choosing which action's shortcut to change: every action, with its keys and where they come from. */
     Shortcuts,
+    /** Choosing a theme. The one highlighted is shown as the list is gone through: see Appearance.kt. */
+    Themes,
+    /** Choosing the terminals' font family, shown the same way. */
+    Fonts,
+    /** Choosing how heavy the terminals' text is. */
+    FontWeights,
 }
 
 /**
@@ -97,7 +103,14 @@ class RexUiState(val client: RexClient) {
      */
     var activityOnly by mutableStateOf(false)
     var debugLogVisible by mutableStateOf(false)
-    var fontSize by mutableIntStateOf(DEFAULT_FONT_SIZE)
+
+    /** How the app looks: the theme and terminal font chosen, and what the desktop says. See Appearance.kt. */
+    val appearance = AppearanceState(client)
+
+    /** The size of terminal text. Remembered between runs, with the rest of how the app looks. */
+    var fontSize: Int
+        get() = appearance.fontSize
+        set(size) = appearance.chooseFontSize(size)
     var confirmation: Confirmation? by mutableStateOf(null)
     var renaming: TabRename? by mutableStateOf(null)
     var renamingPane: PaneRename? by mutableStateOf(null)

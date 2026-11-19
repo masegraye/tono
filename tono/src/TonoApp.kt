@@ -12,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.mg.omarchy.theme.OmarchyPalette
 import dev.mg.omarchy.theme.compose.OmarchyTheme
-import dev.mg.omarchy.theme.compose.rememberOmarchyThemeState
 import dev.mg.omarchy.theme.terminalColors
 import org.example.kotlintest.ghostty.TerminalColors
 import org.example.kotlintest.rex.RexClient
@@ -29,10 +28,10 @@ fun TonoApp(client: RexClient) {
     if (ui.showcase) {
         Showcase(onBack = { ui.showcase = false })
     } else {
-        val theme = rememberOmarchyThemeState()
-        // Terminals are drawn in the desktop's colors too, and follow a theme change.
-        LaunchedEffect(theme.palette) { client.setTerminalColors(theme.palette.toTerminalColors()) }
-        OmarchyTheme(theme) {
+        // Terminals are drawn in the theme's colors too, and follow a change of theme.
+        val palette = ui.appearance.palette
+        LaunchedEffect(palette) { client.setTerminalColors(palette.toTerminalColors()) }
+        TonoTheme(ui) {
             RexApp(ui, commands)
         }
     }

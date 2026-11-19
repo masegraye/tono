@@ -23,6 +23,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import dev.mg.omarchy.theme.OmarchyPalette
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -64,6 +66,12 @@ internal class PaletteItem(
     val keywords: String = "",
     /** For a host in a list of hosts: its picture, as its heading in the sidebar has it. */
     val host: HostPicture? = null,
+    /** For a theme: its colors, shown at the end of its line. */
+    val swatch: OmarchyPalette? = null,
+    /** Whether it is the one in effect, in a list to choose one from: the list opens on it. */
+    val current: Boolean = false,
+    /** Called when the line becomes the highlighted one, for a list that shows what choosing it would do. */
+    val onHighlight: (() -> Unit)? = null,
     val run: () -> Unit,
 )
 
@@ -124,6 +132,33 @@ internal fun paletteItems(ui: RexUiState, commands: RexCommands, keymap: Keymap,
             val keys = shortcut.keysShown()
             add(PaletteItem(target.title, listOf(target.category, shortcut.sourceShown()).filter { it.isNotEmpty() }.joinToString(" · "), keys, "${target.keywords} ${keys.orEmpty()}") {
                 ui.shortcutEdit = target
+            })
+        }
+        return@buildList
+    }
+    val look = ui.appearance
+    if (mode == PaletteMode.Themes) {
+        // Following a desktop that has no theme to follow isn't offered.
+        for (option in look.themes) {
+            if (!option.available) continue
+            add(PaletteItem(option.title, option.detail, keywords = "theme ${option.slug.orEmpty()}", swatch = option.palette, current = option.current, onHighlight = { look.triedTheme = Tried(option.slug) }) {
+                look.chooseTheme(option.slug)
+            })
+        }
+        return@buildList
+    }
+    if (mode == PaletteMode.Fonts) {
+        for (option in look.fonts) {
+            add(PaletteItem(option.title, option.detail, keywords = "font", current = option.current, onHighlight = { look.triedFont = Tried(option.family) }) {
+                look.chooseFont(option.family)
+            })
+        }
+        return@buildList
+    }
+    if (mode == PaletteMode.FontWeights) {
+        for (weight in look.weights) {
+            add(PaletteItem(fontWeightName(weight), weight.toString(), keywords = "weight", current = weight == look.choice.fontWeight ?: DEFAULT_FONT_WEIGHT, onHighlight = { look.triedWeight = weight }) {
+                look.chooseFontWeight(weight)
             })
         }
         return@buildList
@@ -258,11 +293,12 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
     }
     val keymap by ui.client.keymap.collectAsState()
     var query by remember(mode) { mutableStateOf("") }
-    var selected by remember(mode) { mutableIntStateOf(0) }
     // Listed once per opening: the palette shows the moment it was opened.
     val tailnet = ui.tailnetServers
     val recorded by ui.client.shortcuts.collectAsState()
-    val all = remember(mode, keymap, tailnet, recorded) { paletteItems(ui, commands, keymap, mode) }
+    val all = remember(mode, keymap, tailnet, recorded, ui.appearance.installedFonts) { paletteItems(ui, commands, keymap, mode) }
+    // A list to choose one of something from opens on the one in effect.
+    var selected by remember(mode) { mutableIntStateOf(all.indexOfFirst { it.current }.coerceAtLeast(0)) }
     val shown = remember(all, query) {
         filterPalette(all, query) + listOfNotNull(if (mode == PaletteMode.AddHost) typedHostItem(ui, query) else null)
     }
@@ -274,6 +310,11 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
     val listState = rememberLazyListState()
     val focus = remember { FocusRequester() }
     LaunchedEffect(mode) { focus.requestFocus() }
+    // A theme or a font is shown while its line is the highlighted one, and what was chosen
+    // shows again when the list closes without a choice.
+    val highlighted = shown.getOrNull(selected)
+    LaunchedEffect(highlighted) { highlighted?.onHighlight?.invoke() }
+    DisposableEffect(mode) { onDispose { ui.appearance.endTrying() } }
     LaunchedEffect(selected, shown.size) { if (selected in shown.indices) listState.scrollToItem(selected) }
 
     fun choose(item: PaletteItem) {
@@ -299,6 +340,9 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
                         PaletteMode.RemoveHost -> "Remove a host"
                         PaletteMode.MoveToTab -> "Move this pane to a tab"
                         PaletteMode.Shortcuts -> "Change the shortcut of an action"
+                        PaletteMode.Themes -> "Choose a theme"
+                        PaletteMode.Fonts -> "Choose the terminals' font"
+                        PaletteMode.FontWeights -> "Choose how heavy the terminals' text is"
                         PaletteMode.InsertPath, PaletteMode.GoToDirectory -> "" // drawn by PathBrowser
                     },
                 )
@@ -342,7 +386,7 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
             // Where any line has a host's picture, every line keeps room for one, so the names line up.
             val pictures = shown.any { it.host != null }
             itemsIndexed(shown) { index, item ->
-                PaletteRow(item.title, item.detail, item.shortcut, selected = index == selected, onClick = { choose(item) }, host = item.host, pictures = pictures)
+                PaletteRow(item.title, item.detail, item.shortcut, selected = index == selected, onClick = { choose(item) }, host = item.host, pictures = pictures, swatch = item.swatch)
             }
         }
     }
@@ -380,6 +424,8 @@ internal fun PaletteRow(
     host: HostPicture? = null,
     /** Whether lines in this list have pictures, so that one without keeps the room for it. */
     pictures: Boolean = host != null,
+    /** A theme's colors, drawn at the end of the line. */
+    swatch: OmarchyPalette? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -405,5 +451,6 @@ internal fun PaletteRow(
         shortcut?.let {
             Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         }
+        swatch?.let { ThemeSwatch(it, Modifier.size(width = 72.dp, height = 16.dp)) }
     }
 }

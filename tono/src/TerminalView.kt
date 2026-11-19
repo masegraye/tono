@@ -139,8 +139,11 @@ fun TerminalView(
     onMenu: (at: Offset) -> Unit = {},
 ) {
     val frame by terminal.frame.collectAsState()
-    val fontFamily = MaterialTheme.typography.bodyMedium.fontFamily ?: FontFamily.Monospace
-    val style = remember(fontFamily, fontSize) { TextStyle(fontFamily = fontFamily, fontSize = fontSize) }
+    // The font chosen for terminals (see Appearance.kt), or failing that the one everything else is in.
+    val chosenFont = LocalTerminalFont.current
+    val fontFamily = chosenFont?.family ?: MaterialTheme.typography.bodyMedium.fontFamily ?: FontFamily.Monospace
+    val fontWeight = chosenFont?.weight ?: FontWeight.Normal
+    val style = remember(fontFamily, fontSize, fontWeight) { TextStyle(fontFamily = fontFamily, fontSize = fontSize, fontWeight = fontWeight) }
     val measurer = rememberTextMeasurer(cacheSize = 0) // rows are cached below, by identity
     val density = LocalDensity.current
     val fonts = LocalFontFamilyResolver.current
@@ -558,7 +561,8 @@ private val CERTAIN_RANGES = listOf(0x0000..0x052F, 0x1E00..0x206F, 0x2190..0x22
 
 private fun TextStyle.merge(run: TerminalRun): TextStyle = copy(
     color = Color(0xFF000000 or run.foreground.toLong()),
-    fontWeight = if (run.bold) FontWeight.Bold else FontWeight.Normal,
+    // Text that isn't bold is as heavy as the style says, which is the weight chosen for the terminals.
+    fontWeight = (fontWeight ?: FontWeight.Normal).let { regular -> if (run.bold) FontWeight(boldWeightFor(regular.weight)) else regular },
     fontStyle = if (run.italic) FontStyle.Italic else FontStyle.Normal,
 )
 

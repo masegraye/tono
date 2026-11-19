@@ -13,6 +13,10 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import dev.mg.omarchy.theme.installedFontFile
+import dev.mg.omarchy.theme.omarchyIsPresent
+import dev.mg.omarchy.theme.readInstalledMonospaceFonts
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -27,7 +31,12 @@ import java.util.concurrent.TimeUnit
  * - `GET /ghostty-vt.wasm`: the terminal library, built by `task native:wasm`.
  * - `GET /api/tono/font/{style}`: the desktop's monospace font (regular, bold, italic or
  *   bolditalic), so terminals are drawn in the same font as on the desktop, with the same
- *   symbols. A page has only the fonts it is given.
+ *   symbols. A page has only the fonts it is given. It is Omarchy's font: on a machine
+ *   without Omarchy there is none, and the page uses its own.
+ *   With `?family=NAME` it is that installed monospace font instead, and with `&weight=300`
+ *   (or another hundred) its regular and italic styles are of that weight.
+ * - `GET /api/tono/fonts`: the monospace fonts installed here, which can be asked for by
+ *   name as above, each with the weights it comes in.
  * - `GET /api/tono/sounds/{name}`: the desktop's warning, error and completion sounds.
  * - `GET /api/tono/tailnet`: the Rex servers on the tailnet, as `tailscale` reports them.
  * - `GET /api/tono/whoami`: which device the page is open on, so it can say so to the Rex
@@ -43,8 +52,32 @@ fun Application.tonoAssets(library: File? = null) {
             else call.respondText("The terminal library isn't built: run `task native:wasm`.", status = HttpStatusCode.NotFound)
         }
         get("/api/tono/font/{style}") {
-            val file = FONT_STYLES[call.parameters["style"]]?.let { desktopFont(it) }
+            val style = call.parameters["style"]
+            val family = call.request.queryParameters["family"]
+            val file = when {
+                style !in FONT_STYLES -> null
+                family != null -> withContext(Dispatchers.IO) {
+                    val bold = style == "bold" || style == "bolditalic"
+                    val regular = call.request.queryParameters["weight"]?.toIntOrNull()?.takeIf { it in 100..900 } ?: 400
+                    // Only a font fontconfig lists is looked for, so nothing a request says ends up in a path.
+                    installedFontFile(family, if (bold) boldWeightFor(regular) else regular, italic = style == "italic" || style == "bolditalic")
+                }
+                omarchyIsPresent() -> FONT_STYLES[style]?.let { desktopFont(it) }
+                else -> null
+            }
             if (file != null) call.respondKept(file) else call.respond(HttpStatusCode.NotFound)
+        }
+        get("/api/tono/fonts") {
+            val fonts = withContext(Dispatchers.IO) { readInstalledMonospaceFonts() }
+            call.respondText(
+                buildJsonArray {
+                    for (font in fonts) addJsonObject {
+                        put("family", font.family)
+                        put("weights", buildJsonArray { font.weights.forEach { add(JsonPrimitive(it)) } })
+                    }
+                }.toString(),
+                ContentType.Application.Json,
+            )
         }
         get("/api/tono/sounds/{name}") {
             // Three fixed names: nothing a request says ends up in a path.
@@ -100,6 +133,9 @@ private suspend fun desktopFont(pattern: String): File? = withContext(Dispatcher
         File(path).takeIf { it.isFile && it.extension.lowercase() in setOf("ttf", "otf") }
     }.getOrNull()
 }
+
+/** How heavy bold is beside regular text of a weight: bold, or heavier still where regular is nearly that. */
+internal fun boldWeightFor(regular: Int): Int = if (regular >= 600) 900 else 700
 
 private val FONT_STYLES = mapOf(
     "regular" to "monospace",

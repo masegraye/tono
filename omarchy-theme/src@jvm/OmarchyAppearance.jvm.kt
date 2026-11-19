@@ -19,13 +19,26 @@ import java.util.concurrent.TimeUnit
 
 private fun home(): File? = System.getenv("HOME")?.let(::File)
 
+/**
+ * Whether to behave as on a desktop that isn't Omarchy, whatever this one is: nothing is
+ * read, nothing is watched, and no themes are found installed. It is for seeing how an app
+ * looks without Omarchy while sitting at a machine that has it. Asked for with the system
+ * property `omarchy.absent` or the environment variable `OMARCHY_ABSENT`, set to anything
+ * but `false` or `0`. Read each time, so a test can set the property and clear it.
+ */
+fun omarchyDeclaredAbsent(): Boolean =
+    listOf(System.getProperty("omarchy.absent"), System.getenv("OMARCHY_ABSENT")).any { it != null && it.lowercase() !in setOf("", "false", "0") }
+
 /** `~/.local/state/omarchy/current` — where Omarchy keeps the theme it has applied. */
 private fun omarchyCurrentDir(): File? =
-    home()?.resolve(".local/state/omarchy/current")?.takeIf { it.isDirectory }
+    home()?.resolve(".local/state/omarchy/current")?.takeIf { it.isDirectory && !omarchyDeclaredAbsent() }
+
+/** Whether this is an Omarchy desktop, with a theme applied to follow. */
+fun omarchyIsPresent(): Boolean = omarchyCurrentDir() != null
 
 /** Theme sources, user themes (and overlays of stock themes) first. */
 private fun omarchyThemeDirs(): List<File> =
-    listOfNotNull(home()?.resolve(".config/omarchy/themes"), File("/usr/share/omarchy/themes"))
+    if (omarchyDeclaredAbsent()) emptyList() else listOfNotNull(home()?.resolve(".config/omarchy/themes"), File("/usr/share/omarchy/themes"))
 
 actual fun readOmarchyAppearance(): OmarchyAppearance? {
     val palette = readAppliedPalette() ?: return null

@@ -3,6 +3,8 @@ package dev.mg.omarchy.theme
 /**
  * The colors Omarchy gives a terminal for a theme, as `#rrggbb`.
  *
+ * @property selection the background of selected text; Omarchy leaves the text's own color
+ *   to each terminal
  * @property ansi the 16 ANSI colors: black, red, green, yellow, blue, magenta, cyan, white,
  *   then their bright versions
  */
@@ -10,6 +12,8 @@ data class OmarchyTerminalColors(
     val foreground: String,
     val background: String,
     val cursor: String,
+    /** What selected text is drawn on. */
+    val selection: String,
     val ansi: List<String>,
 )
 
@@ -31,6 +35,7 @@ fun OmarchyPalette.terminalColors(): OmarchyTerminalColors {
         foreground = foreground,
         background = background,
         cursor = brightForeground,
+        selection = color("selection", "lighter_background", "muted", "dark_foreground"),
         ansi = listOf(background) + normal.map { color(it, "accent") } + listOf(foreground) +
             listOf(color("muted", "dark_foreground")) + normal.map { color("bright_$it", it, "accent") } + listOf(brightForeground),
     )

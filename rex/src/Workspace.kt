@@ -79,6 +79,44 @@ data class SelectionSwitches(val copyOnSelection: Boolean = false, val primarySe
 }
 
 /**
+ * How the app looks, where the person has said: a theme, and the terminal's font. Everything
+ * left out is the app's to decide, which is the desktop's own look where the desktop has one
+ * to follow (Omarchy), and the app's defaults elsewhere.
+ *
+ * @param theme the name of one of the app's own themes, such as `tokyo-night`. Null follows
+ *   the desktop's theme where there is one, and is the app's default theme where there isn't.
+ * @param fontFamily the family terminals are drawn in, as the desktop names it. Null is the
+ *   desktop's own monospace font, or the app's where it has none to give.
+ * @param fontSize the size of a terminal's text, which the font size keys change. Null is the default.
+ * @param fontWeight how heavy text that isn't bold is, as a number from 100 to 900 where 400
+ *   is regular. Null is regular.
+ */
+data class AppearanceChoice(
+    val theme: String? = null,
+    val fontFamily: String? = null,
+    val fontSize: Int? = null,
+    val fontWeight: Int? = null,
+) {
+    val isDefault: Boolean get() = this == AppearanceChoice()
+
+    internal fun toJson(): JsonObject = buildJsonObject {
+        theme?.let { put("theme", it) }
+        fontFamily?.let { put("font_family", it) }
+        fontSize?.let { put("font_size", it) }
+        fontWeight?.let { put("font_weight", it) }
+    }
+
+    companion object {
+        /** Reads what [toJson] writes. Anything missing, or not of its kind, is left to the app. */
+        internal fun parse(json: JsonObject?): AppearanceChoice {
+            fun text(key: String) = (json?.get(key) as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.takeIf { it.isNotEmpty() }
+            fun number(key: String) = (json?.get(key) as? JsonPrimitive)?.takeIf { !it.isString }?.content?.toIntOrNull()
+            return AppearanceChoice(text("theme"), text("font_family"), number("font_size")?.takeIf { it in 4..200 }, number("font_weight")?.takeIf { it in 100..900 })
+        }
+    }
+}
+
+/**
  * What the app remembers between runs: the hosts to connect to, and where the user was.
  * Stored as JSON, in the same shape Rex Rune uses for these fields.
  */
@@ -106,6 +144,8 @@ class Workspace(
     var mutedTabs: List<MutedTab> = emptyList(),
     /** The shortcuts changed in this app, for this app alone: see Shortcuts.kt. */
     var shortcuts: ShortcutOverrides = ShortcutOverrides(),
+    /** The theme and terminal font the person chose, where they did. */
+    var appearance: AppearanceChoice = AppearanceChoice(),
 ) {
     val tabs: MutableMap<String, String> = tabs.toMutableMap()
     var hosts: List<SavedHost> = hosts
@@ -140,6 +180,8 @@ class Workspace(
                     })
                 })
                 if (!shortcuts.isEmpty) put("shortcuts", shortcuts.toJson())
+                // Only what was chosen: a file without it follows the desktop, as before there was a choice.
+                if (!appearance.isDefault) put("appearance", appearance.toJson())
             }
             runCatching { target.write(PRETTY.encodeToString(JsonObject.serializer(), json) + "\n") }
         }
@@ -170,6 +212,7 @@ class Workspace(
                     MutedTab(tab.string("endpoint") ?: return@mapNotNull null, tab.string("session") ?: return@mapNotNull null, tab.string("window") ?: return@mapNotNull null)
                 }.takeLast(MUTED_TABS_LIMIT),
                 shortcuts = ShortcutOverrides.parse(root.obj("shortcuts")),
+                appearance = AppearanceChoice.parse(root.obj("appearance")),
             )
         }
     }

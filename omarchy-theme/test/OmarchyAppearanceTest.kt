@@ -56,10 +56,11 @@ class OmarchyAppearanceTest {
 
     @Test
     fun `bundled palettes parse`() {
-        assertEquals(
-            listOf("retro-82", "catppuccin", "catppuccin-latte", "tokyo-night"),
-            bundledOmarchyPalettes.map { it.slug },
-        )
+        // The four that were here first keep their places; every stock theme is here.
+        assertEquals(listOf("retro-82", "catppuccin", "catppuccin-latte", "tokyo-night"), bundledOmarchyPalettes.take(4).map { it.slug })
+        assertEquals(22, bundledOmarchyPalettes.size)
+        assertEquals(bundledOmarchyPalettes.size, bundledOmarchyPalettes.map { it.slug }.distinct().size)
+        assertTrue(bundledOmarchyPalettes.count { !it.isDark } >= 4)
         val bySlug = bundledOmarchyPalettes.associateBy { it.slug }
         assertTrue(bySlug.getValue("retro-82").isDark)
         assertFalse(bySlug.getValue("catppuccin-latte").isDark)
@@ -68,8 +69,9 @@ class OmarchyAppearanceTest {
         assertEquals("#faa968", bySlug.getValue("retro-82").colors["accent"])
         // Complete copies of the stock themes, bright colors included.
         for (palette in bundledOmarchyPalettes) {
-            assertEquals(25, palette.colors.size, palette.slug)
-            assertTrue("bright_blue" in palette.colors, palette.slug)
+            assertTrue(palette.colors.size >= 23, palette.slug)
+            for (name in listOf("selection", "muted", "bright_blue", "lighter_background")) assertTrue(name in palette.colors, "${palette.slug} $name")
+            assertEquals(16, palette.terminalColors().ansi.size, palette.slug)
         }
     }
 
