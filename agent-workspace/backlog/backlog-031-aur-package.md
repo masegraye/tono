@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | captured (on hold until asked for) |
+| Status | captured (wanted now: big-idea-001) |
 | Area | Shipping |
 | Size | medium |
 | Source | earlier sessions |

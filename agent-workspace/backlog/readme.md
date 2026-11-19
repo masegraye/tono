@@ -58,7 +58,7 @@ The order proposed in inv-001, not yet agreed:
 | 028 | [A settings screen](backlog-028-settings-screen.md) | The app | large | done (spec-001) |
 | 029 | [Try the web app in Safari and on real phones](backlog-029-safari-and-real-devices.md) | The web app | small | captured |
 | 030 | [Serve fallback fonts ourselves](backlog-030-fallback-fonts-from-our-own-server.md) | The web app | medium | captured |
-| 031 | [An AUR package](backlog-031-aur-package.md) | Shipping | medium | captured (on hold until asked for) |
+| 031 | [An AUR package](backlog-031-aur-package.md) | Shipping | medium | captured (wanted now) |
 | 032 | [A tab in a window of its own](backlog-032-pop-out-tab-windows.md) | Shipping | medium | captured (on hold: not wanted yet) |
 | 033 | [Publish the Omarchy theme libraries](backlog-033-publish-the-theme-libraries.md) | Shipping | medium | captured (on hold: shelved) |
 | 034 | [The web app may not notice that it lost focus](backlog-034-the-web-app-may-not-notice-losing-focus.md) | The web app | small | captured |
@@ -75,3 +75,7 @@ The order proposed in inv-001, not yet agreed:
 | 045 | [Look right without Omarchy: built-in themes and a terminal font](backlog-045-look-right-without-omarchy.md) | The app | medium | done |
 | 046 | [Living without a bundled server](backlog-046-living-without-a-bundled-server.md) | Connecting to servers | medium | done (spec-001, phase 4) |
 | 047 | [Other settings Rex for Mac has that Tono may want](backlog-047-other-rex-for-mac-settings.md) | The app | medium | captured |
+| 048 | [Tono serves its own web client over the tailnet](backlog-048-tono-serves-its-web-client.md) | The web app | medium | captured |
+| 049 | [Keep Tono's files where each platform expects them](backlog-049-where-tono-keeps-its-files.md) | Shipping | medium | captured (inv-003) |
+| 050 | [A Mac app](backlog-050-a-mac-app.md) | Shipping | large | captured |
+| 051 | [An Android app](backlog-051-an-android-app.md) | Shipping | large | captured (low priority) |

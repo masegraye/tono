@@ -6,4 +6,4 @@ Naming: `big-idea-<nnn>-<slug>.md`
 
 | # | Document | Status |
 |---|----------|--------|
-| | _none yet_ | |
+| 001 | [big-idea-001-tono-on-every-platform.md](big-idea-001-tono-on-every-platform.md): one Tono on Linux (AUR), iOS, macOS, later Android; the web client served by Tono itself | accepted |
