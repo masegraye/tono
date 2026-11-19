@@ -6,7 +6,6 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.js.Js
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
-import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.url
@@ -46,7 +45,7 @@ internal actual suspend fun HttpClient.rexWebSocket(endpoint: RexEndpoint, path:
         is RexEndpoint.Network -> endpoint.baseUrl
     }
     val relay = pageUrl("api/tono/relay$path").replaceFirst("http", "ws") + "?endpoint=" + target.encodeURLParameter()
-    return webSocketSession {
+    return openWebSocket {
         url(relay)
         header(HttpHeaders.SecWebSocketProtocol, subprotocol)
     }

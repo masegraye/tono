@@ -26,18 +26,20 @@ class RexTerminalStream private constructor(
         const val SUBPROTOCOL = "rex.data.terminal.v1"
 
         /** Opens the stream that [ticket] (from `data.connect`) was issued for. A ticket works once. */
-        suspend fun open(client: HttpClient, endpoint: RexEndpoint, ticket: String): RexTerminalStream {
-            val socket = within(10_000) { client.rexWebSocket(endpoint, "/api/data", SUBPROTOCOL) }
-            val ticketBytes = decodeBase64Url(ticket)
-            check(ticketBytes.size == 16) { "A ticket is 16 bytes, got ${ticketBytes.size}" }
-            socket.send(Frame.Binary(true, byteArrayOf(HELLO) + ticketBytes))
+        suspend fun open(client: HttpClient, endpoint: RexEndpoint, ticket: String, timeoutMillis: Long = 10_000): RexTerminalStream {
+            val socket = within(timeoutMillis) { client.rexWebSocket(endpoint, "/api/data", SUBPROTOCOL) }
+            return socket.orDrop {
+                val ticketBytes = decodeBase64Url(ticket)
+                check(ticketBytes.size == 16) { "A ticket is 16 bytes, got ${ticketBytes.size}" }
+                socket.send(Frame.Binary(true, byteArrayOf(HELLO) + ticketBytes))
 
-            val answer = (within(10_000) { socket.incoming.receive() } as? Frame.Binary)?.readBytes()
-                ?: error("The server didn't answer the data handshake")
-            if (answer.isNotEmpty() && answer[0] == REJECT) error("The server refused the terminal stream (reason ${answer.getOrNull(1)})")
-            // WELCOME: 0x81, 16-byte reconnect token, 3 zero bytes, u32 resume window (ms), u64 nonce
-            check(answer.size == 32 && answer[0] == WELCOME) { "Unexpected data handshake answer of ${answer.size} bytes" }
-            return RexTerminalStream(socket, nonce = littleEndian(answer, 24, 8).toULong())
+                val answer = (within(timeoutMillis) { socket.incoming.receive() } as? Frame.Binary)?.readBytes()
+                    ?: error("The server didn't answer the data handshake")
+                if (answer.isNotEmpty() && answer[0] == REJECT) error("The server refused the terminal stream (reason ${answer.getOrNull(1)})")
+                // WELCOME: 0x81, 16-byte reconnect token, 3 zero bytes, u32 resume window (ms), u64 nonce
+                check(answer.size == 32 && answer[0] == WELCOME) { "Unexpected data handshake answer of ${answer.size} bytes" }
+                RexTerminalStream(socket, nonce = littleEndian(answer, 24, 8).toULong())
+            }
         }
 
         private const val HELLO: Byte = 0x01

@@ -80,6 +80,7 @@ class RexControl private constructor(
          *
          * @param reconnectToken the token from the last welcome, to carry on as the same client
          *   (keeping its attachments and block ownership) after a dropped connection
+         * @param timeoutMillis how long the server has to take the connection, and then to welcome it
          */
         suspend fun connect(
             client: HttpClient,
@@ -87,27 +88,31 @@ class RexControl private constructor(
             scope: CoroutineScope,
             info: RexClientInfo,
             reconnectToken: String? = null,
+            timeoutMillis: Long = CONNECT_TIMEOUT_MILLIS,
         ): RexControl {
-            val socket = within(CONNECT_TIMEOUT_MILLIS) { client.rexWebSocket(endpoint, "/api/control", "rex.control.v1") }
-            val hello = buildJsonObject {
-                put("type", "hello")
-                put("api_revision", API_REVISION)
-                put("api_min_revision", API_MIN_REVISION)
-                reconnectToken?.let { put("reconnect_token", it) }
-                putJsonObject("client") {
-                    put("kind", "app")
-                    put("platform", clientPlatform)
-                    put("name", info.name)
-                    put("version", info.version)
-                    info.label?.let { put("label", it) }
+            val socket = within(timeoutMillis) { client.rexWebSocket(endpoint, "/api/control", "rex.control.v1") }
+            val welcome = socket.orDrop {
+                val hello = buildJsonObject {
+                    put("type", "hello")
+                    put("api_revision", API_REVISION)
+                    put("api_min_revision", API_MIN_REVISION)
+                    reconnectToken?.let { put("reconnect_token", it) }
+                    putJsonObject("client") {
+                        put("kind", "app")
+                        put("platform", clientPlatform)
+                        put("name", info.name)
+                        put("version", info.version)
+                        info.label?.let { put("label", it) }
+                    }
                 }
-            }
-            socket.send(Frame.Text(hello.toString()))
-            val first = within(CONNECT_TIMEOUT_MILLIS) { socket.incoming.receive() } as? Frame.Text
-                ?: throw RexDisconnected("The server didn't send a welcome")
-            val welcome = Json.parseToJsonElement(first.readText()).jsonObject
-            if (welcome.string("type") != "welcome" || welcome.string("protocol") != "rex.control.v1") {
-                throw RexDisconnected("Unexpected first message from the server")
+                socket.send(Frame.Text(hello.toString()))
+                val first = within(timeoutMillis) { socket.incoming.receive() } as? Frame.Text
+                    ?: throw RexDisconnected("The server didn't send a welcome")
+                val welcome = Json.parseToJsonElement(first.readText()).jsonObject
+                if (welcome.string("type") != "welcome" || welcome.string("protocol") != "rex.control.v1") {
+                    throw RexDisconnected("Unexpected first message from the server")
+                }
+                welcome
             }
             return RexControl(socket, welcome).also { it.start(scope) }
         }

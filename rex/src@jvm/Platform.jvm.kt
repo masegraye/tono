@@ -4,7 +4,6 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
-import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.header
 import io.ktor.client.request.unixSocket
 import io.ktor.client.request.url
@@ -26,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLong
 actual fun rexHttpClient(): HttpClient = HttpClient(CIO) { install(WebSockets) }
 
 internal actual suspend fun HttpClient.rexWebSocket(endpoint: RexEndpoint, path: String, subprotocol: String): DefaultClientWebSocketSession =
-    webSocketSession {
+    openWebSocket {
         when (endpoint) {
             // Over a Unix socket the host name is ignored.
             is RexEndpoint.UnixSocket -> {
