@@ -26,6 +26,6 @@ cut() {
 # 001 Meet Tono: the window whole, the digits, Neovim, then two tabs on another machine.
 cut tabs.mp4 001-meet-tono meet-tono 3.6  0.6:4.15 4.45:7.0 7.45:9.25
 # 002 Every machine in one sidebar: the digits already fading in, and a hop a second or two: this machine, the other, and back.
-cut tabs.mp4 002-every-machine-one-sidebar every-machine-one-sidebar 8.3  1.5:4.15 4.45:6.5 7.45:9.05 9.9:11.4
+cut tabs.mp4 002-every-machine-one-sidebar every-machine-one-sidebar 2.6  1.5:4.15 4.45:6.5 7.45:9.05 9.9:11.4
 # 003 It follows your Omarchy theme: three changes of theme, uncut.
 cut theme.mp4 003-follows-omarchy-theme follows-omarchy-theme 7.6  2.0:11.0
