@@ -49,7 +49,8 @@ fun main(args: Array<String>) {
                 connections.cancel()
                 exitApplication()
             },
-            title = "Tono",
+            // Says where the window is, for a window list or a workspace overview.
+            title = currentWindowTitle(client),
             icon = remember { windowIcon() },
             state = rememberWindowState(size = DpSize(1280.dp, 820.dp)),
         ) {

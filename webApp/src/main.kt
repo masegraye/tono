@@ -76,12 +76,18 @@ fun main() {
         if (running == null) {
             Box(Modifier.fillMaxSize())
         } else {
+            // The browser's tab says where the app is, as the desktop's window does.
+            val title = currentWindowTitle(running)
+            LaunchedEffect(title) { setPageTitle(title) }
             CompositionLocalProvider(LocalOmarchyFont provides font) {
                 TonoApp(running)
             }
         }
     }
 }
+
+@OptIn(kotlin.js.ExperimentalWasmJsInterop::class)
+private fun setPageTitle(title: String): Unit = js("{ document.title = title; }")
 
 private class Style(val name: String, val weight: FontWeight, val style: FontStyle)
 
