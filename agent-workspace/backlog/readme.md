@@ -20,7 +20,7 @@ The order proposed in inv-001, not yet agreed:
 6. ~~backlog-009: The bell, and progress~~ done
 7. ~~backlog-010: Name the window after the tab~~ done
 8. ~~backlog-012: Resize, balance, swap, move and rename panes~~ done
-9. backlog-013: Move a tab by key, close others, mute, rename a session
+9. ~~backlog-013: Move a tab by key, close others, mute, rename a session~~ done
 10. backlog-003: Paste or drop files and images
 11. backlog-023: Insert a path, and go to a directory
 
@@ -40,7 +40,7 @@ The order proposed in inv-001, not yet agreed:
 | 010 | [Name the window after the tab](backlog-010-window-title.md) | Knowing what happened | small | done |
 | 011 | [Activity as a list](backlog-011-activity-list.md) | Knowing what happened | medium | captured |
 | 012 | [Resize, balance, swap, move and rename panes](backlog-012-pane-resize-balance-swap-move.md) | Panes, tabs and sessions | medium | done |
-| 013 | [Move a tab by key, close others, mute, rename a session](backlog-013-tab-and-session-management.md) | Panes, tabs and sessions | small | captured |
+| 013 | [Move a tab by key, close others, mute, rename a session](backlog-013-tab-and-session-management.md) | Panes, tabs and sessions | small | done |
 | 014 | [Back and forward](backlog-014-navigation-history.md) | Panes, tabs and sessions | small | captured |
 | 015 | [A menu on right-click](backlog-015-pane-menu.md) | Panes, tabs and sessions | small | captured |
 | 016 | [Floating panes](backlog-016-floating-panes.md) | Panes, tabs and sessions | large | captured |
@@ -66,4 +66,4 @@ The order proposed in inv-001, not yet agreed:
 | 036 | [Close the connections a silent server never answered](backlog-036-close-connections-a-silent-server-never-answered.md) | Connecting to servers | small | captured |
 | 037 | [The web relay may keep a page's connection after the page is gone](backlog-037-the-relay-may-keep-a-page-that-is-gone.md) | The web app | small | captured |
 | 038 | [A host that is still being connected to looks like one that is connected](backlog-038-a-host-being-connected-to-looks-connected.md) | The sidebar | small | captured |
-| 039 | [Pane keys reach the terminal in a tab with one pane](backlog-039-pane-keys-reach-the-terminal-with-one-pane.md) | Typing and keys | small | captured |
+| 039 | [Pane keys reach the terminal in a tab with one pane](backlog-039-pane-keys-reach-the-terminal-with-one-pane.md) | Typing and keys | small | done |
