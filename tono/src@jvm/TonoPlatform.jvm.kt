@@ -420,7 +420,7 @@ private const val REX_COMMAND_SECONDS = 60L
 internal actual fun wheelDetails(event: androidx.compose.ui.input.pointer.PointerEvent): String? {
     val wheel = event.nativeEvent as? java.awt.event.MouseWheelEvent ?: return null
     val type = if (wheel.scrollType == java.awt.event.MouseWheelEvent.WHEEL_UNIT_SCROLL) "unit" else "block"
-    return "awt $type rotation=${wheel.wheelRotation} precise=${wheel.preciseWheelRotation} amount=${wheel.scrollAmount} when=${wheel.`when`}"
+    return "awt $type rotation=${wheel.wheelRotation} precise=${wheel.preciseWheelRotation} amount=${wheel.scrollAmount} when=${wheel.`when`} age_ms=${System.currentTimeMillis() - wheel.`when`}"
 }
 
 internal actual fun wheelTurn(event: androidx.compose.ui.input.pointer.PointerEvent, delta: Float, cellHeight: Float, density: Float, rows: Int): WheelTurn = notchedWheelTurn(delta)

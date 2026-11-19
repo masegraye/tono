@@ -753,9 +753,32 @@ class RexHost(
     }
 
     /** Sends a terminal's program input that isn't a key press, such as the report of a mouse click. */
-    private fun write(sessionId: String, blockId: String, data: String, claims: Boolean) = act(null) { control ->
-        if (claims) claim(control, sessionId, blockId)
-        control.callBlock("$TERMINAL_CREATOR.write", sessionId, blockId, buildJsonObject { put("data", data) })
+    private fun write(sessionId: String, blockId: String, data: String, claims: Boolean) {
+        val seq = ScrollTelemetry.sendQueued(data.length)
+        val queued = if (seq != 0) ScrollTelemetry.micros() else 0L
+        act(null) { control ->
+            if (claims) claim(control, sessionId, blockId)
+            if (seq == 0) {
+                control.callBlock("$TERMINAL_CREATOR.write", sessionId, blockId, buildJsonObject { put("data", data) })
+                return@act
+            }
+            ScrollTelemetry.sendStart(seq, queued)
+            val started = ScrollTelemetry.micros()
+            val answer = control.request("$TERMINAL_CREATOR.write", buildJsonObject {
+                put("session_id", sessionId)
+                put("block_id", blockId)
+                put("args", buildJsonObject { put("data", data) })
+            })
+            ScrollTelemetry.sendWritten(seq, seq, data.length, started)
+            val written = ScrollTelemetry.micros()
+            try {
+                answer.await()
+                ScrollTelemetry.sendAcked(seq, written)
+            } catch (failure: Exception) {
+                ScrollTelemetry.sendAcked(seq, written, failed = true)
+                throw failure
+            }
+        }
     }
 
     /**
@@ -822,7 +845,9 @@ class RexHost(
     /** Queues work for the connection. [what] names it in the log; null keeps it out (typing, resizing). */
     private fun act(what: String?, moves: Boolean = false, action: suspend (RexControl) -> Unit) {
         if (moves) mutableMoving.update { it + 1 }
+        val queued = ScrollTelemetry.actionQueued()
         actions.trySend { control ->
+            val started = if (queued != 0L) ScrollTelemetry.micros() else 0L
             try {
                 action(control)
                 if (what != null) log.add(saved.label, "→ $what")
@@ -830,6 +855,7 @@ class RexHost(
                 log.add(saved.label, "✗ ${what ?: "request"}: ${refused.message}", isError = true)
             } finally {
                 if (moves) mutableMoving.update { it - 1 }
+                ScrollTelemetry.actionDone(what, queued, started)
             }
         }
     }

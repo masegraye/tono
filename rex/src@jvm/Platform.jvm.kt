@@ -228,14 +228,27 @@ actual suspend fun tailnetRexServers(): List<TailnetServer> = withContext(Dispat
 
 /**
  * Asked for with `TONO_SCROLL_TELEMETRY` or `-Dtono.scrollTelemetry`: a file to add the
- * lines to, or `1` for standard error.
+ * lines to, or `1` for standard error. A file is written through a buffer, so that a line
+ * costs the thread it is about no more than copying it, and the buffer is emptied a few
+ * times a second and when the app ends.
  */
 internal actual fun scrollTelemetrySink(): ((String) -> Unit)? {
     val wanted = (System.getProperty("tono.scrollTelemetry") ?: System.getenv("TONO_SCROLL_TELEMETRY"))?.takeIf { it.isNotEmpty() && it != "0" && it != "false" } ?: return null
     if (wanted == "1" || wanted == "true") return { line -> System.err.println(line) }
-    val file = runCatching { java.io.PrintWriter(java.io.FileWriter(wanted, true), true) }.getOrElse {
+    val file = runCatching { java.io.BufferedWriter(java.io.FileWriter(wanted, true), 1 shl 16) }.getOrElse {
         System.err.println("tono: can't write scroll telemetry to $wanted: ${it.message}")
         return null
     }
-    return { line -> file.println(line) }
+    val flush = { synchronized(file) { runCatching { file.flush() } } }
+    Thread({
+        while (true) {
+            Thread.sleep(250)
+            flush()
+        }
+    }, "tono-scroll-telemetry").apply { isDaemon = true }.start()
+    Runtime.getRuntime().addShutdownHook(Thread { flush() })
+    return { line -> synchronized(file) { runCatching { file.write(line); file.write('\n'.code) } } }
 }
+
+/** `System.nanoTime` is the machine's monotonic clock on Linux, which is what other programs on it can read too. */
+internal actual fun telemetryClock(): String = ",\"mono_us\":${System.nanoTime() / 1000},\"wall_ms\":${System.currentTimeMillis()},\"pid\":${ProcessHandle.current().pid()}"

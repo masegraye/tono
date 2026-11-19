@@ -39,6 +39,8 @@ fun main(args: Array<String>) {
     if (System.getProperty("sun.java2d.uiScale") == null && detectOmarchyUiScale() != null) System.setProperty("sun.java2d.uiScale", "1")
 
     nameWindowClass("tono")
+    // Nothing, unless scrolling is being measured (TONO_SCROLL_TELEMETRY).
+    ScrollWatch.start()
 
     val workspaceFile = args.indexOf("--workspace").takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
     val workspace = workspaceFile?.let { Workspace.load(Path.of(it)) } ?: defaultWorkspace()

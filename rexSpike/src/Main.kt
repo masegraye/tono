@@ -63,7 +63,8 @@ fun main(args: Array<String>) {
 private suspend fun kotlinx.coroutines.CoroutineScope.probe(args: Array<String>) {
     val typed = args.indexOf("--type").takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
     val workspace = args.firstOrNull()?.takeIf { !it.startsWith("--") }?.let { Workspace.load(Path.of(it)) } ?: defaultWorkspace()
-    val client = RexClient(this, workspace)
+    // To measure scrolling, the connections run where the app's do, on threads of their own, and not on this one.
+    val client = RexClient(if ("--scroll" in args) kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default) else this, workspace)
 
     // Give every host a chance to connect (or fail), and discovered hosts time to appear.
     delay(1_500)
@@ -81,6 +82,12 @@ private suspend fun kotlinx.coroutines.CoroutineScope.probe(args: Array<String>)
     }
 
     if (typed != null) typeInto(client, typed)
+
+    if ("--scroll" in args) {
+        scroll(client, args)
+        client.close()
+        return
+    }
 
     // `--claim <seconds>`: takes the shown tab's focused terminal, as the app does when the
     // pointer is over it, and stays connected that long. It stands in for a second client

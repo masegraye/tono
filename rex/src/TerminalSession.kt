@@ -317,20 +317,41 @@ class TerminalSession internal constructor(
 
             val live = terminal
             val scanner = RexStreamScanner(stream.nonce)
+            // Measuring (ScrollTelemetry) is decided once, when the terminal opens, like the noting of its stream.
+            val measuring = ScrollTelemetry.enabled
+            val marks = ScrollTelemetry.Marks()
+            val turn = ScrollTelemetry.Turn()
             fun apply(bytes: ByteArray, offset: Int) =
-                scanner.feed(bytes, offset, onOutput = live::write, onMessage = { handleMessage(live, it) })
+                scanner.feed(bytes, offset, onOutput = { data, from, length ->
+                    if (measuring) marks.scan(data, from, length)
+                    live.write(data, from, length)
+                }, onMessage = { handleMessage(live, it) })
             apply(snapshot, restored.snapshotBytes)
             mutableFrame.value = renderer.render(terminal).scrolled(pointer.scrolled)
             bracketedPaste = terminal.bracketedPaste
             mutableStatus.value = Status.Live
 
+            var sleptAt = 0L
+            var askedSleep = 0L
             while (true) {
                 var output = false
+                if (measuring) {
+                    turn.output = false; turn.commands = 0; turn.timer = false
+                    ScrollTelemetry.terminalBusySince = 0
+                }
                 val more = select {
                     stream.frames.onReceiveCatching { result ->
                         val frame = result.getOrNull() ?: return@onReceiveCatching false
                         output = true
-                        if (frame is Frame.Binary) apply(frame.readBytes(), 0)
+                        val began = if (measuring) ScrollTelemetry.micros().also { ScrollTelemetry.terminalBusySince = it } else 0L
+                        var chunks = 0
+                        var fed = 0
+                        if (frame is Frame.Binary) {
+                            val bytes = frame.readBytes()
+                            apply(bytes, 0)
+                            chunks++
+                            fed += bytes.size
+                        }
                         // Take whatever else has already arrived, so a burst of output is drawn once.
                         var budget = DRAIN_BYTES
                         while (budget > 0) {
@@ -338,10 +359,20 @@ class TerminalSession internal constructor(
                             val bytes = next.readBytes()
                             apply(bytes, 0)
                             budget -= bytes.size
+                            chunks++
+                            fed += bytes.size
+                        }
+                        if (measuring) {
+                            turn.wokeAt = began
+                            turn.output = true
+                            ScrollTelemetry.fed(this@TerminalSession, stream, chunks, fed, ScrollTelemetry.micros() - began, marks.syncBegins, marks.syncEnds, marks.drawn)
+                            marks.clear()
                         }
                         true
                     }
                     commands.onReceive { command ->
+                        val began = if (measuring) ScrollTelemetry.micros().also { ScrollTelemetry.terminalBusySince = it } else 0L
+                        var done = 1
                         handleCommand(live, renderer, pointer, selection, searching, command)
                         // And whatever else was asked for meanwhile, so that it is all drawn once. A wheel
                         // turned fast asks many times in the time one frame takes: taken one to a frame,
@@ -350,6 +381,12 @@ class TerminalSession internal constructor(
                         while (budget-- > 0) {
                             val next = commands.tryReceive().getOrNull() ?: break
                             handleCommand(live, renderer, pointer, selection, searching, next)
+                            done++
+                        }
+                        if (measuring) {
+                            turn.wokeAt = began
+                            turn.commands = done
+                            ScrollTelemetry.commandsDone(this@TerminalSession, done, ScrollTelemetry.micros() - began)
                         }
                         true
                     }
@@ -367,10 +404,17 @@ class TerminalSession internal constructor(
                 if (!more) break
                 // Whatever just happened may have changed what there is to find, or where it is in the view.
                 searching.refresh()
-                if (ScrollTelemetry.enabled) {
+                if (measuring) {
                     val before = ScrollTelemetry.micros()
+                    if (!turn.output && turn.commands == 0) {
+                        turn.timer = true
+                        turn.wokeAt = before
+                    }
+                    turn.sleptMicros = if (sleptAt == 0L) 0 else turn.wokeAt - sleptAt
+                    turn.askedSleepMicros = askedSleep
+                    turn.sync = terminal.mode(MODE_SYNCHRONIZED_UPDATE)
                     val next = renderer.render(terminal).scrolled(pointer.scrolled)
-                    ScrollTelemetry.frame(this, next, ScrollTelemetry.micros() - before, output)
+                    ScrollTelemetry.frame(this, next, ScrollTelemetry.micros() - before, output, turn)
                     mutableFrame.value = next
                 } else {
                     mutableFrame.value = renderer.render(terminal).scrolled(pointer.scrolled)
@@ -378,6 +422,11 @@ class TerminalSession internal constructor(
                 // Asked again every time, since what is under a pointer that hasn't moved may have changed.
                 mutableLink.value = pointingAt?.let { pointer.linkUnder(live, it) }
                 bracketedPaste = terminal.bracketedPaste
+                if (measuring) {
+                    ScrollTelemetry.terminalBusySince = 0
+                    sleptAt = ScrollTelemetry.micros()
+                    askedSleep = FRAME_INTERVAL_MILLIS * 1000
+                }
                 delay(FRAME_INTERVAL_MILLIS)
             }
             val reason = stream.closeReason()
@@ -435,6 +484,7 @@ class TerminalSession internal constructor(
             val frame = withTimeoutOrNull(SNAPSHOT_TIMEOUT_MILLIS) { stream.frames.receiveCatching().getOrNull() }
                 ?: error("The terminal's snapshot didn't arrive")
             if (frame !is Frame.Binary) continue
+            ScrollTelemetry.taken(stream)
             received.write(frame.readBytes())
             // Walking the records from the start is too slow to do for every chunk of a large
             // snapshot, so only look every so often and whenever the stream pauses.
@@ -498,6 +548,8 @@ class TerminalSession internal constructor(
 
     private companion object {
         const val SNAPSHOT_TIMEOUT_MILLIS = 15_000L
+        /** While it is on, a program is in the middle of drawing and says not to show what it has drawn so far. */
+        const val MODE_SYNCHRONIZED_UPDATE = 2026
         /** A short pause after each frame lets output that arrives in pieces be drawn together. */
         const val FRAME_INTERVAL_MILLIS = 4L
         const val DRAIN_BYTES = 4 shl 20

@@ -126,3 +126,5 @@ private fun consoleLog(line: String): Unit = js("console.log(line)")
 
 /** Asked for with `?scrollTelemetry` in the page's address, or `tono.scrollTelemetry` in its storage. The lines go to the console. */
 internal actual fun scrollTelemetrySink(): ((String) -> Unit)? = if (scrollTelemetryWanted()) { line -> consoleLog(line) } else null
+
+internal actual fun telemetryClock(): String = ""

@@ -7,7 +7,9 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readBytes
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -82,12 +84,34 @@ class RexTerminalStream private constructor(
         private const val REJECT: Byte = 0x82.toByte()
     }
 
-    /** The stream's chunks, as binary frames. Where one ends and the next begins means nothing. */
-    internal val frames: ReceiveChannel<Frame> get() = socket.incoming
+    /**
+     * The stream's chunks, as binary frames. Where one ends and the next begins means nothing.
+     *
+     * While scrolling is measured ([ScrollTelemetry]) each is noted as it comes off the
+     * socket, by a coroutine that does nothing else, so that the time it then waits for the
+     * terminal's thread can be told. Otherwise they are the socket's own.
+     */
+    internal val frames: ReceiveChannel<Frame> = if (ScrollTelemetry.enabled) noted() else socket.incoming
+
+    private fun noted(): ReceiveChannel<Frame> {
+        val noted = Channel<Frame>(Channel.UNLIMITED)
+        socket.launch {
+            try {
+                for (frame in socket.incoming) {
+                    if (frame is Frame.Binary) ScrollTelemetry.received(this@RexTerminalStream, frame.data.size)
+                    noted.send(frame)
+                }
+            } finally {
+                noted.close()
+                ScrollTelemetry.streamClosed(this@RexTerminalStream)
+            }
+        }
+        return noted
+    }
 
     /** True when no further chunk is waiting right now. */
     @OptIn(ExperimentalCoroutinesApi::class)
-    internal val idle: Boolean get() = socket.incoming.isEmpty
+    internal val idle: Boolean get() = frames.isEmpty
 
     /** Why the server closed the stream, once [frames] has ended. */
     internal suspend fun closeReason(): CloseReason? = socket.closeReason.await()
