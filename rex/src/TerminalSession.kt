@@ -25,6 +25,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.example.kotlintest.ghostty.GhosttyMouse
 import org.example.kotlintest.ghostty.loadGhostty
 import kotlin.concurrent.Volatile
+import kotlin.time.TimeSource
 import org.example.kotlintest.ghostty.GhosttyRenderer
 import org.example.kotlintest.ghostty.GhosttySelection
 import org.example.kotlintest.ghostty.MouseAction
@@ -151,6 +152,10 @@ class TerminalSession internal constructor(
     private var scrollNextMillis = 0L
 
     private val commands = Channel<Command>(Channel.UNLIMITED)
+    private val clock = TimeSource.Monotonic.markNow()
+
+    /** Microseconds on a clock that only goes forward, for what the terminal's thread times. */
+    private fun elapsedMicros(): Long = clock.elapsedNow().inWholeMicroseconds
     private var colors: TerminalColors? = colors
     private val job = scope.launch(terminalDispatcher) { run() }
 
@@ -331,14 +336,15 @@ class TerminalSession internal constructor(
             bracketedPaste = terminal.bracketedPaste
             mutableStatus.value = Status.Live
 
+            // What has happened that no frame has been read for yet, and the soonest the next may be read.
+            var owed = false
+            var output = false
+            var dueAt = 0L
+            // When the program began the synchronized update it is in the middle of, and whether it has had its time.
+            var heldSince = -1L
             var sleptAt = 0L
-            var askedSleep = 0L
             while (true) {
-                var output = false
-                if (measuring) {
-                    turn.output = false; turn.commands = 0; turn.timer = false
-                    ScrollTelemetry.terminalBusySince = 0
-                }
+                if (measuring) ScrollTelemetry.terminalBusySince = 0
                 val more = select {
                     stream.frames.onReceiveCatching { result ->
                         val frame = result.getOrNull() ?: return@onReceiveCatching false
@@ -363,7 +369,7 @@ class TerminalSession internal constructor(
                             fed += bytes.size
                         }
                         if (measuring) {
-                            turn.wokeAt = began
+                            if (!owed) turn.wokeAt = began
                             turn.output = true
                             ScrollTelemetry.fed(this@TerminalSession, stream, chunks, fed, ScrollTelemetry.micros() - began, marks.syncBegins, marks.syncEnds, marks.drawn)
                             marks.clear()
@@ -384,14 +390,20 @@ class TerminalSession internal constructor(
                             done++
                         }
                         if (measuring) {
-                            turn.wokeAt = began
-                            turn.commands = done
+                            if (!owed) turn.wokeAt = began
+                            turn.commands += done
                             ScrollTelemetry.commandsDone(this@TerminalSession, done, ScrollTelemetry.micros() - began)
                         }
                         true
                     }
-                    // A long history is searched a little at a time, between frames.
-                    if (searching.behind) onTimeout(0) { true }
+                    // A frame is owed, and it is too soon after the last or the program is in the middle of drawing: when it no longer is.
+                    if (owed) {
+                        val until = if (heldSince >= 0) maxOf(dueAt, heldSince + SYNCHRONIZED_UPDATE_MICROS) else dueAt
+                        onTimeout(((until - elapsedMicros() + 999) / 1000).coerceAtLeast(0)) { true }
+                    } else if (searching.behind) {
+                        // A long history is searched a little at a time, between frames.
+                        onTimeout(0) { true }
+                    }
                     // Held past the top or bottom edge while selecting: a row at a time, until it isn't.
                     if (pointer.scrollingAt != null) {
                         onTimeout((scrollNextMillis - nowMillis()).coerceAtLeast(0)) {
@@ -404,6 +416,21 @@ class TerminalSession internal constructor(
                 if (!more) break
                 // Whatever just happened may have changed what there is to find, or where it is in the view.
                 searching.refresh()
+                bracketedPaste = terminal.bracketedPaste
+                owed = true
+                val now = elapsedMicros()
+                // A program that says it is in the middle of an update (mode 2026) is not shown half done: the last
+                // finished frame stays up until it says it is through, or for a second, as in Ghostty, since it may never say.
+                val synchronizing = terminal.mode(MODE_SYNCHRONIZED_UPDATE)
+                if (!synchronizing) heldSince = -1 else if (heldSince < 0) heldSince = now
+                if (synchronizing && now - heldSince < SYNCHRONIZED_UPDATE_MICROS) {
+                    if (measuring) ScrollTelemetry.held(this)
+                    continue
+                }
+                // Frames are read no closer together than this, which lets output that arrives in pieces be drawn
+                // together. What is asked meanwhile is still done as it comes: a turn of the wheel that a program
+                // takes is sent on now, and not when the frame is read.
+                if (now < dueAt) continue
                 if (measuring) {
                     val before = ScrollTelemetry.micros()
                     if (!turn.output && turn.commands == 0) {
@@ -411,23 +438,20 @@ class TerminalSession internal constructor(
                         turn.wokeAt = before
                     }
                     turn.sleptMicros = if (sleptAt == 0L) 0 else turn.wokeAt - sleptAt
-                    turn.askedSleepMicros = askedSleep
-                    turn.sync = terminal.mode(MODE_SYNCHRONIZED_UPDATE)
+                    turn.sync = synchronizing
                     val next = renderer.render(terminal).scrolled(pointer.scrolled)
                     ScrollTelemetry.frame(this, next, ScrollTelemetry.micros() - before, output, turn)
                     mutableFrame.value = next
+                    turn.output = false; turn.commands = 0; turn.timer = false
+                    sleptAt = ScrollTelemetry.micros()
                 } else {
                     mutableFrame.value = renderer.render(terminal).scrolled(pointer.scrolled)
                 }
                 // Asked again every time, since what is under a pointer that hasn't moved may have changed.
                 mutableLink.value = pointingAt?.let { pointer.linkUnder(live, it) }
-                bracketedPaste = terminal.bracketedPaste
-                if (measuring) {
-                    ScrollTelemetry.terminalBusySince = 0
-                    sleptAt = ScrollTelemetry.micros()
-                    askedSleep = FRAME_INTERVAL_MILLIS * 1000
-                }
-                delay(FRAME_INTERVAL_MILLIS)
+                owed = false
+                output = false
+                dueAt = elapsedMicros() + FRAME_INTERVAL_MILLIS * 1000
             }
             val reason = stream.closeReason()
             val ended = Status.Ended(
@@ -550,8 +574,10 @@ class TerminalSession internal constructor(
         const val SNAPSHOT_TIMEOUT_MILLIS = 15_000L
         /** While it is on, a program is in the middle of drawing and says not to show what it has drawn so far. */
         const val MODE_SYNCHRONIZED_UPDATE = 2026
-        /** A short pause after each frame lets output that arrives in pieces be drawn together. */
+        /** Frames are read at least this far apart, which lets output that arrives in pieces be drawn together. */
         const val FRAME_INTERVAL_MILLIS = 4L
+        /** How long a program may keep its screen from being shown while it draws (mode 2026). Ghostty's, and Rex Rune's. */
+        const val SYNCHRONIZED_UPDATE_MICROS = 1_000_000L
         const val DRAIN_BYTES = 4 shl 20
         /** How many things asked of the terminal are done before a frame is drawn, when that many are waiting. */
         const val DRAIN_COMMANDS = 256

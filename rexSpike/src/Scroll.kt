@@ -20,7 +20,7 @@ import kotlin.concurrent.thread
  *
  * The pattern is groups of `<notches>x<milliseconds apart>`, with commas between, such as
  * `10x100,30x8`: ten notches a tenth of a second apart, a pause, then thirty in a flick.
- * Groups go down and up in turn. `--pause <ms>` is the pause between groups (800).
+ * Groups go down and up in turn. `--grid <columns>x<rows>` sizes the terminal first, as a window would. `--pause <ms>` is the pause between groups (800).
  *
  * In place of a window, each frame the terminal reads counts as drawn at the next tick of a
  * screen that shows `--hz <n>` frames a second (60), which is when a window would have
@@ -41,6 +41,14 @@ internal suspend fun scroll(client: RexClient, args: Array<String>) {
             .let { state -> state.terminals[state.window?.focusedBlockId ?: state.window?.panes?.firstOrNull()?.blockId] }
     } ?: error("No terminal opened")
     withTimeoutOrNull(10_000) { terminal.frame.first { it != null } } ?: error("The terminal drew nothing")
+    // `--grid <columns>x<rows>`: the size a window would give it, taken as the app takes it when the pointer is over it.
+    option("--grid")?.let { grid ->
+        val wanted = org.example.kotlintest.rex.GridSize(grid.substringBefore('x').toInt(), grid.substringAfter('x').toInt(), 10, 20)
+        host.setDesiredGrid(terminal.blockId, wanted)
+        host.pointerOver(terminal.blockId)
+        withTimeoutOrNull(5_000) { terminal.grid.first { it?.columns == wanted.columns && it.rows == wanted.rows } } ?: println("the terminal didn't take the size $grid")
+        delay(700) // its program draws itself again at that size
+    }
     println("scrolling ${terminal.blockId} at ${terminal.grid.value}: $pattern")
 
     // The screen: a frame is drawn at the tick after it was read.
@@ -86,7 +94,8 @@ internal suspend fun scroll(client: RexClient, args: Array<String>) {
         down = !down
     }
     }
-    delay(ScrollTelemetry.ACTIVE_MICROS / 1000)
+    // Until everything the wheel set going has come back and been written down.
+    while (ScrollTelemetry.active) delay(100)
     running = false
     screen.join(200)
 }

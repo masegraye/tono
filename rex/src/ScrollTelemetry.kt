@@ -44,9 +44,10 @@ import kotlin.time.TimeSource
  *   the synchronized updates (mode 2026) begun and ended in them (`sync_begin`, `sync_end`);
  * - `cmds`: things asked of the terminal were done on its thread, and how long that took;
  * - `frame` also says why it was read (`cause`), when the terminal's thread woke for it
- *   (`wake_us` before), how long the thread had slept (`slept_us`, of which
- *   `asked_sleep_us` was asked for), and whether the program is in the middle of a
- *   synchronized update (`sync`);
+ *   (`wake_us` before), how long the thread had waited for something to do before that
+ *   (`slept_us`), and whether the program is in the middle of a synchronized update (`sync`);
+ * - `held`: no frame was read after output, because the program is in the middle of a
+ *   synchronized update, and the last finished frame stays up;
  * - `action`: any other request on the control connection that waited or took long;
  * - `stall`: a thread didn't get to its work for `blocked_us`, with where it was (`stack`).
  *
@@ -169,7 +170,11 @@ object ScrollTelemetry {
     }
 
     /** Whether the wheel turned so lately that what the app does is worth writing down. */
-    val active: Boolean get() = enabled && micros() - lastWheelAt < ACTIVE_MICROS
+    val active: Boolean get() = enabled && isActive(micros())
+
+    /** The wheel turned lately, or a report it became is still on its way. */
+    private fun isActive(now: Long) = wheelIds > 0 && (now - lastWheelAt < ACTIVE_MICROS || now - lastSendAt < ACTIVE_MICROS)
+    private var lastSendAt = -ACTIVE_MICROS
 
     private val numbers = HashMap<Any, Int>()
 
@@ -245,9 +250,8 @@ object ScrollTelemetry {
     class Turn {
         /** When the thread woke for this turn, by [micros]. */
         var wokeAt = 0L
-        /** How long it had slept since the turn before, and how much of that it asked for. */
+        /** How long it had waited for something to do since the frame before. */
         var sleptMicros = 0L
-        var askedSleepMicros = 0L
         var output = false
         var commands = 0
         var timer = false
@@ -271,7 +275,7 @@ object ScrollTelemetry {
             val limit = minOf(frame.rows.size, lastRows.size)
             for (index in 0 until limit) if (frame.rows[index] !== lastRows[index]) moved++
             lastRows = frame.rows
-            val scrolling = handled.isNotEmpty() || awaitingAnswer.isNotEmpty() || now - lastWheelAt < ACTIVE_MICROS
+            val scrolling = handled.isNotEmpty() || awaitingAnswer.isNotEmpty() || isActive(now)
             if (!scrolling) return@locked
             val answered = if (output && moved > 0) ArrayList(awaitingAnswer).also { awaitingAnswer.clear() } else emptyList<Wheel>()
             val scrolled = ArrayList<Wheel>()
@@ -288,7 +292,7 @@ object ScrollTelemetry {
                 if (turn.output) append("output")
                 if (turn.commands > 0) append(if (isEmpty() || last() == '"') "command" else "+command")
                 if (turn.timer) append(if (last() == '"') "timer" else "+timer")
-                append("\",\"wake_us\":${now - micros - turn.wokeAt},\"slept_us\":${turn.sleptMicros},\"asked_sleep_us\":${turn.askedSleepMicros},\"sync\":${turn.sync}")
+                append("\",\"wake_us\":${now - micros - turn.wokeAt},\"slept_us\":${turn.sleptMicros},\"sync\":${turn.sync}")
             }
             line(
                 now, "frame",
@@ -323,7 +327,7 @@ object ScrollTelemetry {
     /** Its turn on the control connection came, [queuedAt] having been when it was asked for. */
     fun sendStart(seq: Int, queuedAt: Long) {
         if (!enabled || seq == 0) return
-        locked(this) { micros().let { line(it, "send_start", ",\"seq\":$seq,\"waited_us\":${it - queuedAt}") } }
+        locked(this) { micros().let { lastSendAt = it; line(it, "send_start", ",\"seq\":$seq,\"waited_us\":${it - queuedAt}") } }
     }
 
     /**
@@ -334,7 +338,7 @@ object ScrollTelemetry {
         if (!enabled || first == 0) return
         locked(this) {
             reportsInFlight++
-            micros().let { line(it, "send_written", ",\"seq\":$first,\"last_seq\":$last,\"bytes\":$bytes,\"write_us\":${it - startedAt},\"in_flight\":$reportsInFlight") }
+            micros().let { lastSendAt = it; line(it, "send_written", ",\"seq\":$first,\"last_seq\":$last,\"bytes\":$bytes,\"write_us\":${it - startedAt},\"in_flight\":$reportsInFlight") }
         }
     }
 
@@ -343,7 +347,7 @@ object ScrollTelemetry {
         if (!enabled || first == 0) return
         locked(this) {
             if (reportsInFlight > 0) reportsInFlight--
-            micros().let { line(it, "send_acked", ",\"seq\":$first,\"rtt_us\":${it - writtenAt}" + if (failed) ",\"failed\":true" else "") }
+            micros().let { lastSendAt = it; line(it, "send_acked", ",\"seq\":$first,\"rtt_us\":${it - writtenAt}" + if (failed) ",\"failed\":true" else "") }
         }
     }
 
@@ -363,7 +367,7 @@ object ScrollTelemetry {
             if (actionsWaiting > 0) actionsWaiting--
             if (!enabled) return@locked
             val now = micros()
-            if (now - lastWheelAt < ACTIVE_MICROS && (startedAt - queuedAt > 1_000 || now - startedAt > 1_000)) {
+            if (isActive(now) && (startedAt - queuedAt > 1_000 || now - startedAt > 1_000)) {
                 line(now, "action", ",\"what\":${quoted(what ?: "request")},\"waited_us\":${startedAt - queuedAt},\"ran_us\":${now - startedAt},\"depth\":$actionsWaiting")
             }
         }
@@ -389,7 +393,7 @@ object ScrollTelemetry {
             known.bytes.addLast(bytes)
             // Never more than this is kept: a terminal that isn't being read gets no line for what is dropped.
             if (known.at.size > 8192) { known.at.removeFirst(); known.bytes.removeFirst() }
-            if (now - lastWheelAt < ACTIVE_MICROS) line(now, "rx", ",\"stream\":${numberOf(stream)},\"n\":${known.count},\"bytes\":$bytes")
+            if (isActive(now)) line(now, "rx", ",\"stream\":${numberOf(stream)},\"n\":${known.count},\"bytes\":$bytes")
         }
     }
 
@@ -428,7 +432,7 @@ object ScrollTelemetry {
                     if (oldest < 0) oldest = at
                 }
             }
-            if (now - lastWheelAt >= ACTIVE_MICROS) return@locked
+            if (!isActive(now)) return@locked
             line(
                 now - micros, "feed",
                 ",\"term\":${numberOf(terminal)},\"stream\":${numberOf(stream)},\"first_n\":$first,\"chunks\":$chunks,\"bytes\":$bytes,\"feed_us\":$micros" +
@@ -438,12 +442,21 @@ object ScrollTelemetry {
         }
     }
 
+    /** No frame of [terminal] was read after what just happened, because its program is in the middle of a synchronized update. */
+    fun held(terminal: Any?) {
+        if (!enabled) return
+        locked(this) {
+            val now = micros()
+            if (terminal === watched && isActive(now)) line(now, "held", ",\"term\":${numberOf(terminal)}")
+        }
+    }
+
     /** [count] things asked of [terminal] were done on its thread, which took [micros]. */
     fun commandsDone(terminal: Any?, count: Int, micros: Long) {
         if (!enabled) return
         locked(this) {
             val now = micros()
-            if (now - lastWheelAt < ACTIVE_MICROS) line(now - micros, "cmds", ",\"term\":${numberOf(terminal)},\"count\":$count,\"run_us\":$micros")
+            if (isActive(now)) line(now - micros, "cmds", ",\"term\":${numberOf(terminal)},\"count\":$count,\"run_us\":$micros")
         }
     }
 
@@ -565,7 +578,7 @@ object ScrollTelemetry {
     }
 
     /** Whether a wheel event came so lately that the window's frames are worth timing: see [tick]. */
-    val scrolling: Boolean get() = enabled && micros() - lastWheelAt < ACTIVE_MICROS
+    val scrolling: Boolean get() = active
 
     /** The window drew a frame [micros] after the one before, while [scrolling]. */
     fun tick(micros: Long) {

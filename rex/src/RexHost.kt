@@ -749,7 +749,7 @@ class RexHost(
         val sessionId = current.selectedSessionId ?: return@act
         claim(control, sessionId, blockId)
         current.terminals[blockId]?.typedInto()
-        control.callBlock("$TERMINAL_CREATOR.write", sessionId, blockId, buildJsonObject { put("data", text) })
+        type(control, sessionId, blockId, text)
     }
 
     /** Sends a terminal's program input that isn't a key press, such as the report of a mouse click. */
@@ -758,25 +758,67 @@ class RexHost(
         val queued = if (seq != 0) ScrollTelemetry.micros() else 0L
         act(null) { control ->
             if (claims) claim(control, sessionId, blockId)
-            if (seq == 0) {
-                control.callBlock("$TERMINAL_CREATOR.write", sessionId, blockId, buildJsonObject { put("data", data) })
-                return@act
-            }
             ScrollTelemetry.sendStart(seq, queued)
-            val started = ScrollTelemetry.micros()
+            type(control, sessionId, blockId, data, seq)
+        }
+    }
+
+    /** Whether this connection's server takes typed text as an action, which is how [type] sends it. Until it says otherwise. */
+    @Volatile private var typesInOrder = true
+
+    /**
+     * Types [data] into a block's terminal, and doesn't wait for the server to say it has.
+     *
+     * A turn of the wheel over a program that takes the mouse is one of these, and so is
+     * every step of a drag. Sent with the terminal's own `write` method each had to wait for
+     * the answer to the one before, since the server runs that method as it comes and two
+     * of them may land in either order. So they left one to a round trip: thirty notches of
+     * a wheel flicked in a quarter of a second took a second and a half to send to a server
+     * 30 ms away, and the program went on scrolling that long after the wheel had stopped
+     * (backlog-054). Sent as `client.action`, the server runs them one at a time in the
+     * order they arrive, among the keys typed before and after, and nothing waits.
+     *
+     * A server that doesn't take the method that way is sent it the old way from then on,
+     * what it refused included.
+     *
+     * @param seq what [ScrollTelemetry] calls this, while it is measuring
+     */
+    private suspend fun type(control: RexControl, sessionId: String, blockId: String, data: String, seq: Int = 0) {
+        val started = if (seq != 0) ScrollTelemetry.micros() else 0L
+        if (!typesInOrder) {
             val answer = control.request("$TERMINAL_CREATOR.write", buildJsonObject {
                 put("session_id", sessionId)
                 put("block_id", blockId)
                 put("args", buildJsonObject { put("data", data) })
             })
             ScrollTelemetry.sendWritten(seq, seq, data.length, started)
-            val written = ScrollTelemetry.micros()
+            val written = if (seq != 0) ScrollTelemetry.micros() else 0L
             try {
                 answer.await()
+            } finally {
                 ScrollTelemetry.sendAcked(seq, written)
-            } catch (failure: Exception) {
-                ScrollTelemetry.sendAcked(seq, written, failed = true)
-                throw failure
+            }
+            return
+        }
+        val answer = control.request("client.action", buildJsonObject {
+            put("action", "$TERMINAL_CREATOR.write")
+            put("session_id", sessionId)
+            put("block_id", blockId)
+            put("args", buildJsonObject { put("data", data) })
+        })
+        ScrollTelemetry.sendWritten(seq, seq, data.length, started)
+        val written = if (seq != 0) ScrollTelemetry.micros() else 0L
+        answer.invokeOnCompletion { failure ->
+            ScrollTelemetry.sendAcked(seq, written, failed = failure != null)
+            if (failure !is RexError) return@invokeOnCompletion
+            if (failure.code == "not_found" || failure.code == "bad_request") {
+                // Not an action it knows, or not one that takes arguments: an older server. This goes again the old
+                // way, and so does whatever was sent after it, as each is refused in its turn.
+                if (typesInOrder) log.add(saved.label, "the server doesn't take typing as an action (${failure.code}); sending it one at a time")
+                typesInOrder = false
+                act(null) { again -> type(again, sessionId, blockId, data) }
+            } else {
+                log.add(saved.label, "✗ typing into ${short(blockId)}: ${failure.message}", isError = true)
             }
         }
     }
@@ -993,6 +1035,7 @@ class RexHost(
         }
         log.add(saved.label, "connected: API ${connection.apiRevision}, ${sessions.size} session${if (sessions.size == 1) "" else "s"}, as ${connection.clientId}")
         control = connection
+        typesInOrder = true
         onServerEvent("connected")
         chooseSession(sessions)?.let { attach(connection, it) }
 

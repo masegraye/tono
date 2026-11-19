@@ -215,25 +215,32 @@ class Timeline:
         sent = [e for e in control if e["ev"] == "ws" and e["dir"] == "c2s"]
         passed = {(e["conn"], e["chunk"]): e["t"] for e in self.link if e["ev"] == "s_write"}
         delivered = {(e["conn"], e["chunk"]): e["t"] for e in self.link if e["ev"] == "c_write"}
-        at = 0
-        seen = set()
-        for wheel in sorted((w for w in self.wheels if w.written is not None), key=lambda w: w.written):
-            carrier = getattr(wheel, "carrier", wheel.seq)
-            if carrier in seen:
-                wheel.left_client, wheel.reached_server = seen_at[carrier]
-                continue
-            # The request that carried it: the first frame from the client that left after it began to be written.
-            while at < len(sent) and sent[at]["t"] < (wheel.started or wheel.written) - 200:
-                at += 1
-            if at < len(sent):
-                frame = sent[at]
-                at += 1
+        writes = sorted((w for w in self.wheels if w.written is not None), key=lambda w: w.written)
+
+        def match(sizes):
+            """Each request that carried reports with the first frame from the client that left after it began to be written."""
+            at = 0
+            found = {}
+            for wheel in writes:
+                carrier = getattr(wheel, "carrier", wheel.seq)
+                if carrier in found:
+                    continue
+                while at < len(sent) and (sent[at]["t"] < (wheel.started or wheel.written) - 300 or (sizes and not sizes[0] <= sent[at]["len"] <= sizes[1])):
+                    at += 1
+                if at < len(sent):
+                    found[carrier] = sent[at]
+                    at += 1
+            return found
+
+        # Other requests cross the same connection. The reports' own are told from them by their size,
+        # which is found by matching once without it.
+        lengths = sorted(frame["len"] for frame in match(None).values())
+        found = match((lengths[len(lengths) // 2] - 8, lengths[-1] if len(lengths) < 3 else lengths[len(lengths) // 2] + 8 + 14 * max(w.shared for w in writes))) if lengths else {}
+        for wheel in writes:
+            frame = found.get(getattr(wheel, "carrier", wheel.seq))
+            if frame:
                 wheel.left_client = frame["t"]
                 wheel.reached_server = passed.get((frame["conn"], frame["chunk"]))
-                seen.add(carrier)
-                seen_at = getattr(self, "_seen_at", None) or {}
-                self._seen_at = seen_at
-                seen_at[carrier] = (wheel.left_client, wheel.reached_server)
         # A terminal's stream: its chunks are the binary frames from the server, in order, after the one that opened it.
         streams = {}
         for event in self.link:
