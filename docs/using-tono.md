@@ -174,7 +174,7 @@ place of Cmd, and with Shift added where Ctrl on its own already means something
 | Ctrl+Alt+Shift+arrows | Move the pane: it trades places with the pane on that side |
 | Ctrl+Shift+Enter | Zoom the pane, or restore the layout |
 | Ctrl+Shift+W / Ctrl+Alt+W | Close the pane / the tab, after asking |
-| Ctrl+Shift+C / Ctrl+Shift+V | Copy the selected text / paste |
+| Ctrl+Shift+C / Ctrl+Shift+V | Copy the selected text / paste text, or upload a copied image or files |
 | Ctrl+Shift+A | Select everything in the terminal, including its history |
 | Ctrl+Alt+I | Insert the path of a file or folder on the terminal's machine |
 | Ctrl+click | Open the link under the pointer |
@@ -282,6 +282,29 @@ it isn't. A path you type yourself with one of these is refused the same way.
 A folder with a great many entries is listed in part, and the list says so. Type more of the name to see the rest.
 Go to Directory has no shortcut of its own, because Rex's Mac app puts it on the key that's Find Next here; you can
 bind one to `pane.go_to_directory` in Rex's `init.lua`.
+
+## Pasting and dropping files and images
+
+Drop files on a pane, or paste (Ctrl+Shift+V) when the clipboard holds copied files or only an image. The files go
+to the machine that pane's terminal runs on, which need not be the one you're sitting at, and their paths are
+typed at its prompt, quoted for the shell and without Enter. This is how a screenshot gets into an agent running
+in a terminal: take it, paste, and the agent is handed a path it can read.
+
+The bytes travel over the connection Tono already has to that machine's Rex server, so nothing else needs to be
+set up. The server keeps the files in a folder of its own under its state directory
+(`~/.local/state/rex/uploads/…`), removes them when the terminal closes, and is what types the paths.
+
+- A pasted image is uploaded as `clipboard.png`. When the clipboard holds text as well, the text is pasted
+  instead. Copied files come before either on the desktop; a browser can't tell a copied file from a copied
+  picture, so in the web app text always comes first.
+- Files dropped together are typed together, in the order they were dropped, and **nothing is typed unless every
+  one arrived**. If any part fails, the pane says why and the prompt is left as it was. Nothing is tried again.
+- A file can be 100 MB at most, a drop 100 files at most, and folders can't be uploaded.
+- A pane shows where dragged files would go while you hold them over it. An upload that takes more than a moment
+  shows how far along it is.
+- A drop goes to the pane it lands on, which then has the keyboard. Nothing is uploaded while the palette or a
+  dialog is open.
+- A server older than API revision 11 can't take files, and the pane says to update Rex on that machine.
 
 ## Sharing a terminal with other clients
 

@@ -67,7 +67,7 @@ The image above was taken in a desktop browser's phone mode. Tono hasn't been ru
 
 | Browser | What's been tested |
 |---|---|
-| Chromium | Terminals, images, the palette, tooltips, paste, selecting and copying, opening links, finding text, a program copying to the clipboard, sounds, renaming and dragging tabs, the mouse, reconnecting, and the keys described above in a real window (a tab, an app window and full screen). The phone layout and typing on it were tested in Chromium's phone emulation. |
+| Chromium | Terminals, images, the palette, tooltips, paste, pasting an image and dropping files (with made-up paste and drop events, and the browser's own clipboard, without a window), selecting and copying, opening links, finding text, a program copying to the clipboard, sounds, renaming and dragging tabs, the mouse, reconnecting, and the keys described above in a real window (a tab, an app window and full screen). The phone layout and typing on it were tested in Chromium's phone emulation. |
 | Firefox | Loading, typing, the palette and images. |
 | Safari, and any real phone or tablet | Not tested. The keyboard is the most likely thing to go wrong first. The sounds are Ogg files, which older versions of Safari don't play. |
 
