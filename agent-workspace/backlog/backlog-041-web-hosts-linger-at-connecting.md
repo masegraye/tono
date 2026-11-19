@@ -60,7 +60,7 @@ Checked:
   scratch Rex server whose host list had seven hosts at `http://127.0.0.1:777x` and one at an
   unreachable tailnet address. Before the change, three of the seven made one attempt, were
   never tried again and still said "Connecting…" 14 seconds after they appeared; this happened
-  on the first try with eight hosts, and not with one. After it, all seven were red 0.3 seconds
+  on the first try with eight hosts, and not with one. After it, all seven were red in a picture taken 0.8 seconds
   after they appeared and each was tried again at 0.5, 1, 2 and 5 seconds.
 - `task test` passes.
 
