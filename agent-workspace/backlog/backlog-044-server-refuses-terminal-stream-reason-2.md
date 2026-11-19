@@ -9,7 +9,7 @@
 
 ## What
 
-When switching tabs, a message sometimes appears: "The server refused the terminal stream (reason 2)". It doesn't happen every time.
+When switching tabs, a message sometimes appears: "The server refused the terminal stream (reason 2)". It doesn't happen every time. The tab is then blank except for that message. Sometimes it stays wedged: switching away and back doesn't bring the terminal back, and only relaunching Tono does. So there are two problems: the refusal, and Tono never trying again.
 
 ## Why
 
