@@ -3,7 +3,7 @@
 # Change Shortcut… moves it to Ctrl+Shift+K for Tono alone; Ctrl+K then cuts the line, as bash means it to.
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 tono_stop
-tono_start "$(workspace 007)" tono || exit 1
+tono_start "$(workspace 007)" || exit 1
 click 1100 500; sleep 2          # the keyboard goes to the window; there is no window manager
 key ctrl+2; sleep 1              # the shell tab
 run_in local tono 1 clear; sleep 1

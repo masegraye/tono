@@ -8,7 +8,7 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 keep=$repo/build/post-media          # what is too large for /tmp: a copy of Neovim's plugins
 
-server_pid() { pgrep -f "rex server run --listen [^ ]*$PM/$1/|rex server run --listen http://\[::1\]:${PORT[$1]:-none} " | head -1; }
+server_pid() { pgrep -f "rex server run .*--state-dir $PM/$1/state " | head -1; }
 
 # A server with a home directory of its own, so its shells show ~/dev/tono and not a scratch path.
 start_server() { # name
@@ -41,7 +41,7 @@ RC
     git -C "$repo" archive HEAD -- . ':!marketing' ':!agent-workspace' | tar -x -C "$home/dev/tono"
     (cd "$home/dev/tono" && git init -q -b main && git add -A && git -c user.name=tono -c user.email=tono@example.com commit -qm "Tono" )
   fi
-  if [ "$name" = local ]; then listen="--listen $HOME_SOCK"
+  if [ "$name" = local ]; then mkdir -p "$(dirname "${HOME_SOCK#unix://}")"; listen="--listen $HOME_SOCK"
   else listen="--listen http://[::1]:${PORT[$name]} --extra-listen http://127.0.0.1:${PORT[$name]} --allow-anonymous"; fi
   (cd "$home" && exec env -i HOME="$home" USER="$USER" LOGNAME="$USER" SHELL=/bin/bash LANG="${LANG:-en_US.UTF-8}" \
       PATH="/usr/local/bin:/usr/bin:/bin:$HOME/.local/share/mise/shims" XDG_RUNTIME_DIR="$PM/$name/run" COLORTERM=truecolor \
@@ -58,25 +58,33 @@ new_tab() {
 }
 # Sessions and tabs that look like a person's: an editor on Tono's own code, a monitor, a log, shells.
 populate() {
-  local h sid
-  [ "$(rx local ls --json | jq '.sessions | length')" = 0 ] || return 0
-  h=$PM/local/home
-  sid=$(rx local new tono -c "$h/dev/tono" --json -- nvim tono/src/TonoApp.kt | jq -r .session_id)
-  new_tab local "$sid" "$h/dev/tono"
-  new_tab local "$sid" "$h" -- btop
-  h=$PM/studio/home; mkdir -p "$h/dev/site/bin"; cp "$tools/log-sim.sh" "$h/dev/site/bin/serve"
-  sid=$(rx studio new website -c "$h/dev/site" --json | jq -r .session_id)
-  new_tab studio "$sid" "$h/dev/tono" -- nvim rex/src/RexClient.kt
-  rx studio send -s "$sid" "clear; bin/serve"; rx studio send-key -s "$sid" enter
-  h=$PM/buildbox/home; mkdir -p "$h/infra"
-  sid=$(rx buildbox new ci -c "$h" --json -- btop | jq -r .session_id)
-  new_tab buildbox "$sid" "$h/infra"
-  h=$PM/laptop/home; mkdir -p "$h/notes"
-  sid=$(rx laptop new notes -c "$h/notes" --json | jq -r .session_id)
+  local h sid server w
+  empty() { [ "$(rx "$1" ls --json | jq '.sessions | length')" = 0 ]; }
+  if empty local; then
+    h=$PM/local/home
+    sid=$(rx local new tono -c "$h/dev/tono" --json -- nvim tono/src/TonoApp.kt | jq -r .session_id)
+    new_tab local "$sid" "$h/dev/tono"
+    new_tab local "$sid" "$h" -- btop
+  fi
+  if empty studio; then
+    h=$PM/studio/home; mkdir -p "$h/dev/site/bin"; cp "$tools/log-sim.sh" "$h/dev/site/bin/serve"
+    sid=$(rx studio new website -c "$h/dev/site" --json | jq -r .session_id)
+    new_tab studio "$sid" "$h/dev/tono" -- nvim rex/src/RexClient.kt
+    rx studio send -s "$sid" "clear; bin/serve" >/dev/null; rx studio send-key -s "$sid" enter >/dev/null
+  fi
+  if empty buildbox; then
+    h=$PM/buildbox/home; mkdir -p "$h/infra"
+    sid=$(rx buildbox new ci -c "$h" --json -- btop | jq -r .session_id)
+    new_tab buildbox "$sid" "$h/infra"
+  fi
+  if empty laptop; then
+    h=$PM/laptop/home; mkdir -p "$h/notes"
+    rx laptop new notes -c "$h/notes" >/dev/null
+  fi
   # No tab keeps a name of its own.
   for server in local studio buildbox laptop; do
     for sid in $(rx "$server" ls --json | jq -r '.sessions[].session_id'); do
-      for w in $(rx "$server" window ls -s "$sid" --json | jq -r '.windows[].window_id'); do
+      for w in $(rx "$server" window ls -s "$sid" --json | jq -r '.windows[] | select(.label | test("^Window [0-9a-f]{8}$") | not) | .window_id'); do
         rx "$server" api call session.set_window_label "{\"session_id\":\"$sid\",\"window_id\":\"$w\",\"label\":\"\"}" >/dev/null
       done
     done
@@ -114,6 +122,7 @@ down() {
   done
   # The display last, found by its arguments: never pkill Xwayland, the desktop's own is one too.
   for pid in $(pgrep -f "^Xwayland $PM_DISPLAY "); do kill "$pid"; done
+  rm -rf "$(dirname "$(dirname "${HOME_SOCK#unix://}")")"
   echo "down"
 }
 
