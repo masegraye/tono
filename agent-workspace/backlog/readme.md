@@ -14,7 +14,7 @@ The order proposed in inv-001, not yet agreed:
 
 1. ~~backlog-001: Program copies reach the clipboard (OSC 52)~~ done
 2. ~~backlog-002: Select and copy text~~ done
-3. backlog-005: Open links with Ctrl+click
+3. ~~backlog-005: Open links with Ctrl+click~~ done
 4. backlog-006: Search a terminal
 5. backlog-008: Desktop notifications
 6. ~~backlog-009: The bell, and progress~~ done
@@ -32,7 +32,7 @@ The order proposed in inv-001, not yet agreed:
 | 002 | [Select and copy text](backlog-002-select-and-copy-text.md) | Clipboard | large | done |
 | 003 | [Paste or drop files and images](backlog-003-paste-files-and-images.md) | Clipboard | medium | captured |
 | 004 | [Copy on select, and middle-click paste](backlog-004-copy-on-select-and-middle-click-paste.md) | Clipboard | small | captured |
-| 005 | [Open links with Ctrl+click](backlog-005-open-links.md) | Reading a terminal | medium | captured |
+| 005 | [Open links with Ctrl+click](backlog-005-open-links.md) | Reading a terminal | medium | done |
 | 006 | [Search a terminal](backlog-006-search-scrollback.md) | Reading a terminal | medium | captured |
 | 007 | [Jump between shell prompts](backlog-007-jump-between-prompts.md) | Reading a terminal | small | captured |
 | 008 | [Desktop notifications](backlog-008-desktop-notifications.md) | Knowing what happened | medium | captured |
