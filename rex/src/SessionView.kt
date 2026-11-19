@@ -38,6 +38,8 @@ data class WindowView(
     val zoomedBlockId: String?,
     /** Every block to draw, back to front: the tiled layout first, then floating layers. */
     val panes: List<PaneView>,
+    /** How the tiled panes divide the window: the tree of splits, for moving the lines between them. */
+    val layout: LayoutNode? = null,
 ) {
     /** The pane that has the keyboard in this tab: the zoomed one, else the session's focused one, else the first. */
     val keyboardBlockId: String?
@@ -53,6 +55,8 @@ data class PaneView(
     val ownerClientId: String?,
     val isTerminal: Boolean,
     val floating: Boolean,
+    /** The name someone gave the pane, if anyone did; see [givenBlockName]. */
+    val name: String? = null,
 )
 
 data class PaneRect(val x: Float, val y: Float, val width: Float, val height: Float) {
@@ -79,6 +83,7 @@ internal fun parseSessionView(view: JsonObject): SessionView = SessionView(
 private fun parseWindow(window: JsonObject): WindowView? {
     val id = window.string("window_id") ?: return null
     val panes = ArrayList<PaneView>()
+    var layout: LayoutNode? = null
     for (layerElement in (window["layers"] as? JsonArray).orEmpty()) {
         val layer = layerElement as? JsonObject ?: continue
         if (layer.string("state") == "minimized") continue // its blocks keep running, but it isn't drawn
@@ -86,6 +91,7 @@ private fun parseWindow(window: JsonObject): WindowView? {
         // Anything that isn't the tiled layer is drawn floating, including kinds this client predates.
         val floating = layer.string("kind") != "tiled"
         collectPanes(layer["layout"] as? JsonObject, blocks, floating, panes)
+        if (!floating && layout == null) layout = parseLayout(layer["layout"] as? JsonObject)
     }
     return WindowView(
         id = id,
@@ -93,7 +99,36 @@ private fun parseWindow(window: JsonObject): WindowView? {
         focusedBlockId = window.string("focused_block_id"),
         zoomedBlockId = window.string("zoomed_block_id"),
         panes = panes,
+        layout = layout,
     )
+}
+
+/** The tree of splits as the server sent it. Null for a node this client can't read, and so for any tree holding one. */
+private fun parseLayout(node: JsonObject?): LayoutNode? {
+    if (node == null) return null
+    val rect = parseRect(node["rect"] as? JsonArray)
+    node.string("block_id")?.let { return LayoutPane(it, rect) }
+    val split = node["split"] as? JsonObject ?: return null
+    return LayoutSplit(
+        horizontal = split.string("direction") != "vertical",
+        ratio = runCatching { split["ratio"]?.jsonPrimitive?.double?.toFloat() }.getOrNull() ?: return null,
+        rect = rect,
+        before = parseLayout(split["before"] as? JsonObject) ?: return null,
+        after = parseLayout(split["after"] as? JsonObject) ?: return null,
+    )
+}
+
+/**
+ * The name someone gave a block, or null if nobody did. A new block's label is the last part
+ * of its flavor (`shell`), and one whose name was cleared gets a label made from its ID
+ * (`Block 89abcdef`); neither is a name. The second is matched against the block's own ID,
+ * so a block someone really did name "Block 12345678" keeps that name.
+ */
+internal fun givenBlockName(blockId: String, label: String?, flavor: String?): String? {
+    if (label.isNullOrBlank() || label == blockId || label == flavor?.substringAfterLast('.')) return null
+    val suffix = label.removePrefix("Block ")
+    if (suffix !== label && suffix.length == 8 && blockId.endsWith(suffix)) return null
+    return label
 }
 
 /** Walks the tree of splits. Every node carries its own rectangle, so only the leaves matter. */
@@ -109,6 +144,7 @@ private fun collectPanes(node: JsonObject?, blocks: Map<String?, JsonObject>, fl
             ownerClientId = block?.string("owner"),
             isTerminal = block?.string("creator_name") == TERMINAL_CREATOR,
             floating = floating,
+            name = givenBlockName(blockId, block?.string("label"), block?.string("flavor")),
         )
         return
     }

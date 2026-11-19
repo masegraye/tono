@@ -99,6 +99,9 @@ import org.example.kotlintest.rex.HostState
 import org.example.kotlintest.rex.Keymap
 import org.example.kotlintest.rex.PaneRect
 import org.example.kotlintest.rex.PaneView
+import org.example.kotlintest.rex.dividers
+import org.example.kotlintest.rex.rectsWith
+import kotlinx.coroutines.delay
 import org.example.kotlintest.rex.RexHost
 import org.example.kotlintest.rex.SessionView
 import org.example.kotlintest.rex.TerminalSession
@@ -178,7 +181,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Box(
             Modifier.fillMaxSize().focusRequester(rootFocus).focusable().onPreviewKeyEvent { event ->
-                if (ui.palette != null || ui.renaming != null) return@onPreviewKeyEvent false // an overlay has the keyboard
+                if (ui.palette != null || ui.renaming != null || ui.renamingPane != null) return@onPreviewKeyEvent false // an overlay has the keyboard
                 when (event.type) {
                     KeyEventType.KeyDown -> {
                         val chord = keyChord(event) ?: return@onPreviewKeyEvent false
@@ -230,6 +233,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
             }
             ui.palette?.let { CommandPalette(ui, commands, it) }
             ui.renaming?.let { renaming -> RenameTabDialog(renaming, onDismiss = { ui.renaming = null; ui.returnFocusToTerminal() }) }
+            ui.renamingPane?.let { renaming -> RenamePaneDialog(renaming, onDismiss = { ui.renamingPane = null; ui.returnFocusToTerminal() }) }
             ui.confirmation?.let { pending ->
                 val dismiss = { ui.confirmation = null; ui.returnFocusToTerminal() }
                 // The confirm button has the keyboard, so Enter confirms and Escape cancels.
@@ -764,8 +768,20 @@ private fun HostContent(host: RexHost, ui: RexUiState, commands: RexCommands, ke
                     val width = maxWidth
                     val height = maxHeight
                     val divider = MaterialTheme.colorScheme.outlineVariant
+                    // A line between panes being dragged is drawn where it was dragged to, without
+                    // waiting for the server: its answer is the same layout, a moment later.
+                    var drag by remember(window?.id) { mutableStateOf<DividerDrag?>(null) }
+                    val dragged = drag?.let { window?.rectsWith(it.key, it.ratio) }
+                    LaunchedEffect(drag, window) {
+                        val done = drag?.takeIf { it.released } ?: return@LaunchedEffect
+                        // Let go of: the server's layout takes over once it has the line there too,
+                        // or shortly anyway, in case it never does (another client moved it, say).
+                        val arrived = window?.dividers()?.firstOrNull { it.key == done.key }?.let { abs(it.ratio - done.ratio) < 0.0005f } != false
+                        if (!arrived) delay(DRAG_SETTLE_MILLIS)
+                        drag = null
+                    }
                     for (pane in panes) {
-                        val rect = if (window?.zoomedBlockId != null) PaneRect.Full else pane.rect
+                        val rect = if (window?.zoomedBlockId != null) PaneRect.Full else dragged?.get(pane.blockId) ?: pane.rect
                         Box(
                             Modifier
                                 .offset(x = width * rect.x, y = height * rect.y)
@@ -786,7 +802,11 @@ private fun HostContent(host: RexHost, ui: RexUiState, commands: RexCommands, ke
                                 host = host,
                                 ui = ui,
                             )
+                            pane.name?.let { PaneNameChip(it, Modifier.align(Alignment.TopEnd)) }
                         }
+                    }
+                    if (window != null) {
+                        PaneDividerHandles(window, width, height, constraints.maxWidth, constraints.maxHeight, drag, onDrag = { drag = it }, onResize = { divider, ratio -> host.resizePane(divider, ratio) })
                     }
                 }
             }
@@ -912,6 +932,9 @@ private val PANE_PADDING = 8.dp
 
 /** How much of a pane that doesn't have the keyboard is hidden under the panel's color. */
 private const val UNFOCUSED_PANE_DIM = 0.4f
+
+/** How long a line between panes stays where it was dropped, waiting for the server to say the same. */
+private const val DRAG_SETTLE_MILLIS = 700L
 
 /** Narrower than this, a window shows the sidebar or the terminals, one at a time. */
 private val NARROW_WINDOW = 560.dp

@@ -69,7 +69,13 @@ internal fun paletteItems(ui: RexUiState, commands: RexCommands, keymap: Keymap,
     val hosts = ui.orderedHosts()
     if (mode == PaletteMode.Commands) {
         for (action in commands.actions) {
-            if (!action.inPalette || !commands.isAvailable(action)) continue
+            if (!commands.isAvailable(action)) continue
+            for ((title, args) in action.variants) {
+                add(PaletteItem(title, action.category, keymap.shortcutFor(action.name, args)?.display(), action.keywords) {
+                    commands.run(action.name, args, origin = "palette")
+                })
+            }
+            if (!action.inPalette) continue
             val detail = action.state?.invoke(ui)?.let { "${action.category} · $it" } ?: action.category
             add(PaletteItem(action.title, detail, keymap.shortcutFor(action.name)?.display(), action.keywords) {
                 commands.run(action.name, origin = "palette")
@@ -101,6 +107,20 @@ internal fun paletteItems(ui: RexUiState, commands: RexCommands, keymap: Keymap,
             add(PaletteItem(server.label, "${server.address} · ${if (server.online) "online" else "offline"}", keywords = "tailscale tailnet") {
                 ui.client.addHost(server.label, server.endpoint)
                 ui.returnFocusToTerminal()
+            })
+        }
+        return@buildList
+    }
+    if (mode == PaletteMode.MoveToTab) {
+        // The other tabs of the session on screen. A pane can't leave its session.
+        val host = ui.host ?: return@buildList
+        val state = host.state.value
+        val blockId = ui.focusedBlockId ?: return@buildList
+        for (tab in state.view?.windows.orEmpty()) {
+            if (tab.id == state.window?.id) continue
+            val name = state.nameOf(tab)
+            add(PaletteItem(name.text, listOfNotNull(name.directory, "${tab.panes.size} pane${if (tab.panes.size == 1) "" else "s"}").joinToString(" · "), keywords = "tab") {
+                host.movePaneToTab(blockId, tab.id)
             })
         }
         return@buildList
@@ -260,6 +280,7 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
                                 PaletteMode.Hosts -> "Switch to a host"
                                 PaletteMode.AddHost -> "Add a server from your tailnet, or type an address"
                                 PaletteMode.RemoveHost -> "Remove a host"
+                                PaletteMode.MoveToTab -> "Move this pane to a tab"
                             },
                         )
                     },

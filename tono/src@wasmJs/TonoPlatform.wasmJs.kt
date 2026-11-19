@@ -2,6 +2,7 @@
 
 package org.example.kotlintest
 
+import androidx.compose.ui.input.pointer.fromKeyword
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -357,3 +358,7 @@ internal actual fun bringWindowToFront() {
 }
 
 private fun focusWindow(): Unit = js("window.focus()")
+
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+internal actual fun resizePointer(sideways: Boolean): androidx.compose.ui.input.pointer.PointerIcon =
+    with(androidx.compose.ui.input.pointer.PointerIcon) { fromKeyword(if (sideways) "col-resize" else "row-resize") }

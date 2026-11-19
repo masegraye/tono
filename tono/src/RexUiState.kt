@@ -26,6 +26,8 @@ enum class PaletteMode {
     AddHost,
     /** Choosing a host to stop connecting to. */
     RemoveHost,
+    /** Choosing which other tab of the session the focused pane goes to. */
+    MoveToTab,
 }
 
 /**
@@ -43,6 +45,13 @@ class Confirmation(val title: String, val text: String, val confirmLabel: String
  * @param automaticName what it is called while it has none
  */
 class TabRename(val host: RexHost, val sessionId: String, val windowId: String, val givenName: String, val automaticName: String)
+
+/**
+ * A pane whose name is being edited.
+ *
+ * @param givenName the name someone gave it, or empty if it has none
+ */
+class PaneRename(val host: RexHost, val blockId: String, val givenName: String)
 
 /**
  * The state of the app's own interface, as opposed to what the servers report: which
@@ -70,6 +79,7 @@ class RexUiState(val client: RexClient) {
     var fontSize by mutableIntStateOf(DEFAULT_FONT_SIZE)
     var confirmation: Confirmation? by mutableStateOf(null)
     var renaming: TabRename? by mutableStateOf(null)
+    var renamingPane: PaneRename? by mutableStateOf(null)
 
     /** Whether a program in a tab out of view makes a sound when it wants you, fails, or finishes. Remembered between runs. */
     var soundsEnabled by mutableStateOf(client.workspace.sounds)
@@ -140,7 +150,7 @@ class RexUiState(val client: RexClient) {
         private set
 
     /** Whether something is open over the terminals and has the keyboard: the palette, or a dialog. */
-    val overlayOpen: Boolean get() = palette != null || renaming != null || confirmation != null
+    val overlayOpen: Boolean get() = palette != null || renaming != null || renamingPane != null || confirmation != null
 
     /**
      * Whether text a program copied should go on the clipboard: see [takesCopy].

@@ -319,3 +319,6 @@ internal actual fun bringWindowToFront() {
 
 private const val MAX_NOTIFICATIONS = 32
 private const val CLOSE_TIMEOUT_SECONDS = 3L
+
+internal actual fun resizePointer(sideways: Boolean): androidx.compose.ui.input.pointer.PointerIcon =
+    androidx.compose.ui.input.pointer.PointerIcon(java.awt.Cursor(if (sideways) java.awt.Cursor.E_RESIZE_CURSOR else java.awt.Cursor.N_RESIZE_CURSOR))

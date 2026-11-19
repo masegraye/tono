@@ -178,6 +178,8 @@ class RexHost(
     private val desiredGrids = concurrentMap<String, GridSize>()
     /** Blocks claimed on this connection, until the server's view says otherwise. */
     private val claimed = concurrentSet<String>()
+    /** Where each line between panes was last asked to go, until that has been sent. */
+    private val pendingResizes = concurrentMap<String, Float>()
 
     /** Whether this host's terminals are what the user is looking at: it is the host showing, in a window that has focus. */
     @Volatile private var inFront = false
@@ -438,6 +440,117 @@ class RexHost(
     fun stepPane(forward: Boolean) = act("step pane") { control ->
         makeActive(control)
         control.call(if (forward) "session.focus_next_pane" else "session.focus_previous_pane", sessionPayload {})
+    }
+
+    // Rearranging a tab's panes. The layout is the session's own, so these change it for every client.
+
+    /**
+     * Moves the line between two panes, to [ratio] of the space it divides. A drag asks many
+     * times in a row, faster than the server answers, so only the newest place asked for
+     * each line is sent.
+     */
+    fun resizePane(divider: PaneDivider, ratio: Float) {
+        val sessionId = state.value.selectedSessionId ?: return
+        val key = "$sessionId ${divider.key} ${divider.axis}"
+        val waiting = pendingResizes.put(key, ratio) != null
+        if (waiting) return // the request already queued for this line will send the newer ratio
+        act(null) { control ->
+            val newest = pendingResizes.remove(key) ?: return@act
+            control.call("session.resize_pane", buildJsonObject {
+                put("session_id", sessionId)
+                put("direction", divider.axis)
+                put("before_block_id", divider.beforeBlockId)
+                put("after_block_id", divider.afterBlockId)
+                put("ratio", newest)
+            })
+        }
+    }
+
+    /** Moves one border of a pane a step toward a side; see [resizedBy]. */
+    fun resizePane(blockId: String, side: PaneSide, percent: Double = RESIZE_STEP_PERCENT) {
+        // Stepped from the ratio the server last reported, so a held key never runs ahead of it.
+        val divider = state.value.window?.resizedBy(blockId, side, percent) ?: return
+        resizePane(divider, divider.ratio)
+    }
+
+    /** Evens out the tab's panes; see [balanced]. */
+    fun balancePanes() {
+        val moves = state.value.window?.balanced().orEmpty()
+        if (moves.isNotEmpty()) log.add(saved.label, "balancing ${moves.size} split${if (moves.size == 1) "" else "s"}")
+        for (divider in moves) resizePane(divider, divider.ratio)
+    }
+
+    /** Trades a pane's place with the pane lying against one side of it. Focus stays with the pane. */
+    fun swapPane(blockId: String, side: PaneSide) {
+        val other = state.value.window?.neighbourOf(blockId, side) ?: return
+        act("move pane ${side.name.lowercase()}") { control ->
+            control.call("session.swap_blocks", sessionPayload {
+                put("block_id", blockId)
+                put("other_block_id", other)
+            })
+        }
+    }
+
+    /**
+     * Moves a pane into another tab of its session, to the right of the pane that has the
+     * keyboard there, and shows that tab. The program in it carries on. If it was the only
+     * pane of its tab, the server closes that tab.
+     */
+    fun movePaneToTab(blockId: String, windowId: String) = act("move pane to tab") { control ->
+        val sessionId = state.value.selectedSessionId ?: return@act
+        val target = state.value.views[sessionId]?.windows?.firstOrNull { it.id == windowId } ?: return@act
+        if (target.panes.any { it.blockId == blockId }) return@act // it is there already
+        // Beside a tiled pane: one that floats has no place in the layout to split.
+        val anchor = target.panes.filter { !it.floating }.let { tiled -> tiled.firstOrNull { it.blockId == target.focusedBlockId } ?: tiled.firstOrNull() } ?: return@act
+        control.call("session.move_block", buildJsonObject {
+            put("session_id", sessionId)
+            put("block_id", blockId)
+            put("anchor_block_id", anchor.blockId)
+        })
+        setShown(sessionId, windowId) // the pane is what the user is working in, so follow it
+    }
+
+    /**
+     * Moves a pane into a new tab of its own, and shows it.
+     *
+     * The server can't make a window around a block that already exists: a new window always
+     * starts a program. So one is opened with a shell in it, the pane is moved in beside the
+     * shell, and the shell is closed, which leaves the pane with the tab to itself. The shell
+     * lives for a moment and nothing is typed into it.
+     */
+    fun movePaneToNewTab(blockId: String) = act("move pane to new tab") { control ->
+        val sessionId = state.value.selectedSessionId ?: return@act
+        val created = control.call("session.new_window", buildJsonObject {
+            put("session_id", sessionId)
+            put("layout", SHELL_LAYOUT)
+            put("focus", false)
+        })
+        val windowId = created.string("window_id") ?: return@act
+        val placeholder = ((created["block_ids"] as? JsonArray)?.firstOrNull() as? JsonPrimitive)?.content
+        try {
+            control.call("session.move_block", buildJsonObject {
+                put("session_id", sessionId)
+                put("block_id", blockId)
+                put("anchor_block_id", placeholder)
+            })
+        } catch (refused: RexError) {
+            // Leave nothing behind: the tab was only ever for the pane.
+            runCatching { control.call("session.close_window", buildJsonObject { put("session_id", sessionId); put("window_id", windowId) }) }
+            throw refused
+        }
+        setShown(sessionId, windowId)
+        control.call("block.close", buildJsonObject { put("session_id", sessionId); put("block_id", placeholder) })
+    }
+
+    /**
+     * Names a pane. The name is the block's label on the server, so every client can show
+     * it. An empty name clears it.
+     */
+    fun renamePane(blockId: String, name: String) = act("rename pane") { control ->
+        control.call("session.set_block_label", sessionPayload {
+            put("block_id", blockId)
+            put("label", name.trim())
+        })
     }
 
     /** Runs one of the server's own actions, such as clearing a terminal, on a pane. */

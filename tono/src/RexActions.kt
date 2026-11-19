@@ -9,6 +9,10 @@ import org.example.kotlintest.rex.ActivityState
 import kotlinx.coroutines.launch
 import org.example.kotlintest.rex.KeyBinding
 import org.example.kotlintest.rex.KeyChord
+import org.example.kotlintest.rex.PaneSide
+import org.example.kotlintest.rex.RESIZE_STEP_PERCENT
+import org.example.kotlintest.rex.neighbourOf
+import kotlinx.serialization.json.doubleOrNull
 import org.example.kotlintest.rex.RexAction
 import org.example.kotlintest.rex.SplitDirection
 
@@ -22,6 +26,8 @@ import org.example.kotlintest.rex.SplitDirection
  *   a browser tab, where the browser keeps the first for itself.
  * @param argKeys default keys that run the action with arguments, such as Control+3 for tab 3
  * @param inPalette false for actions that only make sense with arguments
+ * @param variants the action with arguments, as entries of their own in the palette: a title
+ *   and the arguments it stands for, such as "Resize Pane Left" for `pane.resize` leftward
  */
 class ClientAction(
     val name: String,
@@ -31,6 +37,7 @@ class ClientAction(
     val keys: List<String> = emptyList(),
     val argKeys: List<Pair<String, JsonObject>> = emptyList(),
     val inPalette: Boolean = true,
+    val variants: List<Pair<String, JsonObject>> = emptyList(),
     val available: RexUiState.() -> Boolean = { true },
     /** For an action that switches something: how it stands now, shown beside it in the palette. */
     val state: (RexUiState.() -> String)? = null,
@@ -221,6 +228,47 @@ internal fun clientActions(): List<ClientAction> = buildList {
     add(ClientAction("pane.focus_previous", "Focus Previous Pane", "Pane", "cycle", keys = listOf("alt+["), available = { (window?.panes?.size ?: 0) > 1 }) { host?.stepPane(forward = false) })
     add(ClientAction("pane.zoom", "Zoom Pane", "Pane", "maximize fullscreen restore", keys = listOf("ctrl+shift+enter"), available = hasPane) {
         focusedBlockId?.let { host?.toggleZoom(it) }
+    })
+    // Rearranging. Names and keys are Rex.app's, with Control where it has Command. A pane
+    // "moves" by trading places with the one beside it, so every split keeps its size.
+    val severalPanes: RexUiState.() -> Boolean = { (window?.panes?.count { !it.floating } ?: 0) > 1 && window?.zoomedBlockId == null }
+    for (side in PaneSide.entries) {
+        val name = side.name.lowercase()
+        add(ClientAction(
+            "pane.move.$name", "Move Pane ${side.name}", "Pane", "swap rearrange trade places",
+            keys = listOf("ctrl+alt+shift+$name"),
+            available = { focusedBlockId?.let { window?.neighbourOf(it, side) } != null },
+        ) { focusedBlockId?.let { host?.swapPane(it, side) } })
+    }
+    add(ClientAction("pane.move", "Move Pane", "Pane", inPalette = false) { args ->
+        val side = PaneSide.parse(args?.get("direction")?.jsonPrimitive?.content) ?: return@ClientAction
+        focusedBlockId?.let { host?.swapPane(it, side) }
+    })
+    // Rex.app gives this no key, and none here: bind one in Rex's configuration file, as its
+    // documentation shows (`rex.bind("ctrl+alt+left", "pane.resize", { direction = "left" })`).
+    add(ClientAction(
+        "pane.resize", "Resize Pane", "Pane", "grow shrink divider wider narrower taller shorter border", inPalette = false,
+        variants = PaneSide.entries.map { side -> "Resize Pane ${side.name}" to buildJsonObject { put("direction", side.name.lowercase()) } },
+        available = severalPanes,
+    ) { args ->
+        val side = PaneSide.parse(args?.get("direction")?.jsonPrimitive?.content) ?: return@ClientAction
+        // How far, in hundredths of the split the border divides.
+        val amount = args?.get("amount")?.let { runCatching { it.jsonPrimitive.doubleOrNull }.getOrNull() } ?: RESIZE_STEP_PERCENT
+        focusedBlockId?.let { host?.resizePane(it, side, amount) }
+    })
+    add(ClientAction("pane.balance", "Balance Splits", "Pane", "equalize equalise evenly distribute resize layout same size", available = { (window?.panes?.count { !it.floating } ?: 0) > 1 }) {
+        host?.balancePanes()
+    })
+    add(ClientAction("pane.move_to_new_tab", "Move Pane to New Tab", "Pane", "block window detach break out", available = severalPanes) {
+        focusedBlockId?.let { host?.movePaneToNewTab(it) }
+    })
+    add(ClientAction("pane.move_to_tab", "Move Pane to Tab…", "Pane", "block window send other existing join", available = { focusedBlockId != null && (view?.windows?.size ?: 0) > 1 }) { args ->
+        val windowId = args?.get("window_id")?.jsonPrimitive?.content
+        if (windowId != null) focusedBlockId?.let { host?.movePaneToTab(it, windowId) } else palette = PaletteMode.MoveToTab
+    })
+    add(ClientAction("pane.rename", "Rename Pane…", "Pane", "name label title block", available = hasPane) {
+        val pane = window?.panes?.firstOrNull { it.blockId == focusedBlockId } ?: return@ClientAction
+        renamingPane = PaneRename(host ?: return@ClientAction, pane.blockId, givenName = pane.name.orEmpty())
     })
     add(ClientAction("pane.close", "Close Pane", "Pane", "kill terminal", keys = listOf("ctrl+shift+w"), available = hasPane) {
         val blockId = focusedBlockId ?: return@ClientAction
