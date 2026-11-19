@@ -18,7 +18,7 @@ The order proposed in inv-001, not yet agreed:
 4. backlog-006: Search a terminal
 5. backlog-008: Desktop notifications
 6. backlog-009: The bell, and progress
-7. backlog-010: Name the window after the tab
+7. ~~backlog-010: Name the window after the tab~~ done
 8. backlog-012: Resize, balance, swap, move and rename panes
 9. backlog-013: Move a tab by key, close others, mute, rename a session
 10. backlog-003: Paste or drop files and images
@@ -37,7 +37,7 @@ The order proposed in inv-001, not yet agreed:
 | 007 | [Jump between shell prompts](backlog-007-jump-between-prompts.md) | Reading a terminal | small | captured |
 | 008 | [Desktop notifications](backlog-008-desktop-notifications.md) | Knowing what happened | medium | captured |
 | 009 | [The bell, and progress](backlog-009-bell-and-progress.md) | Knowing what happened | small | captured |
-| 010 | [Name the window after the tab](backlog-010-window-title.md) | Knowing what happened | small | captured |
+| 010 | [Name the window after the tab](backlog-010-window-title.md) | Knowing what happened | small | done |
 | 011 | [Activity as a list](backlog-011-activity-list.md) | Knowing what happened | medium | captured |
 | 012 | [Resize, balance, swap, move and rename panes](backlog-012-pane-resize-balance-swap-move.md) | Panes, tabs and sessions | medium | captured |
 | 013 | [Move a tab by key, close others, mute, rename a session](backlog-013-tab-and-session-management.md) | Panes, tabs and sessions | small | captured |
