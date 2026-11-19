@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -46,6 +47,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.example.kotlintest.rex.HostConnection
+import org.example.kotlintest.rex.HostReach
+import org.example.kotlintest.rex.RexHost
 import org.example.kotlintest.rex.Keymap
 import org.example.kotlintest.rex.RexEndpoint
 import org.example.kotlintest.rex.tailnetRexServers
@@ -53,14 +56,28 @@ import org.example.kotlintest.rex.endpointKey
 import org.example.kotlintest.rex.suggestedHostLabel
 
 /** One thing the palette offers. */
-class PaletteItem(
+internal class PaletteItem(
     val title: String,
     /** Shown dimmed beside the title: a category, or where the thing is. */
     val detail: String,
     val shortcut: String? = null,
     val keywords: String = "",
+    /** For a host in a list of hosts: its picture, as its heading in the sidebar has it. */
+    val host: HostPicture? = null,
     val run: () -> Unit,
 )
+
+/** The picture of a host, and whether the host is down, which the picture's color says. */
+internal class HostPicture(val icon: HostIcon, val down: Boolean)
+
+/** A host's picture for the palette: the one its heading in the sidebar shows. */
+private fun hostPicture(ui: RexUiState, host: RexHost): HostPicture {
+    val reach = host.state.value.reach
+    return HostPicture(
+        HostIcon.of(ui.client.hostIcons.value[host.saved.label], isHome = host.saved.label == ui.client.homeLabel),
+        down = reach == HostReach.Reconnecting || reach == HostReach.Down,
+    )
+}
 
 /**
  * Everything the palette can list in a mode: the commands that can run right now, and the
@@ -129,7 +146,7 @@ internal fun paletteItems(ui: RexUiState, commands: RexCommands, keymap: Keymap,
     if (mode == PaletteMode.RemoveHost) {
         for (host in hosts) {
             if (host.saved.label == ui.client.homeLabel) continue // the app follows its home; it stays
-            add(PaletteItem(host.saved.label, host.saved.endpoint, keywords = "host server") {
+            add(PaletteItem(host.saved.label, host.saved.endpoint, keywords = "host server", host = hostPicture(ui, host)) {
                 ui.confirmation = Confirmation(
                     title = "Remove host “${host.saved.label}”?",
                     text = if (host.discovered) "It leaves your Rex host list, so the rex command and other clients that follow this machine stop listing it too. Its sessions keep running."
@@ -158,7 +175,8 @@ internal fun paletteItems(ui: RexUiState, commands: RexCommands, keymap: Keymap,
             // In the sidebar's words, so a host being tried again isn't "connecting" here and down there.
             val status = hostReachWords(state.reach) ?: "${state.sessions.size} session${if (state.sessions.size == 1) "" else "s"}"
             val prefix = if (mode == PaletteMode.Commands) "Switch to Host: " else ""
-            add(PaletteItem("$prefix${host.saved.label}", status, keywords = "host server ${host.saved.endpoint}") {
+            // Pictures only in the list of hosts: among commands, one line in ten would have one.
+            add(PaletteItem("$prefix${host.saved.label}", status, keywords = "host server ${host.saved.endpoint}", host = if (mode == PaletteMode.Hosts) hostPicture(ui, host) else null) {
                 ui.client.selectHost(host.saved.label)
                 ui.returnFocusToTerminal()
             })
@@ -308,8 +326,10 @@ fun CommandPalette(ui: RexUiState, commands: RexCommands, mode: PaletteMode) {
             )
         }
         LazyColumn(state = listState, modifier = Modifier.heightIn(max = 420.dp).padding(vertical = 4.dp)) {
+            // Where any line has a host's picture, every line keeps room for one, so the names line up.
+            val pictures = shown.any { it.host != null }
             itemsIndexed(shown) { index, item ->
-                PaletteRow(item.title, item.detail, item.shortcut, selected = index == selected, onClick = { choose(item) })
+                PaletteRow(item.title, item.detail, item.shortcut, selected = index == selected, onClick = { choose(item) }, host = item.host, pictures = pictures)
             }
         }
     }
@@ -341,7 +361,13 @@ internal fun PaletteFrame(onDismiss: () -> Unit, content: @Composable ColumnScop
 
 /** One line of the list: what it is, something about it, and the key for it if there is one. */
 @Composable
-internal fun PaletteRow(title: String, detail: String, shortcut: String?, selected: Boolean, onClick: () -> Unit) {
+internal fun PaletteRow(
+    title: String, detail: String, shortcut: String?, selected: Boolean, onClick: () -> Unit,
+    /** A host's picture, drawn before the title. */
+    host: HostPicture? = null,
+    /** Whether lines in this list have pictures, so that one without keeps the room for it. */
+    pictures: Boolean = host != null,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -352,6 +378,9 @@ internal fun PaletteRow(title: String, detail: String, shortcut: String?, select
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 7.dp),
     ) {
+        if (pictures) Box(Modifier.padding(end = 10.dp).size(16.dp)) {
+            host?.let { MachineIcon(it.icon, if (it.down) MaterialTheme.colorScheme.error.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
         Text(title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(
             detail,

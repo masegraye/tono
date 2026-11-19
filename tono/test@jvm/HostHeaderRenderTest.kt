@@ -56,7 +56,7 @@ class HostHeaderRenderTest {
     private val width = 240
 
     /** [hover] is the row the pointer rests on, if any, long enough for its button to have faded in. */
-    private fun draw(atMillis: Long, name: String, hover: Int? = null): Bitmap {
+    private fun draw(atMillis: Long, name: String, hover: Int? = null, icon: String? = null, isHome: Boolean = false): Bitmap {
         val scene = ImageComposeScene(width = width, height = rowHeight * rows.size, density = Density(1f)) {
             MaterialTheme(colorScheme = scheme, shapes = omarchyShapes()) {
                 Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -64,7 +64,7 @@ class HostHeaderRenderTest {
                         rows.forEachIndexed { index, state ->
                             Box(Modifier.height(rowHeight.dp)) {
                                 HostHeader(
-                                    label = "host $index", state = state, isHome = false, collapsed = false,
+                                    label = "host $index", state = state, isHome = isHome, icon = icon, collapsed = false,
                                     activity = ActivityState.Idle, bell = false, onClick = {}, onNewSession = {}, onRetry = {},
                                 )
                             }
@@ -106,9 +106,19 @@ class HostHeaderRenderTest {
     private fun Bitmap.hasWordsUnder(row: Int): Boolean =
         (row * rowHeight + 34 until (row + 1) * rowHeight).any { y -> (12 until width / 2).any { x -> far(getColor(x, y), scheme.surfaceContainerLow) > 24 } }
 
+    /** The names Rex for Mac's host form gives its seven icons. */
+    private val macNames = listOf("globe", "server.rack", "cloud", "macbook", "macmini", "macstudio", "desktopcomputer")
+
+    /** A file name for the picture drawn with an icon. */
+    private fun suffix(icon: String?) = if (icon == null) "" else "-" + icon.filter { it.isLetterOrDigit() }
+
     @Test
-    fun `each state of a host's connection has a heading of its own`() {
-        val image = draw(atMillis = 0, name = "host-headings")
+    fun `each state of a host's connection has a heading of its own, whatever its icon`() {
+        for (icon in listOf(null) + macNames) statesAreToldApart(icon)
+    }
+
+    private fun statesAreToldApart(icon: String?) {
+        val image = draw(atMillis = 0, name = "host-headings${suffix(icon)}", icon = icon)
         val quiet = scheme.onSurfaceVariant
         val error = scheme.error.copy(alpha = 0.85f).compositeOver(scheme.surfaceContainerLow)
 
@@ -131,14 +141,89 @@ class HostHeaderRenderTest {
     }
 
     @Test
-    fun `the picture of a host being connected to breathes, and no other does`() {
-        val dim = draw(atMillis = 0, name = "host-headings-breath-out")
-        val bright = draw(atMillis = CONNECTING_BREATH_MILLIS.toLong(), name = "host-headings-breath-in")
+    fun `the picture of a host being connected to breathes, and no other does, whatever its icon`() {
+        for (icon in listOf(null) + macNames) onlyConnectingBreathes(icon)
+    }
+
+    private fun onlyConnectingBreathes(icon: String?) {
+        val dim = draw(atMillis = 0, name = "host-headings-breath-out${suffix(icon)}", icon = icon)
+        val bright = draw(atMillis = CONNECTING_BREATH_MILLIS.toLong(), name = "host-headings-breath-in${suffix(icon)}", icon = icon)
         assertTrue(bright.pictureStrength(1) > dim.pictureStrength(1) + 20, "from ${dim.pictureStrength(1)} to ${bright.pictureStrength(1)}")
         assertTrue(bright.pictureStrength(1) < bright.pictureStrength(0), "at its brightest it is still dimmer than a connected host's")
         for (row in listOf(0, 2, 3)) assertEquals(dim.pictureStrength(row), bright.pictureStrength(row), "row $row is steady")
         // A host that has failed once doesn't go back to breathing while it is tried again.
         assertEquals(dim.picture(3), bright.picture(3))
+    }
+
+    @Test
+    fun `each icon the host list can name has a picture of its own`() {
+        val pictures = macNames.associateWith { icon -> rows.indices.map { row -> draw(atMillis = 0, name = "host-headings${suffix(icon)}", icon = icon).picture(row) } }
+        for ((first, a) in pictures) for ((second, b) in pictures) {
+            if (first != second) for (row in rows.indices) assertTrue(a[row] != b[row], "$first and $second differ in row $row")
+        }
+        // A host with no icon has the picture hosts had before there were any: a rack for a
+        // remote one, which is what the list calls server.rack, and a screen for this machine.
+        assertEquals(pictures.getValue("server.rack"), rows.indices.map { draw(atMillis = 0, name = "host-headings").picture(it) })
+        assertEquals(pictures.getValue("desktopcomputer"), rows.indices.map { draw(atMillis = 0, name = "host-headings-home", isHome = true).picture(it) })
+        // And this machine's server takes an icon like any other.
+        assertEquals(pictures.getValue("cloud"), rows.indices.map { draw(atMillis = 0, name = "host-headings-home-cloud", icon = "cloud", isHome = true).picture(it) })
+    }
+
+    @Test
+    fun `an icon this app has no picture for falls back to the picture hosts had before`() {
+        for (isHome in listOf(false, true)) {
+            val plain = draw(atMillis = 0, name = "host-headings-fallback", isHome = isHome)
+            for (unknown in listOf("no-such-icon", "", "🦖", "https://example.com/icon.png")) {
+                val image = draw(atMillis = 0, name = "host-headings-fallback", icon = unknown, isHome = isHome)
+                for (row in rows.indices) assertEquals(plain.picture(row), image.picture(row), "“$unknown”, row $row, home $isHome")
+            }
+        }
+    }
+
+    @Test
+    fun `icon names are read loosely`() {
+        assertEquals(HostIcon.Server, HostIcon.named("server.rack"))
+        assertEquals(HostIcon.Server, HostIcon.named("Server"))
+        assertEquals(HostIcon.Mini, HostIcon.named("Mac mini"))
+        assertEquals(HostIcon.Mini, HostIcon.named("mini-pc"))
+        assertEquals(HostIcon.Laptop, HostIcon.named("laptop"))
+        assertEquals(HostIcon.Desktop, HostIcon.named("desktop"))
+        assertEquals(HostIcon.Studio, HostIcon.named("MACSTUDIO"))
+        assertNull(HostIcon.named(null))
+        assertNull(HostIcon.named("rocket"))
+        assertEquals(HostIcon.Server, HostIcon.of("rocket", isHome = false))
+        assertEquals(HostIcon.Desktop, HostIcon.of(null, isHome = true))
+        assertEquals(HostIcon.Globe, HostIcon.of("globe", isHome = true))
+    }
+
+    @Test
+    fun `in the palette's list of hosts each has its picture, and a line without one keeps the room`() {
+        val lines = listOf(HostPicture(HostIcon.Cloud, down = false), HostPicture(HostIcon.Laptop, down = true), null)
+        val lineHeight = 34
+        val scene = ImageComposeScene(width = 400, height = lineHeight * lines.size, density = Density(1f)) {
+            MaterialTheme(colorScheme = scheme, shapes = omarchyShapes()) {
+                Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                    Column(Modifier.width(400.dp)) {
+                        lines.forEachIndexed { index, host ->
+                            Box(Modifier.height(lineHeight.dp)) { PaletteRow("line $index", "detail", null, selected = false, onClick = {}, host = host, pictures = true) }
+                        }
+                    }
+                }
+            }
+        }
+        val image = try {
+            scene.render(0).also { File(outputDir, "palette-hosts.png").writeBytes(it.encodeToData()!!.bytes) }.let(Bitmap::makeFromImage)
+        } finally {
+            scene.close()
+        }
+        // The picture is 16 across, 16 in from the left; the title starts 10 after it.
+        fun pixels(line: Int, from: Int, until: Int) = (line * lineHeight until (line + 1) * lineHeight).flatMap { y -> (from until until).map { x -> image.getColor(x, y) } }
+        fun drawn(line: Int, from: Int, until: Int) = pixels(line, from, until).any { far(it, scheme.surfaceContainerLow) > 24 }
+        val error = scheme.error.copy(alpha = 0.85f).compositeOver(scheme.surfaceContainerLow)
+        assertTrue(pixels(0, 16, 32).any { far(it, scheme.onSurfaceVariant) <= 6 }, "a host that is up, in the quiet color")
+        assertTrue(pixels(1, 16, 32).any { far(it, error) <= 6 }, "one that is down, in the error color")
+        assertTrue(!drawn(2, 0, 40), "a line with no picture leaves the room empty")
+        for (line in lines.indices) assertTrue(!drawn(line, 33, 41) && drawn(line, 42, 80), "line $line's title starts in the same place")
     }
 
     /** Whether anything is drawn at the right end of a heading's row, where its buttons are. */

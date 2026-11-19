@@ -94,6 +94,16 @@ class RexClient(
     val programCopies: SharedFlow<ProgramCopy> get() = mutableProgramCopies
 
     val hosts: StateFlow<List<RexHost>> get() = mutableHosts
+
+    private val mutableHostIcons = MutableStateFlow<Map<String, String>>(emptyMap())
+
+    /**
+     * The icon the home server's host list names for each host, by the host's label here.
+     * The value is the list's `icon` as written: a name that Rex keeps and doesn't interpret,
+     * such as the `server.rack` or `macbook` that Rex for Mac's host form writes. A host the
+     * list gives no icon, or doesn't have, isn't in the map. It follows the list as it changes.
+     */
+    val hostIcons: StateFlow<Map<String, String>> get() = mutableHostIcons
     /** The label of the host being shown. */
     val selectedHost: StateFlow<String?> get() = mutableSelectedHost
 
@@ -319,7 +329,7 @@ class RexClient(
             val entry = element as? JsonObject ?: return@mapNotNull null
             val label = entry.string("label") ?: return@mapNotNull null
             val endpoint = (entry["endpoints"] as? JsonArray)?.firstNotNullOfOrNull { (it as? JsonPrimitive)?.content } ?: return@mapNotNull null
-            ListedHost(entry.string("id"), label, endpoint, entry.string("host_id"))
+            ListedHost(entry.string("id"), label, endpoint, entry.string("host_id"), entry.string("icon"))
         }
 
         // Hosts that came from the list and are no longer in it as they were.
@@ -350,9 +360,9 @@ class RexClient(
             mutableHosts.update { it + host(SavedHost(entry.label, entry.endpoint), discovered = true) }
             log.add("hosts", "${entry.label} (${entry.endpoint}) from ${home.saved.label}'s host list")
         }
+        // Read afresh each time, so an icon changed with `rex hosts edit` shows without a restart.
+        mutableHostIcons.value = hostIconsByLabel(entries, mutableHosts.value.map { it.saved }, home.saved.label, ownAddresses)
     }
-
-    private class ListedHost(val id: String?, val label: String, val endpoint: String, val hostId: String?)
 
     /**
      * Which machine and account the server at [endpoint] runs as, read without attaching to
@@ -375,5 +385,27 @@ class RexClient(
         mutableHosts.value.forEach { it.close() }
         scope.cancel()
         http.close()
+    }
+}
+
+/** One host of the home server's host list, as far as this app reads it. */
+internal class ListedHost(val id: String?, val label: String, val endpoint: String, val hostId: String?, val icon: String? = null)
+
+/**
+ * Which icon the host list gives each host shown, by the label it is shown under.
+ *
+ * A listed host is the one shown with its label or its address, and that covers a host saved
+ * in this app's workspace that the list names too. One whose address turned out to be the
+ * home server ([ownAddresses], as [endpointKey]s) gives its icon to the home server, which is
+ * shown under [homeLabel] and not under the name the list has for it. Where two listed hosts
+ * are the same host here, the first with an icon counts.
+ */
+internal fun hostIconsByLabel(listed: List<ListedHost>, shown: List<SavedHost>, homeLabel: String, ownAddresses: Set<String>): Map<String, String> = buildMap {
+    for (entry in listed) {
+        val icon = entry.icon?.trim()?.takeIf { it.isNotEmpty() } ?: continue
+        val key = endpointKey(entry.endpoint)
+        val label = if (key in ownAddresses) homeLabel
+        else shown.firstOrNull { it.label.equals(entry.label, ignoreCase = true) || endpointKey(it.endpoint) == key }?.label ?: continue
+        if (label !in this) put(label, icon)
     }
 }

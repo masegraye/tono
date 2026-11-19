@@ -316,6 +316,7 @@ private fun Sidebar(
     val paletteShortcut = keymap.shortcutFor("client.palette.toggle")?.display()
     // Every host's state, read here so that tabs can be numbered across all of them.
     val ordered = sidebarOrder(hosts.map { host -> host to key(host) { host.state.collectAsState().value } }, ui.client.homeLabel) { it.saved.label }
+    val hostIcons by ui.client.hostIcons.collectAsState()
     val activityOnly = ui.activityOnly
     val tabs = linearTabs(ordered.map { (host, state) -> host.saved.label to state }, ui.collapsedHosts, ui.collapsedSessions, activityOnly)
     // The digits appear while Control is held, and stay until it is let go, however many
@@ -369,6 +370,7 @@ private fun Sidebar(
                     label = label,
                     state = state,
                     isHome = label == ui.client.homeLabel,
+                    icon = hostIcons[label],
                     collapsed = hostCollapsed,
                     // Folded away, a heading still shows that something under it is busy.
                     activity = if (hostCollapsed) state.activity.values.maxOrNull() ?: ActivityState.Idle else ActivityState.Idle,
@@ -514,6 +516,8 @@ internal fun HostHeader(
     state: HostState,
     /** Whether this is the machine the app is running on. */
     isHome: Boolean,
+    /** The icon the home server's host list names for this host, if it names one. See [HostIcon]. */
+    icon: String? = null,
     collapsed: Boolean,
     activity: ActivityState,
     bell: Boolean,
@@ -536,6 +540,10 @@ internal fun HostHeader(
     // under it to fold away.
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val faded = muted.copy(alpha = 0.55f)
+    // The picture is the one the host list names for this host, and a name this app has no
+    // picture for gets the one hosts had before: a screen for this machine, a rack otherwise.
+    // Whichever it is, it is drawn in the same colors for the same states.
+    val picture = HostIcon.of(icon, isHome)
     Column(
         Modifier.fillMaxWidth().hoverable(interaction)
             .clickable(enabled = connected, onClick = onClick)
@@ -544,7 +552,7 @@ internal fun HostHeader(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             when (reach) {
-                HostReach.Connected -> MachineIcon(remote = !isHome, tint = muted)
+                HostReach.Connected -> MachineIcon(picture, tint = muted)
                 // Not known yet: dimmed, and breathing slowly, since something is going on.
                 HostReach.Connecting -> {
                     val breath by rememberInfiniteTransition(label = "connecting").animateFloat(
@@ -552,12 +560,12 @@ internal fun HostHeader(
                         animationSpec = infiniteRepeatable(tween(durationMillis = CONNECTING_BREATH_MILLIS, easing = FastOutSlowInEasing), RepeatMode.Reverse),
                         label = "breath",
                     )
-                    MachineIcon(remote = !isHome, tint = muted.copy(alpha = breath))
+                    MachineIcon(picture, tint = muted.copy(alpha = breath))
                 }
                 // Down, and being tried again every few seconds: the same picture, in the
                 // error color. A warning sign would shout from the bottom of the list about
                 // a machine that is merely switched off.
-                HostReach.Reconnecting, HostReach.Down -> MachineIcon(remote = !isHome, tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f))
+                HostReach.Reconnecting, HostReach.Down -> MachineIcon(picture, tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f))
             }
             Text(
                 label,
@@ -650,31 +658,6 @@ private fun SessionHeader(
         }
         HeaderButton(Icons.Filled.Add, "New tab in $label", visible = hovered, onClick = onNewTab)
         FoldMark(collapsed, visible = collapsed || hovered)
-    }
-}
-
-/**
- * A small picture of a machine, for a host's heading: a screen on its stand for this
- * computer, and a pair of stacked units, as in a rack, for one reached over the network.
- * Drawn here, in lines the weight of the text beside it, so it needs no icon font and takes
- * whatever color the theme gives it.
- */
-@Composable
-private fun MachineIcon(remote: Boolean, tint: Color) {
-    Canvas(Modifier.size(16.dp)) {
-        val unit = size.width / 16f
-        val line = Stroke(width = 1.5f * unit)
-        val corner = CornerRadius(1.6f * unit)
-        if (remote) {
-            for (top in listOf(2.5f, 9f)) {
-                drawRoundRect(tint, Offset(1.5f * unit, top * unit), Size(13f * unit, 4.5f * unit), corner, line)
-                drawCircle(tint, 0.9f * unit, Offset(4.4f * unit, (top + 2.25f) * unit))
-            }
-        } else {
-            drawRoundRect(tint, Offset(1.5f * unit, 2.5f * unit), Size(13f * unit, 8.5f * unit), corner, line)
-            drawLine(tint, Offset(8f * unit, 11f * unit), Offset(8f * unit, 13.5f * unit), line.width)
-            drawLine(tint, Offset(4.5f * unit, 13.75f * unit), Offset(11.5f * unit, 13.75f * unit), line.width, StrokeCap.Round)
-        }
     }
 }
 
