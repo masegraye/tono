@@ -65,6 +65,6 @@ The order proposed in inv-001, not yet agreed:
 | 035 | [Going back to a tab shouldn't wait for it to load again](backlog-035-keep-recent-terminals-open.md) | Reading a terminal | medium | captured |
 | 036 | [Close the connections a silent server never answered](backlog-036-close-connections-a-silent-server-never-answered.md) | Connecting to servers | small | done |
 | 037 | [The web relay may keep a page's connection after the page is gone](backlog-037-the-relay-may-keep-a-page-that-is-gone.md) | The web app | small | captured |
-| 038 | [A host that is still being connected to looks like one that is connected](backlog-038-a-host-being-connected-to-looks-connected.md) | The sidebar | small | captured |
+| 038 | [A host that is still being connected to looks like one that is connected](backlog-038-a-host-being-connected-to-looks-connected.md) | The sidebar | small | done |
 | 039 | [Pane keys reach the terminal in a tab with one pane](backlog-039-pane-keys-reach-the-terminal-with-one-pane.md) | Typing and keys | small | done |
 | 040 | [Text drifts from its cells in the web app](backlog-040-text-drifts-from-the-grid-in-the-web-app.md) | Drawing | small | done |
