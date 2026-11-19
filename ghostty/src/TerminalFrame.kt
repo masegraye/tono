@@ -23,7 +23,7 @@ class TerminalFrame(
     val selection: List<SelectedCells> = emptyList(),
 )
 
-/** The cells of one visible row that are selected: columns [firstColumn] to [lastColumn], both included. */
+/** Cells of one visible row that are selected, or that a search matched: columns [firstColumn] to [lastColumn], both included. */
 data class SelectedCells(val row: Int, val firstColumn: Int, val lastColumn: Int)
 
 /**

@@ -86,3 +86,11 @@ GHOSTTY_TERMINAL_OPT_SELECTION
 ghostty_grid_ref_(hyperlink_uri|row)
 ghostty_row_get
 GHOSTTY_ROW_DATA_WRAP
+
+# Search: looking for text in a terminal's screen and scrollback, stepping through the
+# matches, and turning a match's two ends into cells of the view to mark
+ghostty_search_(new|free|tick|feed|set|get)
+GHOSTTY_SEARCH_(STATUS|DATA|OPT)_.*
+GhosttySelectionBuffer
+GhosttyString
+ghostty_terminal_point_from_grid_ref

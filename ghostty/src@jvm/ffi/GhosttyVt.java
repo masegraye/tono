@@ -3050,6 +3050,69 @@ public class GhosttyVt extends GhosttyVt$shared {
         }
     }
 
+    private static class ghostty_terminal_point_from_grid_ref {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_terminal_point_from_grid_ref");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_point_from_grid_ref(GhosttyTerminal terminal, const GhosttyGridRef *ref, GhosttyPointTag tag, GhosttyPointCoordinate *out)
+     * }
+     */
+    public static FunctionDescriptor ghostty_terminal_point_from_grid_ref$descriptor() {
+        return ghostty_terminal_point_from_grid_ref.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_point_from_grid_ref(GhosttyTerminal terminal, const GhosttyGridRef *ref, GhosttyPointTag tag, GhosttyPointCoordinate *out)
+     * }
+     */
+    public static MethodHandle ghostty_terminal_point_from_grid_ref$handle() {
+        return ghostty_terminal_point_from_grid_ref.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_point_from_grid_ref(GhosttyTerminal terminal, const GhosttyGridRef *ref, GhosttyPointTag tag, GhosttyPointCoordinate *out)
+     * }
+     */
+    public static MemorySegment ghostty_terminal_point_from_grid_ref$address() {
+        return ghostty_terminal_point_from_grid_ref.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_terminal_point_from_grid_ref(GhosttyTerminal terminal, const GhosttyGridRef *ref, GhosttyPointTag tag, GhosttyPointCoordinate *out)
+     * }
+     */
+    public static int ghostty_terminal_point_from_grid_ref(MemorySegment terminal, MemorySegment ref, int tag, MemorySegment out) {
+        var mh$ = ghostty_terminal_point_from_grid_ref.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_terminal_point_from_grid_ref", terminal, ref, tag, out);
+            }
+            return (int)mh$.invokeExact(terminal, ref, tag, out);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
     private static class ghostty_formatter_terminal_new {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             GhosttyVt.C_INT,
@@ -6343,6 +6406,534 @@ public class GhosttyVt extends GhosttyVt$shared {
                 traceDowncall("ghostty_paste_encode", data, data_len, bracketed, buf, buf_len, out_written);
             }
             return (int)mh$.invokeExact(data, data_len, bracketed, buf, buf_len, out_written);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+    private static final int GHOSTTY_SEARCH_STATUS_RUNNING = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_STATUS_RUNNING = 0
+     * }
+     */
+    public static int GHOSTTY_SEARCH_STATUS_RUNNING() {
+        return GHOSTTY_SEARCH_STATUS_RUNNING;
+    }
+    private static final int GHOSTTY_SEARCH_STATUS_FEED_REQUIRED = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_STATUS_FEED_REQUIRED = 1
+     * }
+     */
+    public static int GHOSTTY_SEARCH_STATUS_FEED_REQUIRED() {
+        return GHOSTTY_SEARCH_STATUS_FEED_REQUIRED;
+    }
+    private static final int GHOSTTY_SEARCH_STATUS_COMPLETE = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_STATUS_COMPLETE = 2
+     * }
+     */
+    public static int GHOSTTY_SEARCH_STATUS_COMPLETE() {
+        return GHOSTTY_SEARCH_STATUS_COMPLETE;
+    }
+    private static final int GHOSTTY_SEARCH_STATUS_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_STATUS_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_SEARCH_STATUS_MAX_VALUE() {
+        return GHOSTTY_SEARCH_STATUS_MAX_VALUE;
+    }
+    private static final int GHOSTTY_SEARCH_DATA_STATUS = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_DATA_STATUS = 0
+     * }
+     */
+    public static int GHOSTTY_SEARCH_DATA_STATUS() {
+        return GHOSTTY_SEARCH_DATA_STATUS;
+    }
+    private static final int GHOSTTY_SEARCH_DATA_NEEDLE = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_DATA_NEEDLE = 1
+     * }
+     */
+    public static int GHOSTTY_SEARCH_DATA_NEEDLE() {
+        return GHOSTTY_SEARCH_DATA_NEEDLE;
+    }
+    private static final int GHOSTTY_SEARCH_DATA_TOTAL_MATCHES = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_DATA_TOTAL_MATCHES = 2
+     * }
+     */
+    public static int GHOSTTY_SEARCH_DATA_TOTAL_MATCHES() {
+        return GHOSTTY_SEARCH_DATA_TOTAL_MATCHES;
+    }
+    private static final int GHOSTTY_SEARCH_DATA_SELECTED_INDEX = (int)3L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_DATA_SELECTED_INDEX = 3
+     * }
+     */
+    public static int GHOSTTY_SEARCH_DATA_SELECTED_INDEX() {
+        return GHOSTTY_SEARCH_DATA_SELECTED_INDEX;
+    }
+    private static final int GHOSTTY_SEARCH_DATA_SELECTED_MATCH = (int)4L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_DATA_SELECTED_MATCH = 4
+     * }
+     */
+    public static int GHOSTTY_SEARCH_DATA_SELECTED_MATCH() {
+        return GHOSTTY_SEARCH_DATA_SELECTED_MATCH;
+    }
+    private static final int GHOSTTY_SEARCH_DATA_MATCHES = (int)5L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_DATA_MATCHES = 5
+     * }
+     */
+    public static int GHOSTTY_SEARCH_DATA_MATCHES() {
+        return GHOSTTY_SEARCH_DATA_MATCHES;
+    }
+    private static final int GHOSTTY_SEARCH_DATA_VIEWPORT_MATCHES = (int)6L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_DATA_VIEWPORT_MATCHES = 6
+     * }
+     */
+    public static int GHOSTTY_SEARCH_DATA_VIEWPORT_MATCHES() {
+        return GHOSTTY_SEARCH_DATA_VIEWPORT_MATCHES;
+    }
+    private static final int GHOSTTY_SEARCH_DATA_SELECT_SCROLL = (int)7L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_DATA_SELECT_SCROLL = 7
+     * }
+     */
+    public static int GHOSTTY_SEARCH_DATA_SELECT_SCROLL() {
+        return GHOSTTY_SEARCH_DATA_SELECT_SCROLL;
+    }
+    private static final int GHOSTTY_SEARCH_DATA_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_DATA_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_SEARCH_DATA_MAX_VALUE() {
+        return GHOSTTY_SEARCH_DATA_MAX_VALUE;
+    }
+    private static final int GHOSTTY_SEARCH_OPT_NEEDLE = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_OPT_NEEDLE = 0
+     * }
+     */
+    public static int GHOSTTY_SEARCH_OPT_NEEDLE() {
+        return GHOSTTY_SEARCH_OPT_NEEDLE;
+    }
+    private static final int GHOSTTY_SEARCH_OPT_SELECT_NEXT = (int)1L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_OPT_SELECT_NEXT = 1
+     * }
+     */
+    public static int GHOSTTY_SEARCH_OPT_SELECT_NEXT() {
+        return GHOSTTY_SEARCH_OPT_SELECT_NEXT;
+    }
+    private static final int GHOSTTY_SEARCH_OPT_SELECT_PREV = (int)2L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_OPT_SELECT_PREV = 2
+     * }
+     */
+    public static int GHOSTTY_SEARCH_OPT_SELECT_PREV() {
+        return GHOSTTY_SEARCH_OPT_SELECT_PREV;
+    }
+    private static final int GHOSTTY_SEARCH_OPT_SELECT_SCROLL = (int)3L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_OPT_SELECT_SCROLL = 3
+     * }
+     */
+    public static int GHOSTTY_SEARCH_OPT_SELECT_SCROLL() {
+        return GHOSTTY_SEARCH_OPT_SELECT_SCROLL;
+    }
+    private static final int GHOSTTY_SEARCH_OPT_MAX_VALUE = (int)2147483647L;
+    /**
+     * {@snippet lang=c :
+     * enum <anonymous>.GHOSTTY_SEARCH_OPT_MAX_VALUE = 2147483647
+     * }
+     */
+    public static int GHOSTTY_SEARCH_OPT_MAX_VALUE() {
+        return GHOSTTY_SEARCH_OPT_MAX_VALUE;
+    }
+
+    private static class ghostty_search_new {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_search_new");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_new(const GhosttyAllocator *allocator, GhosttySearch *out_search, GhosttyTerminal terminal)
+     * }
+     */
+    public static FunctionDescriptor ghostty_search_new$descriptor() {
+        return ghostty_search_new.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_new(const GhosttyAllocator *allocator, GhosttySearch *out_search, GhosttyTerminal terminal)
+     * }
+     */
+    public static MethodHandle ghostty_search_new$handle() {
+        return ghostty_search_new.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_new(const GhosttyAllocator *allocator, GhosttySearch *out_search, GhosttyTerminal terminal)
+     * }
+     */
+    public static MemorySegment ghostty_search_new$address() {
+        return ghostty_search_new.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_new(const GhosttyAllocator *allocator, GhosttySearch *out_search, GhosttyTerminal terminal)
+     * }
+     */
+    public static int ghostty_search_new(MemorySegment allocator, MemorySegment out_search, MemorySegment terminal) {
+        var mh$ = ghostty_search_new.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_search_new", allocator, out_search, terminal);
+            }
+            return (int)mh$.invokeExact(allocator, out_search, terminal);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_search_free {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_search_free");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void ghostty_search_free(GhosttySearch search)
+     * }
+     */
+    public static FunctionDescriptor ghostty_search_free$descriptor() {
+        return ghostty_search_free.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void ghostty_search_free(GhosttySearch search)
+     * }
+     */
+    public static MethodHandle ghostty_search_free$handle() {
+        return ghostty_search_free.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void ghostty_search_free(GhosttySearch search)
+     * }
+     */
+    public static MemorySegment ghostty_search_free$address() {
+        return ghostty_search_free.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void ghostty_search_free(GhosttySearch search)
+     * }
+     */
+    public static void ghostty_search_free(MemorySegment search) {
+        var mh$ = ghostty_search_free.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_search_free", search);
+            }
+            mh$.invokeExact(search);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_search_tick {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_search_tick");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_tick(GhosttySearch search, GhosttySearchStatus *out_status)
+     * }
+     */
+    public static FunctionDescriptor ghostty_search_tick$descriptor() {
+        return ghostty_search_tick.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_tick(GhosttySearch search, GhosttySearchStatus *out_status)
+     * }
+     */
+    public static MethodHandle ghostty_search_tick$handle() {
+        return ghostty_search_tick.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_tick(GhosttySearch search, GhosttySearchStatus *out_status)
+     * }
+     */
+    public static MemorySegment ghostty_search_tick$address() {
+        return ghostty_search_tick.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_tick(GhosttySearch search, GhosttySearchStatus *out_status)
+     * }
+     */
+    public static int ghostty_search_tick(MemorySegment search, MemorySegment out_status) {
+        var mh$ = ghostty_search_tick.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_search_tick", search, out_status);
+            }
+            return (int)mh$.invokeExact(search, out_status);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_search_feed {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_search_feed");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_feed(GhosttySearch search)
+     * }
+     */
+    public static FunctionDescriptor ghostty_search_feed$descriptor() {
+        return ghostty_search_feed.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_feed(GhosttySearch search)
+     * }
+     */
+    public static MethodHandle ghostty_search_feed$handle() {
+        return ghostty_search_feed.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_feed(GhosttySearch search)
+     * }
+     */
+    public static MemorySegment ghostty_search_feed$address() {
+        return ghostty_search_feed.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_feed(GhosttySearch search)
+     * }
+     */
+    public static int ghostty_search_feed(MemorySegment search) {
+        var mh$ = ghostty_search_feed.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_search_feed", search);
+            }
+            return (int)mh$.invokeExact(search);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_search_set {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_search_set");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_set(GhosttySearch search, GhosttySearchOption option, const void *value)
+     * }
+     */
+    public static FunctionDescriptor ghostty_search_set$descriptor() {
+        return ghostty_search_set.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_set(GhosttySearch search, GhosttySearchOption option, const void *value)
+     * }
+     */
+    public static MethodHandle ghostty_search_set$handle() {
+        return ghostty_search_set.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_set(GhosttySearch search, GhosttySearchOption option, const void *value)
+     * }
+     */
+    public static MemorySegment ghostty_search_set$address() {
+        return ghostty_search_set.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_set(GhosttySearch search, GhosttySearchOption option, const void *value)
+     * }
+     */
+    public static int ghostty_search_set(MemorySegment search, int option, MemorySegment value) {
+        var mh$ = ghostty_search_set.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_search_set", search, option, value);
+            }
+            return (int)mh$.invokeExact(search, option, value);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class ghostty_search_get {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER,
+            GhosttyVt.C_INT,
+            GhosttyVt.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ghostty_search_get");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_get(GhosttySearch search, GhosttySearchData data, void *value)
+     * }
+     */
+    public static FunctionDescriptor ghostty_search_get$descriptor() {
+        return ghostty_search_get.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_get(GhosttySearch search, GhosttySearchData data, void *value)
+     * }
+     */
+    public static MethodHandle ghostty_search_get$handle() {
+        return ghostty_search_get.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_get(GhosttySearch search, GhosttySearchData data, void *value)
+     * }
+     */
+    public static MemorySegment ghostty_search_get$address() {
+        return ghostty_search_get.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * GhosttyResult ghostty_search_get(GhosttySearch search, GhosttySearchData data, void *value)
+     * }
+     */
+    public static int ghostty_search_get(MemorySegment search, int data, MemorySegment value) {
+        var mh$ = ghostty_search_get.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("ghostty_search_get", search, data, value);
+            }
+            return (int)mh$.invokeExact(search, data, value);
         } catch (Error | RuntimeException ex) {
            throw ex;
         } catch (Throwable ex$) {

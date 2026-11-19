@@ -159,6 +159,64 @@ expect class GhosttySelection() : AutoCloseable {
 }
 
 /**
+ * Looking for text in one terminal: its screen and everything that scrolled off it.
+ * libghostty-vt does the looking, and keeps what it found in step with the terminal as
+ * output arrives, the terminal is resized, or a full-screen program comes and goes.
+ *
+ * A letter of the English alphabet matches in either case; everything else has to be the
+ * same. Matches are counted from the newest, at the bottom of the screen, back through the
+ * history, and "next" steps that way, towards older output, as it does in Ghostty.
+ *
+ * The search only learns what the terminal holds when [advance] is called, so call it
+ * after anything that changes the terminal or scrolls its view, and before reading
+ * [total], [selected] or [highlights]. Closed before its terminal. Not thread-safe, like
+ * the terminal.
+ */
+expect class GhosttySearch(terminal: GhosttyTerminal) : AutoCloseable {
+    /** What to look for. Changing it starts over, with no match selected; empty looks for nothing. */
+    fun setNeedle(text: String)
+
+    /**
+     * Takes in what the terminal holds now and looks through some more of it, a bounded
+     * amount, so that a long history doesn't hold everything else up. Returns whether it
+     * has been through all of it; call it again when not.
+     */
+    fun advance(): Boolean
+
+    /**
+     * Selects the match before the selected one, in older output, or the newest when none
+     * is selected, going round from the oldest to the newest. The view scrolls to show it
+     * if it doesn't already. False when there are no matches.
+     */
+    fun selectNext(): Boolean
+
+    /** As [selectNext], the other way: towards newer output, and round from the newest to the oldest. */
+    fun selectPrevious(): Boolean
+
+    /** How many matches have been found so far. */
+    val total: Int
+
+    /** Which match is selected, counting from 0 for the newest, or null when none is. */
+    val selected: Int?
+
+    /** Where the matches are in the terminal's view, as of the last [advance]. */
+    fun highlights(): SearchHighlights
+
+    override fun close()
+}
+
+/**
+ * The matches of a search that are on screen, as cells to mark: those of the [selected]
+ * match, and those of all the [others]. A match that a row's end broke in two has cells
+ * in both rows.
+ */
+data class SearchHighlights(val others: List<SelectedCells>, val selected: List<SelectedCells>) {
+    companion object {
+        val None = SearchHighlights(emptyList(), emptyList())
+    }
+}
+
+/**
  * Makes pasted text safe to send to a terminal: characters that could end the paste early
  * are replaced with spaces, and the text is wrapped in bracketed-paste markers when
  * [bracketed] is true, or has its newlines turned into carriage returns when it isn't.

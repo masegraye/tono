@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.selects.onTimeout
@@ -29,6 +30,7 @@ import org.example.kotlintest.ghostty.GhosttySelection
 import org.example.kotlintest.ghostty.MouseAction
 import org.example.kotlintest.ghostty.MouseButton
 import org.example.kotlintest.ghostty.MouseInput
+import org.example.kotlintest.ghostty.SearchHighlights
 import org.example.kotlintest.ghostty.GhosttyTerminal
 import org.example.kotlintest.ghostty.TerminalColors
 import org.example.kotlintest.ghostty.TerminalFrame
@@ -90,6 +92,15 @@ class TerminalSession internal constructor(
      */
     val opened: SharedFlow<String> get() = mutableOpened
 
+    private val mutableSearch = MutableStateFlow<TerminalSearch?>(null)
+
+    /** The terminal's search while it is open: what is looked for and what was found. Null while it is closed. */
+    val search: StateFlow<TerminalSearch?> get() = mutableSearch
+
+    /** How many times the search was asked for, and the text last looked for, which it starts with again. Both are the caller's thread's. */
+    private var searchesOpened = 0
+    private var lastSearched = ""
+
     /** Whether the terminal's program currently wants pasted text bracketed. */
     @Volatile
     var bracketedPaste: Boolean = false
@@ -104,6 +115,9 @@ class TerminalSession internal constructor(
         data object SelectAll : Command
         data object ClearSelection : Command
         class ReadSelection(val text: CompletableDeferred<String>) : Command
+        /** Look for this from now on, or for nothing when it is null. */
+        class Search(val query: String?) : Command
+        class SearchStep(val forward: Boolean) : Command
     }
 
     /** Where the pointer is held to follow a link, or null. */
@@ -168,6 +182,52 @@ class TerminalSession internal constructor(
         return withTimeoutOrNull(SELECTION_TIMEOUT_MILLIS) { text.await() } ?: ""
     }
 
+    /**
+     * Opens the terminal's search, starting with the text last looked for here, or says
+     * again that its field should have the keyboard if it is already open ([TerminalSearch.opened]).
+     */
+    fun openSearch() {
+        val opened = ++searchesOpened
+        val wasOpen = mutableSearch.value != null
+        mutableSearch.update { (it ?: TerminalSearch(lastSearched, complete = lastSearched.isEmpty())).copy(opened = opened) }
+        if (!wasOpen) commands.trySend(Command.Search(lastSearched))
+    }
+
+    /**
+     * Looks for [query] in the screen and the history, if the search is open. The newest
+     * match is selected and scrolled into view; output that arrives later is searched too.
+     */
+    fun search(query: String) {
+        if (mutableSearch.value == null) return
+        lastSearched = query
+        mutableSearch.update { it?.copy(query = query, total = 0, selected = null, complete = query.isEmpty(), highlights = SearchHighlights.None) }
+        commands.trySend(Command.Search(query))
+    }
+
+    /**
+     * Selects the next match, which is the next older one, or the previous, going round at
+     * either end, and scrolls it into view. With the search closed, as Rex Rune does: it
+     * comes back on the text last looked for, at its newest match, and the keyboard stays
+     * where it is; if nothing was ever looked for, this is [openSearch].
+     */
+    fun searchStep(forward: Boolean) {
+        when {
+            mutableSearch.value != null -> commands.trySend(Command.SearchStep(forward))
+            lastSearched.isEmpty() -> openSearch()
+            else -> {
+                mutableSearch.value = TerminalSearch(lastSearched, opened = searchesOpened, complete = false)
+                commands.trySend(Command.Search(lastSearched))
+            }
+        }
+    }
+
+    /** Closes the search and takes its marks off the screen. The view stays where it is. */
+    fun closeSearch() {
+        if (mutableSearch.value == null) return
+        mutableSearch.value = null
+        commands.trySend(Command.Search(null))
+    }
+
     fun close() = job.cancel()
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -177,6 +237,7 @@ class TerminalSession internal constructor(
         var renderer: GhosttyRenderer? = null
         var mouse: GhosttyMouse? = null
         var stream: RexTerminalStream? = null
+        val searching = TerminalSearching(mutableSearch)
         try {
             loadGhostty() // in a browser the terminal library has to be fetched before its first use
             stream = open()
@@ -224,9 +285,11 @@ class TerminalSession internal constructor(
                         true
                     }
                     commands.onReceive { command ->
-                        handleCommand(live, renderer, pointer, selection, command)
+                        handleCommand(live, renderer, pointer, selection, searching, command)
                         true
                     }
+                    // A long history is searched a little at a time, between frames.
+                    if (searching.behind) onTimeout(0) { true }
                     // Held past the top or bottom edge while selecting: a row at a time, until it isn't.
                     if (pointer.scrollingAt != null) {
                         onTimeout((scrollNextMillis - nowMillis()).coerceAtLeast(0)) {
@@ -237,6 +300,8 @@ class TerminalSession internal constructor(
                     }
                 }
                 if (!more) break
+                // Whatever just happened may have changed what there is to find, or where it is in the view.
+                searching.refresh()
                 mutableFrame.value = renderer.render(terminal)
                 // Asked again every time, since what is under a pointer that hasn't moved may have changed.
                 mutableLink.value = pointingAt?.let { pointer.linkUnder(live, it) }
@@ -260,6 +325,7 @@ class TerminalSession internal constructor(
             withContext(NonCancellable) { stream?.close() }
             renderer?.close()
             mouse?.close()
+            searching.close() // before the terminal, like the selection
             selection?.close() // before the terminal, which it lets go of
             terminal?.close()
         }
@@ -303,7 +369,7 @@ class TerminalSession internal constructor(
         }
     }
 
-    private fun handleCommand(terminal: GhosttyTerminal, renderer: GhosttyRenderer, pointer: TerminalPointer, selection: GhosttySelection, command: Command) {
+    private fun handleCommand(terminal: GhosttyTerminal, renderer: GhosttyRenderer, pointer: TerminalPointer, selection: GhosttySelection, searching: TerminalSearching, command: Command) {
         when (command) {
             is Command.SetColors -> {
                 colors = command.colors
@@ -324,6 +390,8 @@ class TerminalSession internal constructor(
             Command.SelectAll -> selection.selectAll(terminal)
             Command.ClearSelection -> selection.clear(terminal)
             is Command.ReadSelection -> command.text.complete(runCatching { selection.text(terminal) }.getOrDefault(""))
+            is Command.Search -> searching.find(terminal, command.query)
+            is Command.SearchStep -> searching.step(command.forward)
         }
     }
 
