@@ -141,7 +141,7 @@ class SettingsRenderTest {
                 // Nothing chosen yet: the first section shows, marked in the list down the left.
                 assertTrue(settings.draw("first-$width").has(scheme.secondaryContainer, 0 until 220), "$width: the first section is marked")
                 // The last line of the list: Notifications.
-                settings.click(Offset(100f, 257f))
+                settings.click(Offset(100f, 307f))
                 assertEquals(SettingsSection.Notifications, ui.settings.section)
                 val first = settings.draw()
                 assertEquals(6, first.switchesOn().size, "$width: Notifications has six switches, all on")
@@ -158,8 +158,8 @@ class SettingsRenderTest {
             assertFalse(list.has(scheme.secondaryContainer), "nothing is chosen in the list")
             assertTrue(list.switchesOn().isEmpty(), "and no section is showing")
 
-            // The second line of the list, under the server's: Terminal.
-            settings.click(Offset(120f, 210f))
+            // The third line of the list: Terminal.
+            settings.click(Offset(120f, 262f))
             assertEquals(SettingsSection.Terminal, ui.settings.section)
             val section = settings.draw("list-420-chosen")
             assertTrue(section.switchesOn().isEmpty(), "Terminal's two switches start off")
@@ -286,6 +286,28 @@ class SettingsRenderTest {
             assertEquals(null, ui.settings.confirmation)
             assertTrue(client.shortcuts.value.isEmpty)
         }
+    }
+
+    @Test
+    fun `the settings' own window is in the theme that was chosen`() {
+        fun background(slug: String) = omarchyColorScheme(bundledOmarchyPalettes.first { it.slug == slug }).background
+        val tono = Tono(ui, commands)
+        ui.settings.section = SettingsSection.Appearance
+        for (slug in listOf("catppuccin-latte", "tokyo-night")) {
+            ui.appearance.chooseTheme(slug)
+            val scene = ImageComposeScene(700, 680, Density(1f)) { TonoSettings(tono) }
+            try {
+                var millis = 0L
+                repeat(30) { millis += 16; scene.render(millis * 1_000_000); Snapshot.sendApplyNotifications() }
+                val image = scene.render(millis * 1_000_000)
+                File(outputDir, "theme-$slug-700.png").writeBytes(image.encodeToData()!!.bytes)
+                // The panel a section is drawn on is in the theme's own background.
+                assertTrue(Bitmap.makeFromImage(image).has(background(slug), 230 until 700), "the settings are drawn in $slug")
+            } finally {
+                scene.close()
+            }
+        }
+        assertTrue(background("catppuccin-latte") != background("tokyo-night"))
     }
 
     @Test

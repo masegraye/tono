@@ -22,8 +22,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -69,9 +70,8 @@ import org.example.kotlintest.rex.suggestedHostLabel
  * someone arranges is kept in the workspace, and the sidebar follows it.
  */
 
-/** What a place within Remote Hosts is known by: a host's details, by its label, or the form that adds one. */
+/** What a place within Remote Hosts is known by: a host's details, by its label. */
 internal fun hostDetail(label: String): String = "host:$label"
-internal const val ADD_HOST_DETAIL = "add"
 
 /** The label of the host a place's detail is about, or null if it is about something else. */
 internal fun hostOfDetail(detail: String?): String? = detail?.takeIf { it.startsWith("host:") }?.removePrefix("host:")
@@ -149,7 +149,6 @@ private fun orderedHosts(ui: RexUiState): List<Pair<RexHost, HostState>> {
 internal fun RemoteHostSettings(ui: RexUiState, place: SettingsPlace, wide: Boolean) {
     val label = hostOfDetail(place.detail)
     when {
-        place.detail == ADD_HOST_DETAIL -> ScrollingSection { AddHostForm(ui) }
         label != null -> ScrollingSection { HostDetails(ui, label) }
         else -> ScrollingSection { HostList(ui, wide) }
     }
@@ -191,7 +190,7 @@ private fun HostList(ui: RexUiState, wide: Boolean) {
             if (movable.size > 1) "The order is $APP_NAME's own, and the sidebar follows it." else "",
             style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f).padding(start = 6.dp, end = 8.dp),
         )
-        CardButton("Add Remote Host…") { state.go(SettingsPlace(SettingsSection.RemoteHosts, ADD_HOST_DETAIL)) }
+        CardButton("Add Remote Host…") { state.form = SettingsForm.AddHost }
     }
 }
 
@@ -239,38 +238,6 @@ internal fun HostRow(label: String, address: String, icon: HostIcon, reach: Host
     }
 }
 
-/** A line to type in, under its name, with what is wrong with what was typed under it, if anything is. */
-@Composable
-internal fun SettingsField(
-    label: String, value: String, onChange: (String) -> Unit,
-    placeholder: String = "", note: String? = null, error: String? = null, lines: Int = 1, keyboard: KeyboardType = KeyboardType.Uri,
-) {
-    val colors = MaterialTheme.colorScheme
-    Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
-        TextField(
-            value = value,
-            onValueChange = onChange,
-            singleLine = lines == 1,
-            minLines = lines,
-            maxLines = if (lines == 1) 1 else 8,
-            isError = error != null,
-            placeholder = { if (placeholder.isNotEmpty()) Text(placeholder, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant.copy(alpha = 0.6f), maxLines = 1) },
-            textStyle = MaterialTheme.typography.bodyMedium,
-            // Addresses and names are typed as they are: nothing capitalized or corrected.
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false, keyboardType = keyboard),
-            shape = MaterialTheme.shapes.small,
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = colors.background, unfocusedContainerColor = colors.background, errorContainerColor = colors.background,
-                focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, errorIndicatorColor = Color.Transparent,
-            ),
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-        )
-        if (error != null) Text(error, style = MaterialTheme.typography.labelMedium, color = colors.error, modifier = Modifier.padding(top = 4.dp))
-        else if (note != null) Text(note, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
-    }
-}
-
 /**
  * The pictures a host can have, to choose one from, and none. They are the seven backlog-027
  * draws, kept in the host list under the names Rex for Mac gives them.
@@ -281,14 +248,14 @@ internal fun SettingsField(
 @Composable
 internal fun IconPicker(chosen: HostIcon?, onChoose: (HostIcon?) -> Unit) {
     val colors = MaterialTheme.colorScheme
-    Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         Text("Icon", style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
         FlowRow(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             for (icon in listOf<HostIcon?>(null) + HostIcon.entries) {
                 val selected = icon == chosen
                 Box(
                     Modifier.size(TOUCH_TARGET).clip(MaterialTheme.shapes.small)
-                        .background(if (selected) colors.secondaryContainer else colors.background)
+                        .background(if (selected) colors.secondaryContainer else colors.surfaceContainerLowest)
                         .border(1.dp, if (selected) colors.primary else Color.Transparent, MaterialTheme.shapes.small)
                         .clickable { onChoose(icon) }
                         .semantics { contentDescription = icon?.title ?: "No icon" },
@@ -348,51 +315,10 @@ private fun HostDetails(ui: RexUiState, label: String) {
         return
     }
 
-    // What is being typed, until it is saved. It starts again from the host whenever the host changes under it.
+    // What it is, to read. Changing it is a form of its own: Edit…, below.
     val addresses = listing?.endpoints ?: listOf(host.saved.endpoint)
-    var name by remember(label) { mutableStateOf(label) }
-    var typed by remember(label, addresses) { mutableStateOf(addresses.joinToString("\n")) }
-    var icon by remember(label, listing?.icon) { mutableStateOf(HostIcon.named(listing?.icon)) }
-    var iconChanged by remember(label, listing?.icon) { mutableStateOf(false) }
-    var refusal by remember(label) { mutableStateOf<String?>(null) }
-    var saving by remember(label) { mutableStateOf(false) }
-    val changed = name.trim() != label || addressesTyped(typed) != addresses || iconChanged
-    val listed = host.discovered
-
-    SettingsGroup("Edit") {
-        // What the server refuses is about the name more often than not (another host has it), and is said in its own words.
-        SettingsField("Label", name, { name = it; refusal = null }, error = refusal, keyboard = KeyboardType.Text)
-        RowDivider()
-        if (listed) {
-            SettingsField("Addresses", typed, { typed = it; refusal = null }, lines = 2, note = "One to a line, in the order they are tried. $APP_NAME connects to the first.")
-            RowDivider()
-            IconPicker(icon) { icon = it; iconChanged = true }
-        } else {
-            SettingsField("Address", typed, { typed = it.replace("\n", ""); refusal = null }, note = "A host kept by $APP_NAME alone has one address, and the picture every such host has.")
-        }
-        RowDivider()
-        Row(Modifier.fillMaxWidth().heightIn(min = TOUCH_TARGET).padding(start = 14.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                // Said before saving: what is stored takes the declared host's place.
-                if (source == HostSource.ConfigurationFile) "Saving stores this host in ${home ?: "the home server"}'s host list, in place of the one the configuration file declares." else "",
-                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f).padding(end = 8.dp, top = 6.dp, bottom = 6.dp),
-            )
-            TextButton(
-                enabled = changed && !saving,
-                modifier = Modifier.heightIn(min = TOUCH_TARGET),
-                onClick = {
-                    saving = true
-                    scope.launch {
-                        // A picture left as it was keeps the name the list has for it, known here or not.
-                        val iconName = if (iconChanged) icon?.listName else listing?.icon
-                        refusal = client.changeHost(label, name, addressesTyped(typed), iconName)
-                        saving = false
-                        // Under a new name it is somewhere else in the settings: stay with it.
-                        if (refusal == null && name.trim() != label) settings.replace(SettingsPlace(SettingsSection.RemoteHosts, hostDetail(name.trim())))
-                    }
-                },
-            ) { Text(if (saving) "Saving…" else "Save Changes") }
-        }
+    SettingsGroup(if (addresses.size == 1) "Address" else "Addresses", note = if (addresses.size > 1) "Tried in this order. $APP_NAME connects to the first." else null) {
+        InfoRow(if (addresses.size == 1) "This app reaches it at" else "It can be reached at", addresses.joinToString("\n"))
     }
 
     val movable = ordered.map { it.first.saved.label }.filter { it != home }
@@ -407,7 +333,8 @@ private fun HostDetails(ui: RexUiState, label: String) {
         }
     }
 
-    Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.End) {
+    Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+        CardButton("Edit…") { settings.form = SettingsForm.EditHost(label) }
         CardButton("Remove Host…", color = MaterialTheme.colorScheme.error) {
             settings.confirmation = removeHostQuestion(host) {
                 client.removeHost(label)
@@ -418,93 +345,161 @@ private fun HostDetails(ui: RexUiState, label: String) {
     }
 }
 
+/** Which field of a host's form a refusal is about, going by its words: an address, or else the label, which is what a server most often refuses. */
+internal enum class HostField { Label, Address }
+
+internal fun fieldOfRefusal(refusal: String): HostField =
+    if (Regex("address|endpoint", RegexOption.IGNORE_CASE).containsMatchIn(refusal) && !Regex("label|called|name", RegexOption.IGNORE_CASE).containsMatchIn(refusal)) HostField.Address else HostField.Label
+
 /**
- * Adding a host: the choice the palette's Add Host… offers, a Rex server found on the
- * tailnet or an address typed in, with a name and a picture for it if wanted. It goes where
- * the palette's goes: the home server's host list, or this app alone when the home server
- * isn't there to keep it.
+ * The form a host is changed in, and the one a host is added with: its label, its addresses
+ * and its picture, saved together or not at all (design-001). Adding also lists the Rex
+ * servers found on the tailnet, and choosing one fills the fields in; nothing is added until
+ * Add Host is pressed. A host goes where the palette's Add Host… puts one: the home server's
+ * host list, or this app alone when the home server isn't there to keep it.
+ *
+ * @param editing the label of the host being changed, or null to add one
  */
 @Composable
-private fun AddHostForm(ui: RexUiState) {
+internal fun HostForm(ui: RexUiState, editing: String?, sheet: Boolean) {
     val client = ui.client
     val settings = ui.settings
     val scope = rememberCoroutineScope()
     val hosts by client.hosts.collectAsState()
-    val home = hosts.firstOrNull { it.saved.label == client.homeLabel }
-    val homeState = home?.state?.collectAsState()?.value
-    var address by remember { mutableStateOf("") }
-    var name by remember { mutableStateOf("") }
-    var icon by remember { mutableStateOf<HostIcon?>(null) }
-    var refusal by remember { mutableStateOf<String?>(null) }
-    var adding by remember { mutableStateOf(false) }
-    // Looked for each time the form opens: machines come and go. What was found last time shows meanwhile.
-    LaunchedEffect(Unit) { ui.tailnetServers = ui.findTailnetServers() }
-
-    fun add(label: String, endpoint: String, picture: HostIcon?) {
-        adding = true
-        scope.launch {
-            refusal = client.addHostNow(label, endpoint, picture?.listName)
-            adding = false
-            if (refusal == null) settings.replace(SettingsPlace(SettingsSection.RemoteHosts))
-        }
+    val listings by client.hostListings.collectAsState()
+    val host = editing?.let { label -> hosts.firstOrNull { it.saved.label == label } }
+    val close = { settings.form = null }
+    if (editing != null && host == null) {
+        // Gone while its form was open: removed here or on another device.
+        LaunchedEffect(Unit) { close() }
+        return
     }
+    val listing = editing?.let { listings[it] }
+    val source = editing?.let(client::sourceOf)
+    val home = hosts.firstOrNull { it.saved.label == client.homeLabel }
+    val keptByHome = if (host != null) host.discovered else home?.state?.collectAsState()?.value?.connection == HostConnection.Connected
+    val before = listing?.endpoints ?: listOfNotNull(host?.saved?.endpoint)
 
-    val keptByHome = homeState?.connection == HostConnection.Connected
-    SettingsGroup(
-        "On Your Tailnet",
-        note = (if (offersTailnet(ui, hosts)) "Choose one to fill in its address and name below. " else "") + if (keptByHome) "A host added here goes in ${client.homeLabel ?: "the home server"}'s host list, so every device that follows it has it."
-        else "The home server isn't connected, so a host added now is kept by $APP_NAME alone.",
-    ) {
-        val servers = ui.tailnetServers
-        val offered = servers.orEmpty().filter { server -> !client.isConfigured(server.endpoint) && hosts.none { it.saved.label.equals(server.label, ignoreCase = true) } }
-        when {
-            servers == null -> InfoLine("Looking for Rex servers on your tailnet…")
-            offered.isEmpty() -> InfoLine(if (servers.isEmpty()) "No Rex server was found on your tailnet." else "Every Rex server on your tailnet is already a host.")
-            else -> offered.forEachIndexed { index, server ->
-                if (index > 0) RowDivider()
-                // Choosing one fills in the form under it. Nothing is added until Add Host is pressed:
-                // a line pressed by mistake, on a page where lines lead somewhere, adds no machine.
-                val chosen = endpointKey(address) == endpointKey(server.endpoint)
-                Row(
-                    Modifier.fillMaxWidth().background(if (chosen) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
-                        .clickable(enabled = !adding) { address = server.endpoint; name = server.label; refusal = null }
-                        .heightIn(min = 56.dp).padding(horizontal = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    MachineIcon(HostIcon.Server, tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 20.dp)
-                    Column(Modifier.weight(1f).padding(start = 12.dp, top = 6.dp, bottom = 6.dp)) {
-                        Text(server.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(server.address, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
-                    }
-                    Text(if (server.online) "Online" else "Offline", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+    // What is typed, until it is saved. It opens with the host as it is, and stays as typed whatever the host does meanwhile.
+    var name by remember { mutableStateOf(selected(editing.orEmpty())) }
+    val addresses = remember { mutableStateListOf<TextFieldValue>().apply { addAll(before.ifEmpty { listOf("") }.map { TextFieldValue(it) }) } }
+    var icon by remember { mutableStateOf(HostIcon.named(listing?.icon)) }
+    var iconChanged by remember { mutableStateOf(false) }
+    var refusal by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    if (editing == null) LaunchedEffect(Unit) { ui.tailnetServers = ui.findTailnetServers() }
+
+    val typed = addresses.map { it.text.trim() }.filter { it.isNotEmpty() }
+    val label = name.text.trim()
+    val changed = if (editing != null) label != editing || typed != before || iconChanged else label.isNotEmpty() || typed.isNotEmpty() || icon != null
+    val valid = typed.isNotEmpty() && (editing == null || label.isNotEmpty())
+
+    fun save() {
+        busy = true
+        scope.launch {
+            refusal = if (editing != null) {
+                // A picture left as it was keeps the name the list has for it, known here or not.
+                client.changeHost(editing, label, typed, if (iconChanged) icon?.listName else listing?.icon)
+            } else {
+                client.addHostNow(label.ifEmpty { suggestedHostLabel(typed.first()) }, typed.first(), icon?.listName)
+            }
+            busy = false
+            if (refusal == null) {
+                // Under a new name its details are somewhere else in the settings: stay with it.
+                if (editing != null && label != editing && settings.place?.detail == hostDetail(editing)) settings.replace(SettingsPlace(SettingsSection.RemoteHosts, hostDetail(label)))
+                close()
             }
         }
     }
 
-    SettingsGroup("By Address") {
-        SettingsField("Address", address, { address = it.replace("\n", ""); refusal = null }, placeholder = "studio.tail1234.ts.net", error = refusal)
-        RowDivider()
-        // Left empty, it is named after its address, as the palette names it.
-        SettingsField("Label", name, { name = it; refusal = null }, placeholder = address.trim().takeIf { it.isNotEmpty() }?.let(::suggestedHostLabel).orEmpty(), keyboard = KeyboardType.Text)
-        if (keptByHome) {
-            RowDivider()
-            IconPicker(icon) { icon = it }
+    val wrong = refusal?.let(::fieldOfRefusal)
+    FormDialog(
+        title = if (editing != null) "Edit $editing" else "Add Remote Host",
+        saveLabel = if (busy) (if (editing != null) "Saving…" else "Adding…") else if (editing != null) "Save" else "Add Host",
+        canSave = valid && (editing == null || changed), changed = changed, busy = busy, sheet = sheet,
+        cancelRequests = settings.formCancelRequests, onSave = ::save, onClose = close,
+    ) { first ->
+        val colors = MaterialTheme.colorScheme
+        if (editing == null) {
+            val servers = ui.tailnetServers
+            val offered = servers.orEmpty().filter { server -> !client.isConfigured(server.endpoint) && hosts.none { it.saved.label.equals(server.label, ignoreCase = true) } }
+            Text("On your tailnet", style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp))
+            Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).background(colors.surfaceContainerLowest)) {
+                when {
+                    servers == null -> InfoLine("Looking for Rex servers on your tailnet…")
+                    offered.isEmpty() -> InfoLine(if (servers.isEmpty()) "No Rex server was found on your tailnet." else "Every Rex server on your tailnet is already a host.")
+                    else -> offered.forEachIndexed { index, server ->
+                        if (index > 0) RowDivider()
+                        // Choosing one fills in the fields under it, and adds nothing.
+                        val chosen = typed.firstOrNull()?.let(::endpointKey) == endpointKey(server.endpoint)
+                        Row(
+                            Modifier.fillMaxWidth().background(if (chosen) colors.secondaryContainer else Color.Transparent)
+                                .clickable(enabled = !busy) { addresses[0] = TextFieldValue(server.endpoint); name = TextFieldValue(server.label); refusal = null }
+                                .heightIn(min = TOUCH_TARGET).padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            MachineIcon(HostIcon.Server, tint = colors.onSurfaceVariant, size = 20.dp)
+                            Column(Modifier.weight(1f).padding(start = 12.dp, top = 6.dp, bottom = 6.dp)) {
+                                Text(server.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(server.address, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
+                            }
+                            Text(if (server.online) "Online" else "Offline", style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            Text(
+                (if (offered.isNotEmpty()) "Choose one to fill in its address and label, or type an address. " else "") +
+                    if (keptByHome) "The host goes in ${client.homeLabel ?: "the home server"}'s host list, so every device that follows it has it."
+                    else "The home server isn't connected, so the host is kept by $APP_NAME alone.",
+                style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
+            )
         }
-        RowDivider()
-        Row(Modifier.fillMaxWidth().heightIn(min = TOUCH_TARGET).padding(end = 6.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            TextButton(
-                enabled = address.isNotBlank() && !adding,
-                modifier = Modifier.heightIn(min = TOUCH_TARGET),
-                onClick = { add(name.trim().ifEmpty { suggestedHostLabel(address) }, address, icon) },
-            ) { Text(if (adding) "Adding…" else "Add Host") }
+
+        // The label comes first for a host that has one to change. A new host is its address first: the label can come from it.
+        val labelField: @Composable (FocusRequester?) -> Unit = { focus ->
+            FormField(
+                name, { name = it; refusal = null }, label = "Label", focus = focus, plain = true,
+                placeholder = if (editing == null) typed.firstOrNull()?.let(::suggestedHostLabel).orEmpty() else "",
+                hint = if (editing == null) "Left empty, it is named after its address." else null,
+                error = refusal.takeIf { wrong == HostField.Label },
+            )
+        }
+        if (editing != null) labelField(first)
+        addresses.forEachIndexed { index, address ->
+            Row(verticalAlignment = Alignment.Top) {
+                FormField(
+                    address, { addresses[index] = it; refusal = null },
+                    label = if (addresses.size == 1) "Address" else "Address ${index + 1}",
+                    placeholder = "studio.tail1234.ts.net", plain = true, keyboard = KeyboardType.Uri,
+                    focus = first.takeIf { editing == null && index == 0 },
+                    hint = when {
+                        index != addresses.lastIndex -> null
+                        editing != null && !keptByHome -> "A host kept by $APP_NAME alone has one address, and no icon."
+                        addresses.size > 1 -> "Tried in this order. $APP_NAME connects to the first."
+                        else -> null
+                    },
+                    error = refusal.takeIf { wrong == HostField.Address && index == 0 },
+                    modifier = Modifier.weight(1f),
+                )
+                if (addresses.size > 1) TextButton(enabled = !busy, modifier = Modifier.padding(start = 4.dp, top = 6.dp).heightIn(min = TOUCH_TARGET), onClick = { addresses.removeAt(index); refusal = null }) { Text("Remove") }
+            }
+        }
+        // More than one address is something the home server's list keeps, for a host it has already.
+        if (editing != null && keptByHome) {
+            TextButton(enabled = !busy, modifier = Modifier.heightIn(min = TOUCH_TARGET), onClick = { addresses.add(TextFieldValue("")) }) { Text("Add Another Address") }
+        }
+        if (editing == null) labelField(null)
+        if (keptByHome) IconPicker(icon) { icon = it; iconChanged = true }
+        // Said before saving: what is stored takes the declared host's place.
+        if (source == HostSource.ConfigurationFile) {
+            Text(
+                "The configuration file declares this host (${listing?.source ?: "init.lua"}). Saving stores it in ${client.homeLabel ?: "the home server"}'s host list, in place of the declared one. The file itself isn't changed.",
+                style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }
-
-/** Whether there is a Rex server on the tailnet that isn't a host yet, to choose from. */
-private fun offersTailnet(ui: RexUiState, hosts: List<RexHost>): Boolean =
-    ui.tailnetServers.orEmpty().any { server -> !ui.client.isConfigured(server.endpoint) && hosts.none { it.saved.label.equals(server.label, ignoreCase = true) } }
 
 /** A line that only says something, where a card would otherwise be empty. */
 @Composable

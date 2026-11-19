@@ -36,11 +36,12 @@ import androidx.compose.ui.unit.dp
  *   colors it as a warning
  */
 @Composable
-fun PrimaryDialogButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, destructive: Boolean = false) {
+fun PrimaryDialogButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, destructive: Boolean = false, enabled: Boolean = true) {
     val colors = MaterialTheme.colorScheme
     val interaction = remember { MutableInteractionSource() }
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier.keyboardFocusRing(interaction),
         interactionSource = interaction,
         colors = ButtonDefaults.buttonColors(

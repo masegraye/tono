@@ -131,12 +131,85 @@ class SettingsHostsRenderTest {
                 "hosts" to SettingsPlace(SettingsSection.RemoteHosts),
                 "hosts-details" to SettingsPlace(SettingsSection.RemoteHosts, hostDetail("studio")),
                 "hosts-home" to SettingsPlace(SettingsSection.RemoteHosts, hostDetail("Local")),
-                "hosts-add" to SettingsPlace(SettingsSection.RemoteHosts, ADD_HOST_DETAIL),
             )) {
                 ui.settings.replace(place)
                 settings(width, height = 900).use { it.draw("$name-$width") }
                 assertTrue(File(outputDir, "$name-$width.png").length() > 0, "$name-$width")
             }
+            // The forms, over the place they are opened from: a dialog where there is room, a sheet where there isn't.
+            for ((name, form) in listOf("hosts-edit" to SettingsForm.EditHost("studio"), "hosts-add" to SettingsForm.AddHost, "client-label" to SettingsForm.ClientLabel)) {
+                ui.settings.replace(if (form == SettingsForm.ClientLabel) SettingsPlace(SettingsSection.Server) else SettingsPlace(SettingsSection.RemoteHosts, hostDetail("studio")))
+                ui.settings.form = form
+                settings(width, height = 900).use { it.draw("$name-$width") }
+                ui.settings.form = null
+                assertTrue(File(outputDir, "$name-$width.png").length() > 0, "$name-$width")
+            }
+        }
+    }
+
+    /** Presses a key, as the toolkit reports it. */
+    @OptIn(androidx.compose.ui.InternalComposeUiApi::class)
+    private fun Picture.press(code: Int, char: Char = java.awt.event.KeyEvent.CHAR_UNDEFINED) {
+        val source = object : java.awt.Component() {}
+        fun send(type: Int, keyCode: Int) = scene.sendKeyEvent(
+            androidx.compose.ui.input.key.KeyEvent(
+                key = androidx.compose.ui.input.key.Key(keyCode),
+                type = when (type) {
+                    java.awt.event.KeyEvent.KEY_PRESSED -> androidx.compose.ui.input.key.KeyEventType.KeyDown
+                    java.awt.event.KeyEvent.KEY_RELEASED -> androidx.compose.ui.input.key.KeyEventType.KeyUp
+                    else -> androidx.compose.ui.input.key.KeyEventType.Unknown
+                },
+                codePoint = if (char == java.awt.event.KeyEvent.CHAR_UNDEFINED) 0 else char.code,
+                nativeEvent = java.awt.event.KeyEvent(source, type, 0L, 0, keyCode, char, if (type == java.awt.event.KeyEvent.KEY_TYPED) java.awt.event.KeyEvent.KEY_LOCATION_UNKNOWN else java.awt.event.KeyEvent.KEY_LOCATION_STANDARD),
+            ),
+        )
+        send(java.awt.event.KeyEvent.KEY_PRESSED, code)
+        if (char != java.awt.event.KeyEvent.CHAR_UNDEFINED) send(java.awt.event.KeyEvent.KEY_TYPED, java.awt.event.KeyEvent.VK_UNDEFINED)
+        send(java.awt.event.KeyEvent.KEY_RELEASED, code)
+        draw()
+    }
+
+    @Test
+    fun `a host's form is saved by Enter, and Escape asks before throwing away what was typed`() {
+        // As a sheet. As a dialog it is the same form with the same keys, but an offscreen picture
+        // doesn't hand a dialog the keyboard: that one was pressed through in a browser.
+        for (width in listOf(420)) {
+            ui.settings.replace(SettingsPlace(SettingsSection.RemoteHosts, hostDetail("attic")))
+            ui.settings.form = SettingsForm.EditHost("attic")
+            settings(width, height = 900).use { settings ->
+                // Nothing changed yet: Escape just closes it.
+                settings.press(java.awt.event.KeyEvent.VK_ESCAPE)
+                assertEquals(null, ui.settings.form, "$width: unchanged, it closes without asking")
+
+                // The label has the keyboard, selected, so typing replaces it.
+                ui.settings.form = SettingsForm.EditHost("attic")
+                settings.draw()
+                for (char in "loft") settings.press(java.awt.event.KeyEvent.getExtendedKeyCodeForChar(char.code), char)
+                settings.draw("hosts-edit-$width-typed")
+                settings.press(java.awt.event.KeyEvent.VK_ESCAPE)
+                assertEquals(SettingsForm.EditHost("attic"), ui.settings.form, "$width: it asks first")
+                settings.draw("hosts-edit-$width-asking")
+                // Escape again goes on editing; Enter then saves what was typed.
+                settings.press(java.awt.event.KeyEvent.VK_ESCAPE)
+                assertEquals(SettingsForm.EditHost("attic"), ui.settings.form)
+                settings.press(java.awt.event.KeyEvent.VK_ENTER, '\n')
+                val saved = System.nanoTime()
+                while (ui.settings.form != null && System.nanoTime() - saved < 5_000_000_000) { Thread.sleep(20); settings.draw() }
+                assertEquals(null, ui.settings.form, "$width: saved, it closes")
+                assertTrue(client.hosts.value.any { it.saved.label == "loft" }, "$width: the host has its new label")
+                assertEquals(SettingsPlace(SettingsSection.RemoteHosts, hostDetail("loft")), ui.settings.place, "$width: and its details stay with it")
+
+                // Changed and then thrown away: Escape, then Enter for Discard.
+                ui.settings.form = SettingsForm.EditHost("loft")
+                settings.draw()
+                for (char in "attic") settings.press(java.awt.event.KeyEvent.getExtendedKeyCodeForChar(char.code), char)
+                settings.press(java.awt.event.KeyEvent.VK_ESCAPE)
+                settings.press(java.awt.event.KeyEvent.VK_ENTER, '\n')
+                assertEquals(null, ui.settings.form)
+                assertTrue(client.hosts.value.any { it.saved.label == "loft" }, "$width: nothing was saved")
+            }
+            // Put back for the next width.
+            kotlinx.coroutines.runBlocking { client.changeHost("loft", "attic", listOf("https://attic.invalid"), null) }
         }
     }
 

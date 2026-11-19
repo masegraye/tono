@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | in-progress |
+| Status | done (commits fa77767, 7c5dccd, d925863, 896b8dd, 3456d5f and the one after, 2026-11-19) |
 | Promoted from | backlog-028 |
 | Builds on | backlog-042 (Change Shortcut…), backlog-008 (notification switches), backlog-004 (selection switches) |
 | Asked for by | Mase, 2026-11-19 |
@@ -291,7 +291,7 @@ Each phase is committed separately, with its tests, and leaves both apps working
 
 ### Phase 3: Remote Hosts (2026-11-19)
 
-- **The section** is `tono/src/SettingsHosts.kt`: one card of lines (handle, picture, label over address, status, ⓘ), **Add Remote Host…** under it, a host's details, and the form that adds one. Details and the form are places within the section (`SettingsPlace.detail`), so the arrows and the phone's back go in and out of them.
+- **The section** is `tono/src/SettingsHosts.kt`: one card of lines (handle, picture, label over address, status, ⓘ), **Add Remote Host…** under it, and a host's details, which are a place within the section (`SettingsPlace.detail`), so the arrows and the phone's back go in and out of them. Editing and adding were inline here at first, and moved into a modal afterwards: see below.
 - **Status** is "Connected", "Connecting…", "Reconnecting…" or "Couldn't connect" with a warning mark; the reason is in the details (`HostState.lastFailure`, new, which outlives the pause between tries).
 - **Where a host comes from** is `RexClient.sourceOf`: the home server, its host list, the configuration file (with file and line), or this app. `RexClient.hostListings` carries what the list has for each host shown: id, every address, icon, source.
 - **Edit** is `RexClient.changeHost`. A listed host is sent back whole by `hosts.put` with its id, with the fields this app doesn't read (`changedHostEntry`), and the server's refusal is shown under the label in its own words. A host of this app's alone is changed in the workspace.
@@ -305,8 +305,19 @@ Each phase is committed separately, with its tests, and leaves both apps working
 - **Tailscale:** state, name, address and account. **Sign In…** is offered while the device is `needs_login`, for the home server only, since the server takes `server.tailscale.login` over its own socket alone.
 - **Client Info:** `RexClient.clientLabel`, kept as `client_label` in the workspace and sent with `client.set_label` to every connected server, and to each as it connects.
 
+### Text entry in a modal (design-001), and Appearance (2026-11-19, after phase 4)
+
+- **One modal for anything typed:** `FormDialog` and `FormField` in `tono/src/FormDialog.kt`. A dialog about 480 dp wide where there is room; a sheet over the whole window, with Cancel at its top left and Save at its top right, in the settings' narrow layout and in a narrow main window. Enter saves, Escape cancels, the first field has the keyboard, Save is greyed until the form can be saved, and cancelling a changed form asks first.
+- **Renaming** a tab, a pane or a session is the same modal with one field (`tono/src/RenameTab.kt`).
+- **Remote Hosts:** `HostForm` is the one form for **Edit…** on a host's details and for **Add Remote Host…**: label, addresses (one field each, with Add Another Address for a host in the home server's list), icon, and for Add the tailnet's servers inside it. The server's refusal goes under the field it is about (`fieldOfRefusal`) and the form stays open. The details page has no fields: status, where it comes from, addresses to read, Move Up and Move Down, Edit…, Remove Host….
+- **Client Info:** the label is read in the Server section and changed in `ClientLabelForm`.
+- **Phones:** the browser's back is Cancel while a form is open (`settingsBack`, one more step for `WatchBrowserBack`).
+- **Appearance** (backlog-045's `AppearanceSettings`) is a section after Server, where the Mac has Interface and Themes, with its own drawing and search words. `TonoSettings` draws inside `TonoTheme`, so the settings window follows the theme chosen.
+
 ### Decisions made while building, none of them asked for
 
+- **A changed form asks "Discard what you changed?" in itself,** where Cancel and Save were, not in a second dialog on top: Enter discards, Escape goes on editing. A second dialog over a form with a text field in it didn't get the keyboard in a browser.
+- **Add takes one address.** More are added by editing the host afterwards, which is where the home server's list has an id to store them under.
 - **Start Server is offered only for this machine's usual socket** (`REX_SERVER`, or the per-user one). `rex server start` starts the account's server at the per-user socket whatever `REX_SERVER` says, so with `REX_SERVER` pointing elsewhere the button starts a server this app won't find. Not handled.
 - **A server's session count is the live one** this app already follows, not the one in the status it asked for once.
 - **The rest of a server's details are asked for when they are shown,** and again when the connection is made anew. They don't follow `tailscale_status_changed`.
@@ -345,6 +356,19 @@ Each phase is committed separately, with its tests, and leaves both apps working
   - About showed the workspace file, the home server, API revision 12 and `~/.config/rex/init.lua`.
 - **Web, headless Chromium, 1400 wide:** Ctrl+, reached the page (`defaultPrevented`) and opened the panel; a click on Play Activity Sounds wrote `sounds: false` to the browser's storage, the palette said "Notifications · off", and it was still off after a reload; Escape closed the panel.
 - **Phone size, Chromium's phone emulation (390×844, scale 3, touch):** Settings… chosen in the palette filled the screen with the list; a tap on Terminal opened it; a tap on the words of Copy on Selection turned its switch; the browser's back went to the list, and again closed the panel, on the same page. After closing with the panel's own ✕, one more back left the page, as it would have before the settings were opened.
+
+### What was checked for the modal and Appearance
+
+- **Unit and render tests:** which field a refusal goes under, a form's keys being its own and back cancelling it (`SettingsTest`); the forms as a dialog and as a sheet at 420, 700 and 1100; as a sheet, Escape closing an unchanged form, asking for a changed one, Enter saving and the details following the new label, and Escape then Enter discarding (`SettingsHostsRenderTest`); the settings' own window drawn in a chosen light and a chosen dark theme (`SettingsRenderTest`).
+- **Web app, headless Chromium 1400 wide, scratch home server, a made-up tailnet list:**
+  - Add Remote Host… opened the dialog with the address field focused; choosing a found server filled address and label; an icon and Enter stored it in the scratch list with that icon;
+  - Edit… opened with the label selected and Save greyed; a label another host has was refused under the label in the server's words and the dialog stayed; a new label saved and the details followed it; Add Another Address and a second address saved, both under the same id;
+  - Escape on a changed form asked in the form, Escape again went on editing, and Escape then Enter discarded, with nothing stored;
+  - Client Info's Edit…, a label typed and Enter: `rex client ls` on the scratch server showed Tono labelled so.
+- **Phone size, Chromium's phone emulation:** Edit… on a host's details opened a sheet with Cancel and Save at the top; after typing, the browser's back asked "Discard what you changed?" there, a tap on Discard closed it, and back again went to the list of hosts, on the same page.
+- **Desktop app, nested Xwayland, scratch home server, stand-ins only on `PATH`:** Edit… opened the dialog inside the settings window; a label typed and Enter stored it on the scratch server and the details followed. Appearance listed the themes, and choosing Catppuccin Latte redrew the settings window and the main window in it, and wrote `"appearance": {"theme": "catppuccin-latte"}` to the test's workspace file.
+
+Not checked: the rename dialogs as a sheet in a narrow main window (they are the same `FormDialog`, drawn; not pressed through); a dialog's keys in an offscreen picture, which doesn't hand a dialog the keyboard.
 
 ### What was checked in phase 4
 
@@ -390,7 +414,26 @@ During the phase 3 web check a test click meant for the form's address field lan
 
 Not checked in phase 2: a real on-screen keyboard (emulation has none, so "the field stays in view above it" rests on the field being pinned over the list and on `page-keys.js` part 4); a configuration file with bindings of its own, as in backlog-042; opening the documentation link.
 
-### Not known yet, as far as phase 1 found out
+### Not known yet, as far as this found out
 
 - **Bringing the window to the front:** on an X server with no window manager, `toFront()` raised the settings window over the main one. Whether Hyprland lets it take the focus (`focus_on_activate`) wasn't seen: that needs the real desktop.
 - **A special workspace:** not tried.
+
+### Left for Mase, on the real desktop
+
+- Ctrl+,: that the settings window tiles beside the main one and looks right at a half, a third and a whole workspace.
+- Ctrl+, again with the main window focused: whether the settings window takes the focus.
+- Tailscale Sign In…, on a server whose device is waiting for it.
+
+### Commits
+
+On `agent/settings-window`, on main at 270ecf1:
+
+- fa77767: phase 1, the window, the panel and the switches;
+- 7c5dccd: phase 2, Shortcuts;
+- d925863: the layout after Rex for Mac's;
+- 896b8dd: phase 3, Remote Hosts;
+- 3456d5f: phase 4, Server;
+- the commit after it, which this note is part of: the modal for text entry, and the Appearance section.
+
+Rebasing them onto main once more gives them new ids.

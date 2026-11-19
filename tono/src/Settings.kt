@@ -69,6 +69,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -109,6 +111,7 @@ import org.example.kotlintest.rex.TonoClient
  */
 internal enum class SettingsSection(val title: String, val summary: String) {
     Server("Server", "The server this app follows, and where things are kept"),
+    Appearance("Appearance", "The theme, and the terminals' font"),
     Terminal("Terminal", "What selecting text copies"),
     Shortcuts("Shortcuts", "The keys for every action, and changing them"),
     Notifications("Notifications", "Sounds and notifications for tabs out of view"),
@@ -149,6 +152,9 @@ internal val SETTING_ENTRIES: List<SettingEntry> = listOf(
     SettingEntry(SettingsSection.Server, "Tailscale", "tailnet sign in https address"),
     SettingEntry(SettingsSection.Server, "Client Info", "label name client rex client ls"),
     SettingEntry(SettingsSection.Server, "Configuration file", "init.lua config rex lua path"),
+    SettingEntry(SettingsSection.Appearance, "Appearance", "look interface themes colors colours"),
+    SettingEntry(SettingsSection.Appearance, "Theme", "color colour scheme palette dark light omarchy follow"),
+    SettingEntry(SettingsSection.Appearance, "Terminal font", "typeface family monospace size weight bold jetbrains mono nerd"),
     SettingEntry(SettingsSection.Terminal, "Terminal", "selection"),
     SettingEntry(SettingsSection.Terminal, "Copy on Selection", "copy select clipboard automatic mouse drag highlight"),
     SettingEntry(SettingsSection.Terminal, "Primary Selection", "middle click button paste mouse x11 wayland linux"),
@@ -177,6 +183,18 @@ internal fun searchSettings(query: String, entries: List<SettingEntry> = SETTING
         val text = "${entry.title} ${entry.section.title} ${entry.keywords}".lowercase()
         words.all { it in text }
     }
+}
+
+/** A form open over the settings, for something typed (design-001): one at a time. */
+internal sealed interface SettingsForm {
+    /** Changing the host with this label. */
+    data class EditHost(val label: String) : SettingsForm
+
+    /** Adding a host. */
+    data object AddHost : SettingsForm
+
+    /** Changing what this client is called on its servers. */
+    data object ClientLabel : SettingsForm
 }
 
 /**
@@ -252,10 +270,17 @@ internal class SettingsState {
     /** What is typed in the search field over the shortcuts. */
     var shortcutQuery by mutableStateOf("")
 
+    /** The form open over the settings, if one is. */
+    var form: SettingsForm? by mutableStateOf(null)
+
+    /** Goes up when something outside the form asks to cancel it: the browser's back, on a phone. The form asks first if anything was typed. */
+    var formCancelRequests by mutableIntStateOf(0)
+
     /** The settings were closed: nothing is left waiting for an answer. */
     fun closed() {
         confirmation = null
         shortcutEdit = null
+        form = null
     }
 }
 
@@ -270,6 +295,8 @@ internal fun settingsKey(ui: RexUiState, event: KeyEvent): Boolean {
     if (down) ui.sawKey(chord)
     // Keys being recorded as a shortcut are shortcuts already, most of them, and none of them is to act.
     if (ui.settings.shortcutEdit != null) return false
+    // A form has its own keys: Enter saves it, Escape cancels it.
+    if (ui.settings.form != null) return false
     val closes = if (ui.settingsWindowed) chord == CLOSE_WINDOW else chord == KeyChord("escape")
     return when {
         closes -> true.also { if (down) ui.closeSettings() }
@@ -297,7 +324,8 @@ internal fun SettingsPanel(ui: RexUiState, commands: RexCommands) {
         // back: out of what is open in a section, from a section to the list, and from the
         // list out of the settings. It never leaves the page while they are open.
         val narrow = settingsLayout(minOf(maxWidth, SETTINGS_PANEL_WIDTH)) == SettingsLayout.Narrow
-        WatchBrowserBack(depth = 1 + if (narrow) ui.settings.depth else 0) { settingsBack(ui, narrow) }
+        // A form open over them is one step more, and back cancels it.
+        WatchBrowserBack(depth = 1 + (if (narrow) ui.settings.depth else 0) + (if (ui.settings.form != null) 1 else 0)) { settingsBack(ui, narrow) }
         Box(
             Modifier.align(Alignment.CenterEnd).fillMaxHeight().widthIn(max = SETTINGS_PANEL_WIDTH).fillMaxWidth()
                 // Clicks inside the panel stop here instead of closing it.
@@ -315,7 +343,12 @@ internal fun SettingsPanel(ui: RexUiState, commands: RexCommands) {
  * list is always there, out of the settings.
  */
 internal fun settingsBack(ui: RexUiState, narrow: Boolean) {
-    if (!(narrow && ui.settings.up())) ui.closeSettings()
+    when {
+        // Back is Cancel for a form, which asks first if anything in it was changed.
+        ui.settings.form != null -> ui.settings.formCancelRequests++
+        narrow && ui.settings.up() -> {}
+        else -> ui.closeSettings()
+    }
 }
 
 /** How wide the panel is where the page has the room, which is also how wide a settings window opens where windows float. */
@@ -333,7 +366,7 @@ internal fun SettingsContent(ui: RexUiState, commands: RexCommands, modifier: Mo
     // The settings keep the keyboard while nothing of theirs is open over them, so that the
     // keys that close them are heard, and a tap beside a text field takes the keyboard from it.
     val focus = remember { FocusRequester() }
-    val overlaid = state.shortcutEdit != null || state.confirmation != null
+    val overlaid = state.shortcutEdit != null || state.confirmation != null || state.form != null
     LaunchedEffect(overlaid) { if (!overlaid) focus.requestFocus() }
     Surface(modifier, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         BoxWithConstraints(Modifier.fillMaxSize().focusRequester(focus).focusable().pointerInput(Unit) { detectTapGestures { focus.requestFocus() } }) {
@@ -372,6 +405,19 @@ internal fun SettingsContent(ui: RexUiState, commands: RexCommands, modifier: Mo
                 }
             }
         }
+        // Anything typed is a form of its own over the settings: a dialog where there is room, a sheet where there isn't.
+        state.form?.let { form ->
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val sheet = settingsLayout(maxWidth) == SettingsLayout.Narrow
+                key(form) {
+                    when (form) {
+                        is SettingsForm.EditHost -> HostForm(ui, form.label, sheet)
+                        SettingsForm.AddHost -> HostForm(ui, null, sheet)
+                        SettingsForm.ClientLabel -> ClientLabelForm(ui, sheet)
+                    }
+                }
+            }
+        }
         state.shortcutEdit?.let { target ->
             ShortcutRecorder(ui.client, commands, target, onClose = { state.shortcutEdit = null }, ask = { state.confirmation = it }, onDone = {})
         }
@@ -395,7 +441,7 @@ internal fun SettingsContent(ui: RexUiState, commands: RexCommands, modifier: Mo
 /** What a place is called over it: its section's name, or the name of what is open within the section. */
 internal fun placeTitle(place: SettingsPlace): String = when {
     place.detail == null -> place.section.title
-    place.section == SettingsSection.RemoteHosts -> hostOfDetail(place.detail) ?: "Add Remote Host"
+    place.section == SettingsSection.RemoteHosts -> hostOfDetail(place.detail) ?: place.detail
     else -> place.detail
 }
 
@@ -506,6 +552,7 @@ internal fun SectionIcon(section: SettingsSection, ui: RexUiState) {
     val colors = MaterialTheme.colorScheme
     val square = when (section) {
         SettingsSection.Server -> colors.primary
+        SettingsSection.Appearance -> colors.onSurfaceVariant
         SettingsSection.Terminal -> colors.tertiaryContainer
         SettingsSection.Shortcuts -> colors.secondary
         SettingsSection.Notifications -> colors.error
@@ -521,6 +568,12 @@ internal fun SectionIcon(section: SettingsSection, ui: RexUiState) {
             }
             SettingsSection.Notifications -> Icon(Icons.Filled.Notifications, contentDescription = null, tint = ink, modifier = Modifier.size(16.dp))
             SettingsSection.RemoteHosts -> MachineIcon(HostIcon.Globe, ink)
+            // A disc, half in the ink: light and dark.
+            SettingsSection.Appearance -> Canvas(Modifier.size(16.dp)) {
+                val unit = size.width / 16f
+                drawCircle(ink, 5.5f * unit, center, style = Stroke(1.6f * unit))
+                drawArc(ink, startAngle = 90f, sweepAngle = 180f, useCenter = true, topLeft = Offset(2.5f * unit, 2.5f * unit), size = Size(11f * unit, 11f * unit))
+            }
             SettingsSection.Terminal, SettingsSection.Shortcuts -> Canvas(Modifier.size(16.dp)) {
                 val unit = size.width / 16f
                 val width = 1.6f * unit
@@ -572,6 +625,8 @@ internal fun HeadingButton(icon: ImageVector, description: String, onClick: () -
 private fun SectionBody(place: SettingsPlace, ui: RexUiState, commands: RexCommands, wide: Boolean) {
     when (place.section) {
         SettingsSection.Server -> ScrollingSection { ServerSettings(ui) }
+        // backlog-045's: the theme and the terminals' font, chosen in place.
+        SettingsSection.Appearance -> ScrollingSection { AppearanceSettings(ui) }
         SettingsSection.Terminal -> ScrollingSection { TerminalSettings(ui) }
         SettingsSection.Shortcuts -> ShortcutSettings(ui, commands)
         SettingsSection.Notifications -> ScrollingSection { NotificationSettings(ui) }

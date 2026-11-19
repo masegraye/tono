@@ -294,9 +294,9 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
             ui.shortcutEdit?.let { ChangeShortcut(ui, commands, it) }
             // Where the settings have no window of their own, they are a panel over the app.
             if (ui.settingsPanelOpen) SettingsPanel(ui, commands)
-            ui.renaming?.let { renaming -> RenameTabDialog(renaming, onDismiss = { ui.renaming = null; ui.returnFocusToTerminal() }) }
-            ui.renamingPane?.let { renaming -> RenamePaneDialog(renaming, onDismiss = { ui.renamingPane = null; ui.returnFocusToTerminal() }) }
-            ui.renamingSession?.let { renaming -> RenameSessionDialog(renaming, onDismiss = { ui.renamingSession = null; ui.returnFocusToTerminal() }) }
+            ui.renaming?.let { renaming -> RenameTabDialog(renaming, onDismiss = { ui.renaming = null; ui.returnFocusToTerminal() }, sheet = ui.narrow) }
+            ui.renamingPane?.let { renaming -> RenamePaneDialog(renaming, onDismiss = { ui.renamingPane = null; ui.returnFocusToTerminal() }, sheet = ui.narrow) }
+            ui.renamingSession?.let { renaming -> RenameSessionDialog(renaming, onDismiss = { ui.renamingSession = null; ui.returnFocusToTerminal() }, sheet = ui.narrow) }
             ui.confirmation?.let { pending ->
                 val dismiss = { ui.confirmation = null; ui.returnFocusToTerminal() }
                 // The confirm button has the keyboard, so Enter confirms and Escape cancels.

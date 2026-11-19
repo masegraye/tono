@@ -20,7 +20,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.example.kotlintest.rex.HostReach
@@ -257,21 +256,41 @@ private fun MissingLocalServer(ui: RexUiState, home: RexHost) {
     }
 }
 
-/** Rex.app's Settings > Server > Client Info: what this client is called in a server's list of clients. */
+/** Rex.app's Settings > Server > Client Info: what this client is called in a server's list of clients. Read here, and changed in a form. */
 @Composable
 private fun ClientInfo(ui: RexUiState) {
+    val label by ui.client.clientLabel.collectAsState()
+    SettingsGroup("Client Info", note = "What this $APP_NAME is called in a server's list of clients (rex client ls), on every server it connects to.") {
+        Row(Modifier.fillMaxWidth().heightIn(min = TOUCH_TARGET).padding(end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) { InfoRow("Label", label.ifEmpty { "None" }) }
+            TextButton(modifier = Modifier.heightIn(min = TOUCH_TARGET), onClick = { ui.settings.form = SettingsForm.ClientLabel }) { Text("Edit…") }
+        }
+    }
+}
+
+/** The form the label is changed in. A server refuses one longer than 64 bytes, or with control characters in it, and says so under the field. */
+@Composable
+internal fun ClientLabelForm(ui: RexUiState, sheet: Boolean) {
     val client = ui.client
     val scope = rememberCoroutineScope()
-    val label by client.clientLabel.collectAsState()
-    var typed by remember(label) { mutableStateOf(label) }
+    val label = remember { client.clientLabel.value }
+    var typed by remember { mutableStateOf(selected(label)) }
     var refusal by remember { mutableStateOf<String?>(null) }
-    SettingsGroup("Client Info") {
-        SettingsField(
-            "Label", typed, { typed = it.replace("\n", ""); refusal = null }, error = refusal, keyboard = KeyboardType.Text,
-            note = "What this $APP_NAME is called in a server's list of clients (rex client ls), on every server it connects to. Empty for none.",
-        )
-        Row(Modifier.fillMaxWidth().heightIn(min = TOUCH_TARGET).padding(end = 6.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            TextButton(enabled = typed.trim() != label, modifier = Modifier.heightIn(min = TOUCH_TARGET), onClick = { scope.launch { refusal = client.setClientLabel(typed) } }) { Text("Save Label") }
-        }
+    var busy by remember { mutableStateOf(false) }
+    val changed = typed.text.trim() != label
+    FormDialog(
+        title = "Client Label", canSave = changed, changed = changed, busy = busy, sheet = sheet,
+        cancelRequests = ui.settings.formCancelRequests,
+        onSave = {
+            busy = true
+            scope.launch {
+                refusal = client.setClientLabel(typed.text)
+                busy = false
+                if (refusal == null) ui.settings.form = null
+            }
+        },
+        onClose = { ui.settings.form = null },
+    ) { first ->
+        FormField(typed, { typed = it; refusal = null }, label = "Label", focus = first, plain = true, error = refusal, hint = "Empty for none.")
     }
 }

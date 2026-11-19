@@ -306,7 +306,7 @@ class SettingsTest {
 
     @Test
     fun `the sections are Rex's, in its order, with the server first`() {
-        assertEquals(listOf("Server", "Terminal", "Shortcuts", "Notifications", "Remote Hosts"), SettingsSection.entries.map { it.title })
+        assertEquals(listOf("Server", "Appearance", "Terminal", "Shortcuts", "Notifications", "Remote Hosts"), SettingsSection.entries.map { it.title })
     }
 
     @Test
@@ -318,7 +318,8 @@ class SettingsTest {
         assertEquals(listOf("Terminal Notifications"), searchSettings("osc").map { it.title })
         assertEquals(listOf("Configuration file"), searchSettings("init.lua").map { it.title })
         // A section's name finds everything in it, the section itself first.
-        assertEquals(listOf("Terminal", "Copy on Selection", "Primary Selection", "Terminal Notifications"), searchSettings("terminal").map { it.title })
+        assertEquals(listOf("Terminal font", "Terminal", "Copy on Selection", "Primary Selection", "Terminal Notifications"), searchSettings("terminal").map { it.title })
+        assertEquals(listOf("Appearance", "Theme"), searchSettings("theme").map { it.title })
         assertEquals(setOf(SettingsSection.Shortcuts), searchSettings("shortcuts").map { it.section }.toSet())
         assertEquals(listOf("Show System Notifications"), searchSettings("system notif").map { it.title })
         assertTrue(searchSettings("no such setting").isEmpty())
@@ -374,16 +375,43 @@ class SettingsTest {
     }
 
     @Test
-    fun `a host's details and the form that adds one are places within Remote Hosts`() {
+    fun `a host's details are a place within Remote Hosts`() {
         val details = SettingsPlace(SettingsSection.RemoteHosts, hostDetail("studio"))
         assertEquals("studio", placeTitle(details))
         assertEquals("studio", hostOfDetail(details.detail))
-        assertEquals("Add Remote Host", placeTitle(SettingsPlace(SettingsSection.RemoteHosts, ADD_HOST_DETAIL)))
-        assertNull(hostOfDetail(ADD_HOST_DETAIL))
         assertEquals("Remote Hosts", placeTitle(SettingsPlace(SettingsSection.RemoteHosts)))
-        // A host called "add" is still a host.
-        assertEquals("add", hostOfDetail(hostDetail("add")))
+        assertNull(hostOfDetail(null))
         assertEquals(listOf("Remote Hosts", "Add Remote Host…"), searchSettings("host").map { it.title })
+    }
+
+    @Test
+    fun `while a form is open its keys are its own, and back cancels it before anything else`() = withApp(windowed = false) { ui, _ ->
+        ui.openSettings()
+        ui.settings.go(SettingsPlace(SettingsSection.RemoteHosts, hostDetail("studio")))
+        ui.settings.form = SettingsForm.EditHost("studio")
+        // Escape is the form's: it cancels the form, not the settings.
+        assertFalse(settingsKey(ui, key(AwtKeyEvent.VK_ESCAPE)))
+        assertTrue(ui.settingsOpen)
+        // The browser's back asks the form to cancel, and goes nowhere.
+        val asked = ui.settings.formCancelRequests
+        settingsBack(ui, narrow = true)
+        assertEquals(asked + 1, ui.settings.formCancelRequests)
+        assertEquals(SettingsPlace(SettingsSection.RemoteHosts, hostDetail("studio")), ui.settings.place)
+        assertTrue(ui.settingsOpen)
+        // Closing the settings takes the form with them.
+        ui.closeSettings()
+        assertNull(ui.settings.form)
+    }
+
+    @Test
+    fun `a refusal is put beside the field it is about`() {
+        assertEquals(HostField.Label, fieldOfRefusal("conflict: the label \"declared\" is already used by the host at http://127.0.0.1:56223 declared at init.lua:2"))
+        assertEquals(HostField.Label, fieldOfRefusal("A host needs a name."))
+        assertEquals(HostField.Label, fieldOfRefusal("There is a host called studio already."))
+        assertEquals(HostField.Address, fieldOfRefusal("That isn't an address Rex can reach."))
+        assertEquals(HostField.Address, fieldOfRefusal("bad_request: endpoints[0] is not a valid endpoint"))
+        assertEquals(HostField.Address, fieldOfRefusal("That address is a host already."))
+        assertEquals(HostField.Label, fieldOfRefusal("something else went wrong"))
     }
 
     @Test

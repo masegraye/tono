@@ -301,7 +301,7 @@ Tono. Asking for the settings while they're open brings their window to the fron
 panel over the page instead, closed with Escape, its ✕, or the browser's back. On a phone the panel fills the
 screen, and back goes from a section to the list of sections first.
 
-There's nothing to save. A switch takes effect as you turn it, and Tono remembers it. The palette's toggles are the
+A switch takes effect as you turn it, and Tono remembers it. The palette's toggles are the
 same switches, so turning one there shows in Settings at once, and the other way round.
 
 The sections are listed as Rex for Mac lists them, under a **Search Settings** field that finds a setting by name
@@ -318,8 +318,10 @@ in any section:
     `rex.socket` unit. Then it offers **Start Server** (`rex server start`), **Start at Login** (`rex server
     install`), or, if Rex isn't installed, a link to how to install it. Nothing runs until you press a button,
     and if the command fails you see what it printed;
-  - **Client Info**: the label this Tono has in a server's list of clients (`rex client ls`);
+  - **Client Info**: the label this Tono has in a server's list of clients (`rex client ls`), with **Edit…**;
   - which Tono this is, and where its workspace file is.
+- **Appearance** has the theme and the terminals' font: see [Themes and the terminal's font](#themes-and-the-terminals-font).
+  The settings window is drawn in the theme you choose, as the main window is.
 - **Terminal** has Copy on Selection and Primary Selection.
 - **Shortcuts** lists every command with its keys and where they come from, with a search field over the list.
   Choose a command to record new keys for it, as [Change Shortcut…](#changing-a-shortcut) does. A command you've
@@ -335,18 +337,24 @@ in any section:
   - why it couldn't be reached, and **Try Again Now**;
   - where it's kept, which is what a change touches: your home server's host list, which every device that
     follows that server shares; Rex's configuration file, which declares it; or Tono alone;
-  - its label, its addresses (one to a line, in the order they're tried) and its icon. Saving a host from the
-    home server's list changes it for every device. Saving one the configuration file declares stores it in the
-    list in place of the declared one; the file isn't written. If the server refuses, for a label another host
-    has, say, its own message is shown under the label;
+  - its addresses, in the order they're tried;
   - **Move Up** and **Move Down**. You can also drag a host by the ≡ at the start of its line. Rex's host list
     has no order of its own, so the order is Tono's, kept in its workspace file, and the sidebar follows it;
+  - **Edit…**, which opens a form for its label, its addresses and its icon. Saving a host from the home
+    server's list changes it for every device. Saving one the configuration file declares stores it in the list
+    in place of the declared one; the file isn't written. If the server refuses, for a label another host has,
+    say, its own message is shown under the field and the form stays open;
   - **Remove Host…**, which asks first and says whether the host leaves the shared list or only Tono.
 
-  **Add Remote Host…** offers the Rex servers found on your tailnet, and an address to type. Choosing a found
-  server fills in the address and label; nothing is added until you press Add Host. You can give the host a
-  label and an icon. It goes where the palette's Add Host… puts it: the home server's list, or Tono alone when the
-  home server isn't connected.
+  **Add Remote Host…** opens the same form, with the Rex servers found on your tailnet listed in it. Choosing one
+  fills in the address and label; nothing is added until you press Add Host. You can give the host a label and an
+  icon. It goes where the palette's Add Host… puts it: the home server's list, or Tono alone when the home server
+  isn't connected.
+
+Switches and choices apply as you make them. Anything you type is in a form of its own, with Save and Cancel:
+Enter saves, Escape cancels, and cancelling asks first if you changed something. In a narrow window the form
+fills the window, with Cancel at its top left and Save at its top right, and the browser's back is Cancel.
+Renaming a tab, a pane or a session uses the same form.
 
 In a wide window the sections are listed down the left, and the arrows over a section go back and forward through
 the places you've been in. In a narrow one, such as a third of the screen, the list comes first and each section has
