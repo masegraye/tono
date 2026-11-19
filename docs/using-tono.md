@@ -57,6 +57,15 @@ it, like `nvim ~/dev/rex`. The name updates as commands start and finish.
 To name a tab yourself, double-click it or use Rename Tab… in the palette. Your name shows on every client and stays
 until you clear it. If you save an empty name, the tab goes back to being named after its program.
 
+Ctrl+Shift+PageUp and Ctrl+Shift+PageDown move the tab you're in one place up or down within its session, and stop
+at the ends. Dragging does the same. Either way the server stores the order, so every client sees it.
+
+Close Other Tabs in the palette closes every tab of the session except the one you're in, after asking. The tabs
+that close are the ones that were there when it asked: a tab that opens while the question is up stays.
+
+Rename Session… in the palette names the session you're in, for every client. If you save an empty name, the
+session goes back to the name the server made up for it.
+
 A session always has at least one tab. When you close a session's last tab, the session closes too, as it does in
 Rex's Mac app, and Tono switches to the session next to it.
 
@@ -88,6 +97,11 @@ has focus.
 - A tab's newest notification replaces its last one, so a busy tab leaves one notification and not a pile.
 - Ones for a program that is waiting for you or has failed stay up until you dismiss them. The rest time out.
 - Clicking a notification goes to its tab. Going to a tab any other way takes its notifications down.
+
+Mute Tab in the palette keeps the tab you're in quiet: no sound and no notification for anything that happens in it,
+until you choose Mute Tab again. A muted tab has a struck-through bell on its row in the sidebar, and still shows
+what its program is doing there. Muting is yours alone: Tono remembers it in its own settings, between runs and
+until the tab closes, and never tells the server, so your other clients still hear from the tab.
 
 On the desktop Tono shows them with `notify-send`, which comes with libnotify. In a browser the browser has to allow
 them: the first time a tab has news, Tono shows a line at the bottom of the window with an Allow Notifications
@@ -144,6 +158,7 @@ place of Cmd, and with Shift added where Ctrl on its own already means something
 | Ctrl+Shift+H | Switch machine |
 | Ctrl+1 … Ctrl+8, Ctrl+9 | Go to that tab; Ctrl+9 is the last tab |
 | Ctrl+Tab / Ctrl+Shift+Tab, Ctrl+PageDown / PageUp | Next / previous tab |
+| Ctrl+Shift+PageUp / Ctrl+Shift+PageDown | Move the tab up / down within its session |
 | Ctrl+Shift+T / Ctrl+Shift+N, or Ctrl+Alt+T / Ctrl+Alt+N | New tab / new session |
 | Ctrl+Shift+D / Ctrl+Alt+D | Split the pane right / down |
 | Ctrl+Alt+arrows | Focus the pane in that direction |
@@ -165,7 +180,8 @@ tab whichever session it's in, and next and previous tab continue from one sessi
 each tab's number. Tabs inside a collapsed session or machine aren't numbered, so collapsing what you aren't using
 brings the other tabs within reach of a number.
 
-A key that's bound to a command doesn't reach the terminal, and every other key does. The bindings aren't built
+A key that's bound to a command doesn't reach the terminal, and every other key does. That holds when the command
+has nothing to do: Ctrl+Alt+Left in a tab with one pane does nothing, and types nothing. The bindings aren't built
 into the app. Tono tells your home server which commands it has and what their default keys are, and the server
 replies with the final bindings after applying your Rex configuration. That's why a key you bind in Rex's
 `init.lua` works in Tono the same way it does in the Mac app.

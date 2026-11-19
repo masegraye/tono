@@ -29,6 +29,8 @@ class RexShortcutsTest {
         assertEquals(KeyChord.parse("ctrl+shift+tab"), chord(KeyEvent.VK_TAB, ctrl or shift, '\t'))
         assertEquals(KeyChord.parse("shift+pageup"), chord(KeyEvent.VK_PAGE_UP, shift))
         assertEquals(KeyChord.parse("ctrl+alt+left"), chord(KeyEvent.VK_LEFT, ctrl or alt))
+        assertEquals(KeyChord.parse("ctrl+shift+pageup"), chord(KeyEvent.VK_PAGE_UP, ctrl or shift))
+        assertEquals(KeyChord.parse("ctrl+shift+pagedown"), chord(KeyEvent.VK_PAGE_DOWN, ctrl or shift))
         assertEquals(KeyChord.parse("ctrl+shift+enter"), chord(KeyEvent.VK_ENTER, ctrl or shift, '\n'))
         assertEquals(KeyChord.parse("ctrl+shift+]"), chord(KeyEvent.VK_CLOSE_BRACKET, ctrl or shift, '}'))
         assertEquals(KeyChord.parse("ctrl+="), chord(KeyEvent.VK_EQUALS, ctrl, '='))

@@ -205,10 +205,10 @@ internal fun clientActions(): List<ClientAction> = buildList {
         val owner = host ?: return@ClientAction
         renameTab(owner, owner.state.value.selectedSessionId ?: return@ClientAction, tab)
     })
-    // Rex.app has no action for this, only "Mute Tab" in a tab's menu; the name is Rex Rune's.
-    // It is this client's alone: other clients on the session go on hearing from the tab.
+    // Rex.app's name and title. It is this client's alone, as in Rex Rune: other clients on
+    // the session go on hearing from the tab.
     add(ClientAction(
-        "client.tab.mute", "Mute Tab", "Tab", "unmute silence quiet sound notification notify bell hush",
+        "client.tab.mute", "Mute Tab", "Tab", "unmute silence quiet sound notification alert notify bell hush",
         available = { window != null },
         state = { if (window?.let { tab -> host?.let { isMuted(it, tab.id) } } == true) "muted" else "not muted" },
     ) {
@@ -246,8 +246,8 @@ internal fun clientActions(): List<ClientAction> = buildList {
         if (others.isEmpty()) return@ClientAction
         val kept = owner.state.value.nameOf(tab).text
         confirmation = Confirmation(
-            title = if (others.size == 1) "Close the other tab of “${session.label}”?" else "Close the ${others.size} other tabs of “${session.label}”?",
-            text = "The programs running in ${if (others.size == 1) "it" else "them"} will end. “$kept” stays open.",
+            title = if (others.size == 1) "Close the other tab?" else "Close ${others.size} other tabs?",
+            text = "The programs running in ${if (others.size == 1) "the other tab" else "the ${others.size} other tabs"} of ${session.label} will end. “$kept” stays open.",
             confirmLabel = if (others.size == 1) "Close Other Tab" else "Close Other Tabs",
             onConfirm = { owner.closeOtherTabs(session.sessionId, tab.id, others) },
         )
