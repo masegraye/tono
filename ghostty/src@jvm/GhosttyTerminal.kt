@@ -175,12 +175,20 @@ actual class GhosttyTerminal private constructor(internal val handle: MemorySegm
      * Whether the terminal's program has asked for pasted text to be bracketed (mode 2004),
      * which lets it tell a paste from typing.
      */
-    actual val bracketedPaste: Boolean
+    actual val bracketedPaste: Boolean get() = mode(MODE_BRACKETED_PASTE)
+
+    actual fun mode(number: Int): Boolean = Arena.ofConfined().use { arena ->
+        val config = arena.allocate(GhosttyTerminalModeConfig.layout())
+        GhosttyTerminalModeConfig.mode(config, number.toShort())
+        check("terminal_get", GhosttyVt.ghostty_terminal_get(handle, GhosttyVt.GHOSTTY_TERMINAL_DATA_MODE(), config))
+        GhosttyTerminalModeConfig.value(config)
+    }
+
+    actual val alternateScreen: Boolean
         get() = Arena.ofConfined().use { arena ->
-            val config = arena.allocate(GhosttyTerminalModeConfig.layout())
-            GhosttyTerminalModeConfig.mode(config, MODE_BRACKETED_PASTE)
-            check("terminal_get", GhosttyVt.ghostty_terminal_get(handle, GhosttyVt.GHOSTTY_TERMINAL_DATA_MODE(), config))
-            GhosttyTerminalModeConfig.value(config)
+            val out = arena.allocate(java.lang.foreign.ValueLayout.JAVA_INT)
+            // GhosttyTerminalScreen: 0 is the primary screen, 1 the alternate one.
+            GhosttyVt.ghostty_terminal_get(handle, GhosttyVt.GHOSTTY_TERMINAL_DATA_ACTIVE_SCREEN(), out) == GhosttyVt.GHOSTTY_SUCCESS() && out.get(java.lang.foreign.ValueLayout.JAVA_INT, 0) == 1
         }
 
     actual fun hyperlinkAt(column: Int, row: Int): String? = cellAt(column, row) { arena, cell ->
@@ -295,7 +303,7 @@ internal val NULL: MemorySegment = MemorySegment.NULL
 private const val MAX_HYPERLINK_BYTES = 8192L
 
 /** DEC private mode 2004. A mode is its number, with the top bit set for ANSI modes. */
-private const val MODE_BRACKETED_PASTE: Short = 2004
+private const val MODE_BRACKETED_PASTE = 2004
 
 /**
  * Prepares text for pasting into a terminal: control characters that could run commands

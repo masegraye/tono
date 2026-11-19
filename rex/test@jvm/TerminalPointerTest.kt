@@ -189,6 +189,25 @@ class TerminalPointerTest {
     }
 
     @Test
+    fun `on a pager's screen, which has no history, the wheel is the up and down keys`() = scene("text$ESC[?1049hpager") {
+        assertEquals("$ESC[A$ESC[A$ESC[A", pointer(MouseAction.Press, MouseButton.WheelUp, 39f, 30f, scrollRows = -3))
+        assertEquals("$ESC[B", pointer(MouseAction.Press, MouseButton.WheelDown, 39f, 30f, scrollRows = 1))
+        assertEquals(0, pointer.scrolled)
+
+        // The way a program that asked for application cursor keys is sent them.
+        terminal.write("$ESC[?1h".encodeToByteArray())
+        assertEquals("${ESC}OA${ESC}OA", pointer(MouseAction.Press, MouseButton.WheelUp, 39f, 30f, scrollRows = -2))
+
+        // A program can say it doesn't want this.
+        terminal.write("$ESC[?1007l".encodeToByteArray())
+        assertEquals("", pointer(MouseAction.Press, MouseButton.WheelUp, 39f, 30f, scrollRows = -3))
+
+        // Back on the ordinary screen the wheel is the history's again.
+        terminal.write("$ESC[?1007h$ESC[?1049l".encodeToByteArray())
+        assertEquals("", pointer(MouseAction.Press, MouseButton.WheelUp, 39f, 30f, scrollRows = -3))
+    }
+
+    @Test
     fun `held past the bottom edge it scrolls until the pointer comes back or the button comes up`() =
         scene((1..10).joinToString("\r\n") { "line $it" }) {
             terminal.scrollViewport(-6) // lines 1 to 4 in view

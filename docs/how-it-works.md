@@ -50,7 +50,25 @@ read are turned off, so nothing a remote program prints can make your machine re
 Programs that track the mouse, such as Neovim, htop and tmux, turn it on by setting terminal modes, which
 libghostty-vt keeps track of. Its mouse encoder turns each click, drag, movement and wheel notch into the report
 the program asked for, and sends nothing if the program didn't ask. When the program under the pointer isn't
-tracking the mouse, the wheel scrolls the terminal's own history.
+tracking the mouse, the wheel scrolls the terminal's own history, or, on the alternate screen, which has none, is
+sent as the up and down keys (xterm's alternate scroll, mode 1007).
+
+## Scrolling
+
+After the view scrolls, libghostty-vt hands back every row as changed, so every row is read again. Laying out a
+screen of colored text takes longer than a frame, so the layouts are kept by what a row draws and not by which
+row object it is: two rows that draw the same are equal, and a row that only moved finds its layout again. A turn
+of the wheel then lays out the three rows it brought in. The same goes for a full-screen program that draws its
+screen again a few lines on.
+
+What the wheel says differs by toolkit. On the desktop a notch is 1, and a touchpad arrives as notches under X11.
+In a browser the event says how far in pixels, which become the rows they cover. Small moves add up until they come
+to a row (`tono/src/TerminalScroll.kt`).
+
+With Smooth Scrolling on, the renderer asks libghostty-vt for a few rows past the view's top and bottom
+(overscan). Each frame says how many rows the wheel has moved the view in all. When a frame arrives that has
+moved, it is drawn that far back, which is where the picture was, and the distance is let out a share at a time
+with each frame of the window. The rows past the edges are what shows on the way.
 
 ## The clipboard
 

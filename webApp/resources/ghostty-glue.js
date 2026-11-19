@@ -206,12 +206,18 @@
   /** Moves the view by `count` shell prompts (OSC 133 marks): negative is up, to older ones. Nothing moves without marks. */
   const terminalScrollByPrompts = (terminal, count) => terminalScroll(terminal, 'DELTA_PROMPT', count);
 
-  /** Whether the terminal's program asked for pasted text to be bracketed (mode 2004). */
-  function terminalBracketedPaste(terminal) {
+  /** Whether one of the terminal's private modes is set, by its number: 2004 is pastes bracketed, 1007 the wheel as cursor keys. */
+  function terminalMode(terminal, mode) {
     const config = slots + SLOT.a;
-    view().setUint16(config + F('GhosttyTerminalModeConfig', 'mode'), 2004, true);
+    view().setUint16(config + F('GhosttyTerminalModeConfig', 'mode'), mode, true);
     check('terminal_get', ex.ghostty_terminal_get(terminal, E('GhosttyTerminalData', 'MODE'), config));
     return bytes()[config + F('GhosttyTerminalModeConfig', 'value')] !== 0;
+  }
+
+  /** Whether the terminal's program has put up the alternate screen, which has no history. */
+  function terminalAlternateScreen(terminal) {
+    if (ex.ghostty_terminal_get(terminal, E('GhosttyTerminalData', 'ACTIVE_SCREEN'), slots + SLOT.a) !== OK) return false;
+    return view().getInt32(slots + SLOT.a, true) === E('GhosttyTerminalScreen', 'ALTERNATE');
   }
 
   /** Makes pasted text safe to send, as bytes. `binary` is the text's UTF-8. */
@@ -944,7 +950,7 @@
     terminalHyperlinkAt, terminalRowWraps,
     selectionNew, selectionFree, selectionPress, selectionDrag, selectionRelease, selectionAutoscroll, selectionAll, selectionClear, selectionText,
     init, terminalNew, terminalRestore, terminalFree, terminalWrite, terminalResize, terminalColumns, terminalRows,
-    terminalWidthPx, terminalHeightPx, terminalSetColors, terminalScrollBy, terminalViewportTop, terminalScrollByPrompts, terminalScrollToBottom, terminalBracketedPaste,
+    terminalWidthPx, terminalHeightPx, terminalSetColors, terminalScrollBy, terminalViewportTop, terminalScrollByPrompts, terminalScrollToBottom, terminalMode, terminalAlternateScreen,
     pasteEncode, rendererNew, rendererFree, rendererInvalidate, rendererOverscan, render, imageRead, mouseNew, mouseFree, mouseEncode,
   };
 })();

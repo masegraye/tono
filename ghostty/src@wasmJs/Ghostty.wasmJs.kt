@@ -33,7 +33,8 @@ private fun glueTerminalScrollBy(terminal: Int, rows: Int): Unit = js("globalThi
 private fun glueTerminalViewportTop(terminal: Int): Double = js("globalThis.GhosttyGlue.terminalViewportTop(terminal)")
 private fun glueTerminalScrollByPrompts(terminal: Int, count: Int): Unit = js("globalThis.GhosttyGlue.terminalScrollByPrompts(terminal, count)")
 private fun glueTerminalScrollToBottom(terminal: Int): Unit = js("globalThis.GhosttyGlue.terminalScrollToBottom(terminal)")
-private fun glueTerminalBracketedPaste(terminal: Int): Boolean = js("globalThis.GhosttyGlue.terminalBracketedPaste(terminal)")
+private fun glueTerminalMode(terminal: Int, mode: Int): Boolean = js("globalThis.GhosttyGlue.terminalMode(terminal, mode)")
+private fun glueTerminalAlternateScreen(terminal: Int): Boolean = js("globalThis.GhosttyGlue.terminalAlternateScreen(terminal)")
 private fun glueTerminalHyperlinkAt(terminal: Int, column: Int, row: Int): String = js("globalThis.GhosttyGlue.terminalHyperlinkAt(terminal, column, row)")
 private fun glueTerminalRowWraps(terminal: Int, row: Int): Boolean = js("globalThis.GhosttyGlue.terminalRowWraps(terminal, row)")
 private fun gluePasteEncode(binary: String, bracketed: Boolean): String = js("globalThis.GhosttyGlue.pasteEncode(binary, bracketed)")
@@ -128,7 +129,11 @@ actual class GhosttyTerminal private constructor(internal val handle: Int) : Aut
 
     actual fun scrollByPrompts(count: Int) = glueTerminalScrollByPrompts(handle, count)
 
-    actual val bracketedPaste: Boolean get() = glueTerminalBracketedPaste(handle)
+    actual val bracketedPaste: Boolean get() = glueTerminalMode(handle, 2004)
+
+    actual val alternateScreen: Boolean get() = glueTerminalAlternateScreen(handle)
+
+    actual fun mode(number: Int): Boolean = glueTerminalMode(handle, number)
 
     actual fun hyperlinkAt(column: Int, row: Int): String? =
         glueTerminalHyperlinkAt(handle, column, row).takeIf { it.isNotEmpty() }?.binaryToBytes()?.decodeToString()

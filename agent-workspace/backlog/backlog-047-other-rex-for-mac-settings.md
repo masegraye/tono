@@ -11,7 +11,7 @@
 
 Settings Rex for Mac has, worth having in Tono later; none is urgent. Names and behaviour are in `reference/mac-settings.md` in the Rex docs.
 
-- **Terminal:** what happens while resizing (e.g. showing the size), smooth scrolling, and whether the selection colour follows the theme. Copy on selection is done (backlog-004).
+- **Terminal:** what happens while resizing (e.g. showing the size), smooth scrolling (done, backlog-053), and whether the selection colour follows the theme. Copy on selection is done (backlog-004).
 - **Notifications:** sound volume; where in-app notices appear; which program activity is shown, and where (the tab, the sidebar).
 - **Integrations** (with coding agents) live in the server, not the client, so Tono needs nothing there.
 

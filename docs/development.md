@@ -80,6 +80,24 @@ task test                    # everything that runs here: JVM and Android
 The Android tests need the Android SDK licence to be accepted on the machine. `./kotlin test -p jvm` also renders
 every tab of the showcase offscreen into `build/showcase-renders/`.
 
+## Measuring scrolling
+
+Scrolling can be measured as it happens. Start the desktop app with `TONO_SCROLL_TELEMETRY=<file>` in the
+environment (or `1` for standard error, or `-Dtono.scrollTelemetry=<file>`), or open the web app with
+`?scrollTelemetry` in its address, where the lines go to the browser's console. Off, it costs a flag read.
+
+Every wheel event becomes a line saying what the toolkit sent and what was asked of the terminal for it. So do
+what the terminal did, each frame read and each frame drawn with what it cost, and the gap between the window's
+frames while the wheel turns. When the wheel has been still for a moment, a `summary` line says it all at once, and
+the same summary goes to the app's debug log. `rex/src/ScrollTelemetry.kt` says what each field is.
+
+```sh
+TONO_SCROLL_MEASURE=mine ./kotlin test -p jvm -m tono --include-classes='*ScrollMeasureTest'
+```
+
+runs the same work offscreen, from wheel event to picture, over plain text, a colored log, an agent's output and a
+full-screen program, and writes a table to `build/scroll-measure/mine.md`. Without the variable it is a short test.
+
 ## Checking connections without a window
 
 ```sh

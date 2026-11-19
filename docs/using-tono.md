@@ -325,7 +325,7 @@ in any section:
     [Where Tono keeps its files](#where-tono-keeps-its-files).
 - **Appearance** has the theme and the terminals' font: see [Themes and the terminal's font](#themes-and-the-terminals-font).
   The settings window is drawn in the theme you choose, as the main window is.
-- **Terminal** has Copy on Selection and Primary Selection.
+- **Terminal** has Copy on Selection and Primary Selection, and [Smooth Scrolling](#scrolling).
 - **Shortcuts** lists every command with its keys and where they come from, with a search field over the list.
   Choose a command to record new keys for it, as [Change Shortcut…](#changing-a-shortcut) does. A command you've
   changed has a button that puts it back, and Reset All Shortcuts puts them all back after asking. On a phone or
@@ -435,6 +435,24 @@ middle click pastes only if the button goes down and comes up in the same place.
 
 Both settings can be turned on together. In a browser there is no primary selection, so Primary Selection works
 with the clipboard there: see [the web app](web.md#the-mouse).
+
+## Scrolling
+
+The wheel scrolls a terminal through its history, three lines to a notch, and a touchpad scrolls it as far as your
+fingers move. Shift+PageUp and Shift+PageDown go a page at a time, and typing brings you back to the newest output.
+
+Where a program has taken over the screen, the wheel is the program's. One that uses the mouse, such as Neovim,
+htop or tmux, is told the wheel turned. One that doesn't, such as `less`, `man` or the pager `git log` opens, is
+sent the up and down keys, three to a notch, which is what scrolls it.
+
+**Smooth Scrolling** makes the history glide to where the wheel sent it and not jump there. It is off until you
+turn it on, in the palette, in [Settings](#settings) under Terminal, or in the
+[settings file](#where-tono-keeps-its-files) as `"smooth_scrolling": true` under `"terminal"`. It changes how the
+history moves and nothing else: a program that has taken over the screen still moves a line at a time, since it
+draws its own lines.
+
+Under X11, which is also what the desktop app speaks on Wayland, a touchpad's scrolling reaches the app as wheel
+notches, so it moves three lines at a time there too. Smooth Scrolling is what evens that out.
 
 ## Opening links
 

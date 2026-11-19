@@ -6,11 +6,13 @@ import org.example.kotlintest.ghostty.GhosttyTerminal
 import org.example.kotlintest.ghostty.MouseAction
 import org.example.kotlintest.ghostty.MouseButton
 import org.example.kotlintest.ghostty.MouseInput
+import kotlin.math.abs
 
 /**
  * Decides what the pointer does in one terminal. A program that asked for the mouse is told
  * of it. Over one that hasn't, the left button selects text and the wheel scrolls through
- * the history. With Shift held, the left button selects whatever the program asked, which
+ * the history, or, where the program has put up a screen without one, is sent to it as
+ * the up and down keys. With Shift held, the left button selects whatever the program asked, which
  * is the way to copy out of Neovim or tmux. With Control held, a click on a link opens it,
  * whether or not the program asked for the mouse, and a click anywhere else is what it
  * would have been without.
@@ -169,6 +171,11 @@ class TerminalPointer(
         val report = if (forProgram) mouse.encode(terminal, input) else NOTHING
         when {
             report.isNotEmpty() -> return report
+            // A pager or an editor that hasn't asked for the mouse has no history here to scroll, and
+            // is sent the keys that move it instead, unless it said not to (mode 1007). This
+            // is what makes the wheel work in less, man and git log.
+            scrollRows != 0 && terminal.alternateScreen ->
+                if (terminal.mode(MODE_WHEEL_AS_KEYS)) return cursorKeys(up = scrollRows < 0, times = minOf(abs(scrollRows), MOST_KEYS), application = terminal.mode(MODE_APPLICATION_CURSOR_KEYS))
             scrollRows != 0 -> {
                 // Where the view is before and after says how far it really moved, which at either end of the history is less than was asked.
                 val top = terminal.viewportTop
@@ -205,7 +212,20 @@ class TerminalPointer(
         return dx * dx + dy * dy <= CLICK_SLACK_PIXELS * CLICK_SLACK_PIXELS
     }
 
+    /** The up or down key, [times] over, as a terminal sends it: the application's way when its program asked for that. */
+    private fun cursorKeys(up: Boolean, times: Int, application: Boolean): ByteArray {
+        val key = byteArrayOf(0x1b, (if (application) 'O' else '[').code.toByte(), (if (up) 'A' else 'B').code.toByte())
+        return ByteArray(times * key.size) { key[it % key.size] }
+    }
+
     private companion object {
+        /** The wheel is sent as cursor keys on the alternate screen: xterm's alternate scroll, which is on until a program turns it off. */
+        const val MODE_WHEEL_AS_KEYS = 1007
+        const val MODE_APPLICATION_CURSOR_KEYS = 1
+
+        /** The most keys one turn of the wheel is sent as. */
+        const val MOST_KEYS = 20
+
         /** How far the pointer may move between a button going down and coming up and still have clicked. Rex Rune's. */
         const val CLICK_SLACK_PIXELS = 3f
         val NOTHING = ByteArray(0)

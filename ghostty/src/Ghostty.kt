@@ -80,6 +80,18 @@ expect class GhosttyTerminal : AutoCloseable {
     val bracketedPaste: Boolean
 
     /**
+     * Whether the terminal's program has put up the alternate screen, as a pager, an editor
+     * and most full-screen programs do. It has no history to scroll through.
+     */
+    val alternateScreen: Boolean
+
+    /**
+     * Whether one of the terminal's private modes is set, by its number: 1 is cursor keys
+     * sent the application's way, 1007 the wheel sent as cursor keys on the alternate screen.
+     */
+    fun mode(number: Int): Boolean
+
+    /**
      * Where the cell at [column] in the view's row [row] leads, if its program made it a
      * link (OSC 8): the address as the program gave it, which is not to be trusted. Null
      * when the cell is no link, or there is no such cell.
