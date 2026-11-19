@@ -39,6 +39,22 @@ while the main checkout's server stayed up on 8080.
 
 ## What workers share, and how to keep them apart
 
+- **Rex servers. Test against a scratch server of your own, never Mase's.** A web server
+  started without `REX_SERVER`, or a desktop app without a `--workspace` file of its own,
+  uses Mase's real home server and its host list. It then connects to every machine on it
+  (his Mac, his other Linux boxes) as a "Tono" client, and a test page that counts as
+  focused can take over terminal sizes there. One click on a row of the tailnet list can do
+  the same. Start your own:
+
+  ```bash
+  rex server run --listen unix:///tmp/<name>/rex.sock   # with its own state directory; see rex server run --help
+  REX_SERVER=unix:///tmp/<name>/rex.sock ...            # for the web server
+  ```
+
+  For the desktop app, use a `--workspace` file whose only host is that socket. Give test
+  pages a stubbed `/api/tono/tailnet` answer, so no real machine is one click away. Seen
+  twice on 2026-11-19.
+
 - **Ports.** `task web` serves on 8080 by default, and the main checkout's server usually
   has it. A worker runs its own with `PORT=<a free port>`, building first and then
   `WEB_DIR=<its build> PORT=<port> ./kotlin run -m server`, as `task web` does.
