@@ -100,6 +100,7 @@ Not checked, or not done:
 - **A real Control+click in the desktop app's window.** It needs the real pointer over a
   focused window. Not covered by anything above: the window toolkit passing Control with the
   click, the hand pointer, and the hand-off to the real `xdg-open`. Left for a check by hand.
+- The hand pointer in a browser, which a screenshot doesn't show.
 - Firefox and Safari. Safari is the one most likely to block the new tab.
 - An address broken over rows by a program that draws its own lines (Neovim, tmux, an
   agent's interface) is two addresses, since only the terminal's own wrapping is known. So
