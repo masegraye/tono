@@ -17,7 +17,9 @@ import java.nio.file.Path
 /**
  * `--claim <seconds>`: claims the shown tab's focused terminal and stays connected that long.
  *
- * `--watch <seconds>`: stays connected that long, printing each change in a host's connection.
+ * `--watch <seconds>`: stays connected that long, printing each change in a host's connection,
+ * in which tabs have an unseen bell, and in the progress terminals report. With `--front` it
+ * watches as the app in front does, which claims the terminals of the tab on screen.
  *
  * `--type <text>`: types the text and Enter into the selected host's focused terminal, the
  * way the app does when you press keys. Unlike everything else here this is not passive:
@@ -98,7 +100,18 @@ private suspend fun kotlinx.coroutines.CoroutineScope.probe(args: Array<String>)
     // takes to be noticed, and that it is taken up again when it comes back.
     args.indexOf("--watch").takeIf { it >= 0 }?.let { args.getOrNull(it + 1)?.toLongOrNull() }?.let { seconds ->
         val began = System.nanoTime()
+        // `--front`: watch as the app does while its window has focus, so that the tab on
+        // screen counts as looked at. Not passive: the app in front claims that tab's terminals.
+        if ("--front" in args) client.setWindowFocused(true)
         val watching = client.hosts.value.map { host ->
+            // Which tabs have a bell nobody has seen, and what progress each terminal reports.
+            launch {
+                host.state.map { it.bells to it.progress }.distinctUntilChanged().collect { (bells, progress) ->
+                    val tabs = host.state.value.views.values.flatMap { it.windows }.filter { it.id in bells }.map { it.label }
+                    println("%6.1fs  %s  bells %s  progress %s".format((System.nanoTime() - began) / 1e9, host.saved.label, tabs, progress.values.toList()))
+                    System.out.flush()
+                }
+            }
             launch {
                 host.state.map { it.connection }.distinctUntilChanged().collect { connection ->
                     println("%6.1fs  %s  %s".format((System.nanoTime() - began) / 1e9, host.saved.label, connection))
