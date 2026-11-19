@@ -12,4 +12,4 @@ Rules:
 
 | # | Document | Status |
 |---|----------|--------|
-| | _none yet_ | |
+| 001 | [design-001-text-entry-in-modals.md](design-001-text-entry-in-modals.md): text entry goes in a modal with Save and Cancel; switches and choices apply in place | accepted |

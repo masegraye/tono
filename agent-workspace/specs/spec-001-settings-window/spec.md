@@ -137,6 +137,13 @@ These are later backlog entries, not this spec:
 - the cursor style and padding: Tono has no such settings yet;
 - muted tabs: the tab rows have them.
 
+### Text entry: modals (design-001)
+
+Decided on 2026-11-19, after phase 3 was built: anything that needs typing goes in a modal with Save and Cancel; switches and choices still apply in place. See `design/design-001-text-entry-in-modals.md`. For this spec:
+- **Remote Hosts:** **Edit…** and **Add Remote Host…** open the same modal, holding the label, addresses and icon, with the tailnet list inside Add. The host details page keeps only state and actions, with no fields of its own.
+- **Server:** the Client Info label is edited in a modal too.
+- **Phones:** on a narrow layout the modal is a full-screen sheet with Cancel and Save at the top.
+
 ### Hosts
 
 Asked for by Mase on 2026-11-19, as the most important part of the settings area. The model is Rex for Mac's **Settings › Remote Hosts**: add, reorder and manage remote hosts, see their connection status, and retry failures (`reference/mac-settings.md#remote-hosts-1` in the Rex docs). SSH hosts, SSH keys and port forwarding are in the Mac's section too, but they're backlog-024's and stay out of this spec.
