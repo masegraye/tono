@@ -55,7 +55,7 @@ class TabRowRenderTest {
     private val width = 240
 
     /** The rows drawn at one pixel to the dp, [atMillis] into their animations. */
-    private fun draw(atMillis: Long, name: String): Bitmap {
+    private fun draw(atMillis: Long, name: String, muted: Set<Int> = emptySet()): Bitmap {
         val scene = ImageComposeScene(width = width, height = rowHeight * rows.size, density = Density(1f)) {
             MaterialTheme(colorScheme = scheme, shapes = omarchyShapes()) {
                 Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -64,7 +64,7 @@ class TabRowRenderTest {
                             TabRow(
                                 name = TabName("tab $index", "~/dev"), digit = null, digitAlpha = 0f, showing = false,
                                 activity = ActivityState.Idle, bell = bell, progress = progress, dragging = false, onClick = {},
-                                modifier = Modifier.height(rowHeight.dp),
+                                modifier = Modifier.height(rowHeight.dp), muted = index in muted,
                             )
                         }
                     }
@@ -126,6 +126,20 @@ class TabRowRenderTest {
         assertTrue(image.columnsOf(6, accent, everywhere = true).size > whole.size - 2)
         val broken = image.columnsOf(7, failed)
         assertTrue(abs(broken.first() - track.first) <= 1 && abs(broken.last() - track.last) <= 2, "a failure that names no percentage fills the track")
+    }
+
+    @Test
+    fun `a muted row draws its mark where the bell would be, and no bell`() {
+        val image = draw(atMillis = 700, name = "tab-rows-muted", muted = setOf(0, 1))
+        val quiet = scheme.onSurfaceVariant
+        for (row in 0..1) {
+            // The stroke through the bell is in the quiet color, at the row's right, as small as the bell.
+            val mark = image.columnsOf(row, quiet, everywhere = true).filter { it > width / 2 }
+            assertTrue(mark.isNotEmpty() && mark.last() - mark.first() < 14, "row $row, the mark: $mark")
+            assertEquals(emptyList(), image.columnsOf(row, scheme.primary, everywhere = true), "row $row: a muted tab's bell isn't shown")
+        }
+        // A row that isn't muted has no such mark.
+        assertEquals(emptyList(), draw(atMillis = 700, name = "tab-rows").columnsOf(0, quiet, everywhere = true).filter { it > width / 2 })
     }
 
     @Test

@@ -405,6 +405,28 @@ class RexHost(
         }
     }
 
+    /**
+     * Closes every tab of a session but one. [windowIds] are the others as they were when the
+     * user agreed to it; what has changed since is left alone, as [tabsToClose] says.
+     */
+    fun closeOtherTabs(sessionId: String, keepWindowId: String, windowIds: List<String>) = act("close other tabs") { control ->
+        val open = state.value.views[sessionId]?.windows?.map { it.id }.orEmpty()
+        for (windowId in tabsToClose(open, keepWindowId, windowIds)) {
+            control.call("session.close_window", buildJsonObject { put("session_id", sessionId); put("window_id", windowId) })
+        }
+    }
+
+    /**
+     * Names a session. The name is the session's label on the server, so every client shows
+     * it. An empty name gives it back the one the server chose when it was made.
+     */
+    fun renameSession(sessionId: String, name: String) = act("rename session") { control ->
+        control.call("session.set_label", buildJsonObject {
+            put("session_id", sessionId)
+            put("label", name.trim())
+        })
+    }
+
     /** Closes a session and everything in it. */
     fun closeSession(sessionId: String) = act("close session") { control -> destroy(control, sessionId, "it was closed here") }
 

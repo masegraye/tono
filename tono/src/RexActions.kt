@@ -14,6 +14,8 @@ import org.example.kotlintest.rex.RESIZE_STEP_PERCENT
 import kotlinx.serialization.json.doubleOrNull
 import org.example.kotlintest.rex.RexAction
 import org.example.kotlintest.rex.SplitDirection
+import org.example.kotlintest.rex.tabMove
+import org.example.kotlintest.rex.tabMoveIsForward
 
 /**
  * Something this app can do by name. Names, titles and categories are the ones Rex.app
@@ -60,15 +62,15 @@ class RexCommands(private val ui: RexUiState) {
     /**
      * Runs whatever is bound to a key press. Returns false when nothing is, so the key goes
      * to the terminal instead.
+     *
+     * A key bound to one of this app's actions is the app's whether or not the action can
+     * run just now: Control+Alt+Left in a tab with one pane has nowhere to go, and does
+     * nothing. Handed to the terminal instead, a shell prints the end of the key's escape
+     * sequence, a stray "D". A shortcut that sometimes does nothing is better than one that
+     * sometimes types.
      */
-    fun handleKey(chord: KeyChord): Boolean {
-        for (binding in ui.client.keymap.value.bindingsFor(chord)) {
-            // Bound to a function in the configuration file: the server runs it when it gets the key.
-            if (binding.action == FORWARD_TO_SERVER) return false
-            if (run(binding.action, binding.args, origin = chord.display())) return true
-        }
-        return false
-    }
+    fun handleKey(chord: KeyChord): Boolean =
+        takesKey(ui.client.keymap.value.bindingsFor(chord), isOurs = { it in byName }) { run(it.action, it.args, origin = chord.display()) }
 
     /** Runs an action by name. Returns false if there is no such action, or it can't run right now. */
     fun run(name: String, args: JsonObject? = null, origin: String): Boolean {
@@ -89,10 +91,26 @@ class RexCommands(private val ui: RexUiState) {
 
     fun isAvailable(action: ClientAction): Boolean = action.available(ui)
 
-    private companion object {
-        const val FORWARD_TO_SERVER = "client.key.forward"
-    }
 }
+
+/**
+ * Whether a key press is the app's, given what the key is bound to, in the order to try
+ * them. The first binding that runs settles it. If none does, the key is still the app's
+ * when one of them names an action of the app's ([isOurs]) that couldn't run just now;
+ * otherwise, and whenever a binding hands the key to the server, it goes to the terminal.
+ */
+internal fun takesKey(bindings: List<KeyBinding>, isOurs: (action: String) -> Boolean, run: (KeyBinding) -> Boolean): Boolean {
+    var ours = false
+    for (binding in bindings) {
+        // Bound to a function in the configuration file: the server runs it when it gets the key.
+        if (binding.action == FORWARD_TO_SERVER) return false
+        if (run(binding)) return true
+        if (isOurs(binding.action)) ours = true
+    }
+    return ours
+}
+
+private const val FORWARD_TO_SERVER = "client.key.forward"
 
 private val hasHost: RexUiState.() -> Boolean = { hostState?.connection == org.example.kotlintest.rex.HostConnection.Connected }
 private val hasSession: RexUiState.() -> Boolean = { view != null }
@@ -124,6 +142,14 @@ internal fun clientActions(): List<ClientAction> = buildList {
             confirmLabel = "Close Session",
             onConfirm = { owner.closeSession(session.sessionId) },
         )
+    })
+    // Rex.app's name for it; Rex.app gives it no key, and neither does this.
+    add(ClientAction("session.rename", "Rename Session…", "Session", "name label title", available = hasSession) {
+        val session = view ?: return@ClientAction
+        val owner = host ?: return@ClientAction
+        // The list's label is the one the sidebar shows; the layout's is the same thing read at another moment.
+        val name = owner.state.value.sessions.firstOrNull { it.id == session.sessionId }?.label ?: session.label
+        renamingSession = SessionRename(owner, session.sessionId, name)
     })
     add(ClientAction("session.switch", "Change Session…", "Session", "go to switch find", keys = listOf("ctrl+k")) {
         palette = PaletteMode.Sessions
@@ -178,6 +204,53 @@ internal fun clientActions(): List<ClientAction> = buildList {
         val tab = window ?: return@ClientAction
         val owner = host ?: return@ClientAction
         renameTab(owner, owner.state.value.selectedSessionId ?: return@ClientAction, tab)
+    })
+    // Rex.app has no action for this, only "Mute Tab" in a tab's menu; the name is Rex Rune's.
+    // It is this client's alone: other clients on the session go on hearing from the tab.
+    add(ClientAction(
+        "client.tab.mute", "Mute Tab", "Tab", "unmute silence quiet sound notification notify bell hush",
+        available = { window != null },
+        state = { if (window?.let { tab -> host?.let { isMuted(it, tab.id) } } == true) "muted" else "not muted" },
+    ) {
+        val tab = window ?: return@ClientAction
+        val owner = host ?: return@ClientAction
+        val sessionId = owner.state.value.selectedSessionId ?: return@ClientAction
+        val muted = !isMuted(owner, tab.id)
+        setMuted(owner, sessionId, tab.id, muted)
+        client.log.add("app", "${if (muted) "muted" else "unmuted"} the tab “${owner.state.value.nameOf(tab).text}”")
+    })
+    // A tab moves within its session, one place at a time, and stops at the ends. The order is
+    // the session's own, so it changes for every client. Names and keys are Rex.app's, which has
+    // them on Control already. The keys are taken wherever there is a tab, and do nothing at an end.
+    val moveTab: RexUiState.(Boolean) -> Unit = move@{ forward ->
+        val tab = window ?: return@move
+        val session = view ?: return@move
+        tabMove(session.windows.map { it.id }, tab.id, forward)?.let { host?.moveTab(session.sessionId, tab.id, it.beforeWindowId) }
+    }
+    add(ClientAction("client.tab.move.backward", "Move Tab Backward", "Tab", "reorder rearrange up left earlier before", keys = listOf("ctrl+shift+pageup"), available = { window != null }) {
+        moveTab(false)
+    })
+    add(ClientAction("client.tab.move.forward", "Move Tab Forward", "Tab", "reorder rearrange down right later after", keys = listOf("ctrl+shift+pagedown"), available = { window != null }) {
+        moveTab(true)
+    })
+    add(ClientAction("client.tab.move", "Move Tab", "Tab", inPalette = false, available = { window != null }) { args ->
+        tabMoveIsForward(args?.get("direction")?.jsonPrimitive?.content)?.let { moveTab(it) }
+    })
+    // Asked about first, as closing one tab is, and as Rex Rune asks. The tabs named when the
+    // question is put are the ones that close: one opened while it stands stays.
+    add(ClientAction("client.tab.close_others", "Close Other Tabs", "Tab", "window all but this only keep", available = { window != null && (view?.windows?.size ?: 0) > 1 }) {
+        val tab = window ?: return@ClientAction
+        val session = view ?: return@ClientAction
+        val owner = host ?: return@ClientAction
+        val others = session.windows.map { it.id } - tab.id
+        if (others.isEmpty()) return@ClientAction
+        val kept = owner.state.value.nameOf(tab).text
+        confirmation = Confirmation(
+            title = if (others.size == 1) "Close the other tab of “${session.label}”?" else "Close the ${others.size} other tabs of “${session.label}”?",
+            text = "The programs running in ${if (others.size == 1) "it" else "them"} will end. “$kept” stays open.",
+            confirmLabel = if (others.size == 1) "Close Other Tab" else "Close Other Tabs",
+            onConfirm = { owner.closeOtherTabs(session.sessionId, tab.id, others) },
+        )
     })
     // Tabs are one list across every session and host, in sidebar order, so "next" carries
     // on from a session's last tab into the next session's first.
@@ -237,8 +310,8 @@ internal fun clientActions(): List<ClientAction> = buildList {
             "pane.move.$name", "Move Pane ${side.name}", "Pane", "swap rearrange trade places",
             keys = listOf("ctrl+alt+shift+$name"),
             // Offered wherever there is a pane to trade with, including at the tab's edge, where
-            // it does nothing: a key that isn't offered goes to the terminal, and a shell
-            // shown Control+Alt+Shift+Left prints the end of its escape sequence, a stray "D".
+            // it does nothing. In a tab with one pane it isn't offered, and its key still
+            // does nothing rather than reach the terminal: see handleKey.
             available = severalPanes,
         ) { focusedBlockId?.let { host?.swapPane(it, side) } })
     }

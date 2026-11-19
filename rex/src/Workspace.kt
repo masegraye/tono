@@ -77,6 +77,8 @@ class Workspace(
     var sounds: Boolean = true,
     /** What to show a desktop notification for. */
     var notifications: NotificationSwitches = NotificationSwitches(),
+    /** The tabs this app keeps quiet. This client's alone: the servers never hear of them. */
+    var mutedTabs: List<MutedTab> = emptyList(),
 ) {
     val tabs: MutableMap<String, String> = tabs.toMutableMap()
     var hosts: List<SavedHost> = hosts
@@ -101,6 +103,13 @@ class Workspace(
                 if (tabs.isNotEmpty()) putJsonObject("tabs") { for ((session, tab) in tabs.entries.sortedBy { it.key }) put(session, tab) }
                 if (collapsedHosts.isNotEmpty()) put("collapsed_hosts", buildJsonArray { collapsedHosts.sorted().forEach { add(JsonPrimitive(it)) } })
                 if (collapsedSessions.isNotEmpty()) put("collapsed_sessions", buildJsonArray { collapsedSessions.sorted().forEach { add(JsonPrimitive(it)) } })
+                if (mutedTabs.isNotEmpty()) put("muted_tabs", buildJsonArray {
+                    for (tab in mutedTabs) add(buildJsonObject {
+                        put("endpoint", tab.endpoint)
+                        put("session", tab.session)
+                        put("window", tab.window)
+                    })
+                })
             }
             runCatching { target.write(PRETTY.encodeToString(JsonObject.serializer(), json) + "\n") }
         }
@@ -125,6 +134,10 @@ class Workspace(
             return Workspace(storage, hosts, root.string("last_host"), sessions, strings("collapsed_hosts"), strings("collapsed_sessions"), map("tabs"),
                 sounds = (root["sounds"] as? JsonPrimitive)?.content != "false",
                 notifications = NotificationSwitches.parse(root.obj("notifications")),
+                mutedTabs = (root["muted_tabs"] as? JsonArray).orEmpty().mapNotNull { element ->
+                    val tab = element as? JsonObject ?: return@mapNotNull null
+                    MutedTab(tab.string("endpoint") ?: return@mapNotNull null, tab.string("session") ?: return@mapNotNull null, tab.string("window") ?: return@mapNotNull null)
+                }.takeLast(MUTED_TABS_LIMIT),
             )
         }
     }

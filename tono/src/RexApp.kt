@@ -74,6 +74,9 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import org.example.kotlintest.rex.nowMillis
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -136,12 +139,20 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
         val player = Sounds(this) { message, isError -> ui.client.log.add("sound", message, isError = isError) }
         ui.sounds = player
         ui.client.tabNews.collect { news ->
-            if (!announces(news)) return@collect
+            if (!announces(news, ui::isMuted)) return@collect
             if (news is TabNews.Activity && ui.soundsEnabled) player.request(news.state)
             ui.notifier.announce(news)
         }
     }
     CloseSeenNotifications(ui, selected, inFront)
+    // A muted tab is remembered until it closes. Each host is watched for what it lists.
+    LaunchedEffect(ui, hosts) {
+        for (host in hosts) launch {
+            host.state.map { state -> Triple(state.connection, state.sessions.map { it.id }, state.views.mapValues { (_, view) -> view.windows.map { it.id } }) }
+                .distinctUntilChanged()
+                .collect { ui.forgetClosedMutedTabs(host) }
+        }
+    }
 
     // What a program copies in the terminal in use goes on this machine's clipboard. Only the
     // newest counts: one that arrives while the last is still being written takes its place.
@@ -181,7 +192,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Box(
             Modifier.fillMaxSize().focusRequester(rootFocus).focusable().onPreviewKeyEvent { event ->
-                if (ui.palette != null || ui.renaming != null || ui.renamingPane != null) return@onPreviewKeyEvent false // an overlay has the keyboard
+                if (ui.palette != null || ui.renamingAnything) return@onPreviewKeyEvent false // an overlay has the keyboard
                 when (event.type) {
                     KeyEventType.KeyDown -> {
                         val chord = keyChord(event) ?: return@onPreviewKeyEvent false
@@ -234,6 +245,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
             ui.palette?.let { CommandPalette(ui, commands, it) }
             ui.renaming?.let { renaming -> RenameTabDialog(renaming, onDismiss = { ui.renaming = null; ui.returnFocusToTerminal() }) }
             ui.renamingPane?.let { renaming -> RenamePaneDialog(renaming, onDismiss = { ui.renamingPane = null; ui.returnFocusToTerminal() }) }
+            ui.renamingSession?.let { renaming -> RenameSessionDialog(renaming, onDismiss = { ui.renamingSession = null; ui.returnFocusToTerminal() }) }
             ui.confirmation?.let { pending ->
                 val dismiss = { ui.confirmation = null; ui.returnFocusToTerminal() }
                 // The confirm button has the keyboard, so Enter confirms and Escape cancels.
@@ -401,6 +413,7 @@ private fun SessionTabs(
                 activity = state.activityOf(tab),
                 bell = state.hasBell(tab),
                 progress = state.progressOf(tab),
+                muted = ui.isMuted(host, tab.id),
                 dragging = tabOrder.isDragging(tab.id),
                 // A second click soon after the first renames the tab. The first still goes
                 // to it at once: waiting to see whether a second follows would make every
@@ -624,6 +637,8 @@ internal fun TabRow(
     dragging: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Whether the tab is kept quiet on this client. Its mark stands where the bell would, since a muted tab's bell isn't news. */
+    muted: Boolean = false,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -642,7 +657,7 @@ internal fun TabRow(
             .border(1.dp, if (dragging) MaterialTheme.colorScheme.outline.copy(alpha = 0.6f) else Color.Transparent, MaterialTheme.shapes.small)
             .clickable(onClick = onClick)
             .progressBar(progress)
-            .semantics { tabNews(bell, progress)?.let { stateDescription = it } }
+            .semantics { tabNews(bell, progress, muted)?.let { stateDescription = it } }
             .padding(start = 14.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
     ) {
         // The name comes first and takes what it needs; the directory gets what is left, and
@@ -668,7 +683,7 @@ internal fun TabRow(
                 )
             }
         }
-        BellMark(bell)
+        if (muted) MutedMark() else BellMark(bell)
         ActivityDots(activity)
         ShortcutDigit(digit, digitAlpha)
     }

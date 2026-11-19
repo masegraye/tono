@@ -55,6 +55,23 @@ fun RenamePaneDialog(renaming: PaneRename, onDismiss: () -> Unit) {
     RenameDialog("Rename Pane", name, { name = it }, "No name", "Leave it empty for a pane with no name.", focus, save, onDismiss)
 }
 
+/**
+ * Asks for a session's name, in the same way. The name is the session's label on the server.
+ * A session always has one: the server makes one up for a session nobody named, and gives
+ * that back when the name is cleared.
+ */
+@Composable
+fun RenameSessionDialog(renaming: SessionRename, onDismiss: () -> Unit) {
+    var name by remember(renaming) { mutableStateOf(TextFieldValue(renaming.name, TextRange(0, renaming.name.length))) }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(renaming) { focus.requestFocus() }
+    val save = {
+        onDismiss()
+        if (name.text.trim() != renaming.name) renaming.host.renameSession(renaming.sessionId, name.text)
+    }
+    RenameDialog("Rename Session", name, { name = it }, "The server's name for it", "Leave it empty to go back to the name the server gave it.", focus, save, onDismiss)
+}
+
 @Composable
 private fun RenameDialog(
     title: String,

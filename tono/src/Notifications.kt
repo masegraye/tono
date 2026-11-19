@@ -48,11 +48,12 @@ internal data class DesktopNote(val tag: String, val title: String, val body: St
 /**
  * Whether a tab's news is announced at all, by a sound or by a notification. This is the
  * one place that decides it for both, after the client has left out the tab in front of the
- * user (see `RexHost.isBeingWatched`), and before each asks its own switches. A tab that has
- * been told to keep quiet would be turned away here.
+ * user (see `RexHost.isBeingWatched`), and before each asks its own switches. A muted tab
+ * is turned away here. News that names no tab can't be from a muted one, and goes on.
+ *
+ * @param isMuted whether the tab at a place has been told to keep quiet on this client
  */
-@Suppress("UNUSED_PARAMETER", "FunctionOnlyReturningConstant")
-internal fun announces(news: TabNews): Boolean = true
+internal fun announces(news: TabNews, isMuted: (TabPlace) -> Boolean): Boolean = news.place?.let(isMuted) != true
 
 /** Whether the switches let a notification through for [news]. */
 internal fun NotificationSwitches.want(news: TabNews): Boolean = desktop && when (news) {

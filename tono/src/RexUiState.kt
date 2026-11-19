@@ -8,6 +8,11 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
 import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.HostState
+import org.example.kotlintest.rex.MutedTab
+import org.example.kotlintest.rex.TabPlace
+import org.example.kotlintest.rex.mutes
+import org.example.kotlintest.rex.stillOpen
+import org.example.kotlintest.rex.with
 import org.example.kotlintest.rex.NotificationSwitches
 import org.example.kotlintest.rex.ProgramCopy
 import org.example.kotlintest.rex.RexClient
@@ -54,6 +59,13 @@ class TabRename(val host: RexHost, val sessionId: String, val windowId: String, 
 class PaneRename(val host: RexHost, val blockId: String, val givenName: String)
 
 /**
+ * A session whose name is being edited.
+ *
+ * @param name what it is called now. The server chose that if nobody else did, and nothing says which.
+ */
+class SessionRename(val host: RexHost, val sessionId: String, val name: String)
+
+/**
  * The state of the app's own interface, as opposed to what the servers report: which
  * overlays are open, the font size, and so on. Actions read and change it.
  */
@@ -80,6 +92,10 @@ class RexUiState(val client: RexClient) {
     var confirmation: Confirmation? by mutableStateOf(null)
     var renaming: TabRename? by mutableStateOf(null)
     var renamingPane: PaneRename? by mutableStateOf(null)
+    var renamingSession: SessionRename? by mutableStateOf(null)
+
+    /** Whether one of the dialogs that ask for a name is open. It has the keyboard, so no key is a shortcut meanwhile. */
+    val renamingAnything: Boolean get() = renaming != null || renamingPane != null || renamingSession != null
 
     /** Whether a program in a tab out of view makes a sound when it wants you, fails, or finishes. Remembered between runs. */
     var soundsEnabled by mutableStateOf(client.workspace.sounds)
@@ -103,6 +119,38 @@ class RexUiState(val client: RexClient) {
 
     /** Whether to ask if the browser may show notifications: there has been something to show, and it hasn't been asked. */
     var notificationQuestion by mutableStateOf(false)
+
+    /**
+     * The tabs kept quiet here: no sound and no notification for what happens in them.
+     * Remembered between runs, and never told to a server, so other clients go on hearing
+     * from them. As in Rex Rune.
+     */
+    var mutedTabs: List<MutedTab> by mutableStateOf(client.workspace.mutedTabs)
+        private set
+
+    private fun rememberMutedTabs(tabs: List<MutedTab>) {
+        if (tabs == mutedTabs) return
+        mutedTabs = tabs
+        client.workspace.mutedTabs = tabs
+        client.workspace.save()
+    }
+
+    fun isMuted(host: RexHost, windowId: String): Boolean = mutedTabs.mutes(host.saved.endpoint, windowId)
+
+    /** Whether the tab at [place] is muted. A place on a host this app doesn't have isn't. */
+    fun isMuted(place: TabPlace): Boolean =
+        client.hosts.value.firstOrNull { it.saved.label == place.host }?.let { isMuted(it, place.windowId) } == true
+
+    /** Mutes a tab, or lets it speak again. Muting takes down what it has already put up. */
+    fun setMuted(host: RexHost, sessionId: String, windowId: String, muted: Boolean) {
+        rememberMutedTabs(mutedTabs.with(MutedTab(host.saved.endpoint, sessionId, windowId), muted))
+        if (muted) notifier.seen(TabPlace(host.saved.label, sessionId, windowId))
+    }
+
+    /** Forgets the muted tabs of [host] that have closed, going by what it reports now. */
+    fun forgetClosedMutedTabs(host: RexHost) {
+        if (mutedTabs.isNotEmpty()) rememberMutedTabs(mutedTabs.stillOpen(host.saved.endpoint, host.state.value))
+    }
 
     /** Where actions start work they don't wait for. Set once the app's window exists. */
     var scope: CoroutineScope? = null
@@ -150,7 +198,7 @@ class RexUiState(val client: RexClient) {
         private set
 
     /** Whether something is open over the terminals and has the keyboard: the palette, or a dialog. */
-    val overlayOpen: Boolean get() = palette != null || renaming != null || renamingPane != null || confirmation != null
+    val overlayOpen: Boolean get() = palette != null || renamingAnything || confirmation != null
 
     /**
      * Whether text a program copied should go on the clipboard: see [takesCopy].

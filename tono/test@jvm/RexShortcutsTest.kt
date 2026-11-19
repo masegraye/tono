@@ -71,6 +71,51 @@ class RexShortcutsTest {
     }
 
     @Test
+    fun `tabs and sessions are managed by Rex's names, and a tab moves with control, shift and page up or down`() {
+        val actions = clientActions().associateBy { it.name }
+        for (name in listOf("client.tab.move", "client.tab.close_others", "client.tab.mute", "session.rename")) assertNotNull(actions[name], name)
+        assertEquals(listOf("ctrl+shift+pageup"), actions.getValue("client.tab.move.backward").keys)
+        assertEquals(listOf("ctrl+shift+pagedown"), actions.getValue("client.tab.move.forward").keys)
+        // Moving takes a direction, so the palette lists the two that name theirs.
+        assertEquals(false, actions.getValue("client.tab.move").inPalette)
+        for (name in listOf("client.tab.move.backward", "client.tab.move.forward", "client.tab.close_others", "client.tab.mute", "session.rename")) {
+            assertTrue(actions.getValue(name).inPalette, name)
+        }
+    }
+
+    private fun bound(action: String) = org.example.kotlintest.rex.KeyBinding(listOf(KeyChord("x")), action)
+
+    @Test
+    fun `a key bound to an action that can't run now is still the app's, and never the terminal's`() {
+        val ours = { name: String -> name.startsWith("pane.") }
+        // Control+Alt+Left in a tab with one pane: nowhere to go, so nothing happens, and nothing is typed.
+        assertTrue(takesKey(listOf(bound("pane.focus.left")), ours) { false })
+        assertTrue(takesKey(listOf(bound("pane.focus.left")), ours) { true })
+        // A key bound to nothing of the app's goes to the terminal.
+        assertEquals(false, takesKey(emptyList(), ours) { false })
+        assertEquals(false, takesKey(listOf(bound("terminal.clear")), ours) { false }, "a server action that couldn't run")
+    }
+
+    @Test
+    fun `bindings are tried in order, and one that hands the key to the server ends it`() {
+        val ours = { _: String -> true }
+        val tried = mutableListOf<String>()
+        assertTrue(takesKey(listOf(bound("a"), bound("b"), bound("c")), ours) { tried += it.action; it.action == "b" })
+        assertEquals(listOf("a", "b"), tried)
+        assertEquals(false, takesKey(listOf(bound("client.key.forward"), bound("a")), ours) { true })
+        assertEquals(false, takesKey(listOf(bound("a"), bound("client.key.forward")), ours) { false }, "even after one of the app's that couldn't run")
+    }
+
+    @Test
+    fun `the pane keys that leaked to a one-pane tab are all the app's`() {
+        val actions = clientActions().associateBy { it.name }
+        for (side in listOf("left", "right", "up", "down")) {
+            assertEquals(listOf("ctrl+alt+$side"), actions.getValue("pane.focus.$side").keys)
+            assertEquals(listOf("ctrl+alt+shift+$side"), actions.getValue("pane.move.$side").keys)
+        }
+    }
+
+    @Test
     fun `action names are unique`() {
         val names = clientActions().map { it.name }
         assertEquals(names.size, names.toSet().size)

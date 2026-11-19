@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
 import org.example.kotlintest.rex.TerminalProgress
 
@@ -33,6 +34,23 @@ import org.example.kotlintest.rex.TerminalProgress
 internal fun BellMark(rang: Boolean, modifier: Modifier = Modifier) {
     if (!rang) return
     Icon(Icons.Filled.Notifications, contentDescription = "Bell", tint = MaterialTheme.colorScheme.primary, modifier = modifier.padding(start = 6.dp).size(12.dp))
+}
+
+/**
+ * A small bell with a stroke through it, for a tab that is muted on this client. It stands
+ * where the bell would, in the quiet color of things that are off.
+ */
+@Composable
+internal fun MutedMark(modifier: Modifier = Modifier) {
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Icon(
+        Icons.Filled.Notifications, contentDescription = "Muted", tint = color.copy(alpha = 0.75f),
+        modifier = modifier.padding(start = 6.dp).size(12.dp).drawWithContent {
+            drawContent()
+            // The stroke, from the top left to the bottom right.
+            drawLine(color, Offset(size.width * 0.08f, size.height * 0.08f), Offset(size.width * 0.92f, size.height * 0.92f), strokeWidth = 1.2.dp.toPx(), cap = StrokeCap.Round)
+        },
+    )
 }
 
 /**
@@ -115,9 +133,9 @@ internal fun progressWords(progress: TerminalProgress): String {
     }
 }
 
-/** What a tab's row says of its bell and progress to a screen reader, or null when there is neither. */
-internal fun tabNews(bell: Boolean, progress: TerminalProgress?): String? =
-    listOfNotNull("bell".takeIf { bell }, progress?.let(::progressWords)).joinToString(", ").takeIf { it.isNotEmpty() }
+/** What a tab's row says of its bell, its progress and its being muted to a screen reader, or null when there is nothing to say. */
+internal fun tabNews(bell: Boolean, progress: TerminalProgress?, muted: Boolean = false): String? =
+    listOfNotNull("muted".takeIf { muted }, "bell".takeIf { bell && !muted }, progress?.let(::progressWords)).joinToString(", ").takeIf { it.isNotEmpty() }
 
 /** The least of the track a known percentage fills, so that 0% and 1% still show as started. */
 private const val MIN_FILL = 0.03f

@@ -73,10 +73,15 @@ class NotificationSwitchTest {
     }
 
     @Test
-    fun `nothing is turned away before the switches are asked`() {
-        // The place a muted tab will be turned away (backlog-013). Until then, everything passes.
-        assertTrue(announces(activity(ActivityState.Done)))
-        assertTrue(announces(TabNews.Message(null, "t", "b")))
+    fun `a muted tab's news is turned away before the switches are asked, and nothing else is`() {
+        val muted: (TabPlace) -> Boolean = { it == agent }
+        assertFalse(announces(activity(ActivityState.Done), muted))
+        assertFalse(announces(TabNews.Message(agent, "t", "b"), muted), "what its program asks to say, too")
+        assertTrue(announces(activity(ActivityState.Done, TabPlace("studio", "s1", "w1")), muted), "another tab of the session")
+        assertTrue(announces(activity(ActivityState.Done, agent.copy(host = "other")), muted), "the same ids on another host")
+        assertTrue(announces(activity(ActivityState.Done)) { false })
+        // News from no known tab can't be from a muted one.
+        assertTrue(announces(TabNews.Message(null, "t", "b")) { true })
     }
 }
 
