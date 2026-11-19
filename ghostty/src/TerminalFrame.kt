@@ -60,7 +60,19 @@ class TerminalRun(
     val italic: Boolean = false,
     val underline: Boolean = false,
     val strikethrough: Boolean = false,
-)
+) {
+    /** Whether this is plain characters, one to a cell, and not one character that takes all the run's cells. */
+    val oneToACell: Boolean get() = text.length == cells && text.all { isPlain(it.code) }
+}
+
+/**
+ * Whether a monospace font can be trusted to draw this character exactly one cell wide, so
+ * that it can share a run with its neighbors: printable ASCII, Latin letters, and the
+ * box-drawing and block characters that terminal interfaces are built from. The browser's
+ * glue (`ghostty-glue.js`) builds its runs by the same rule.
+ */
+internal fun isPlain(codepoint: Int): Boolean =
+    codepoint in 0x20..0x7E || codepoint in 0xA0..0x17F || codepoint in 0x2500..0x259F
 
 class TerminalCursor(
     val column: Int,

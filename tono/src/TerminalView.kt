@@ -97,6 +97,7 @@ import org.example.kotlintest.ghostty.TerminalRun
 import org.example.kotlintest.rex.GridSize
 import org.example.kotlintest.rex.RexKey
 import org.example.kotlintest.rex.TerminalSession
+import org.example.kotlintest.ghostty.SearchHighlights
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -136,7 +137,7 @@ fun TerminalView(
     val style = remember(fontFamily, fontSize) { TextStyle(fontFamily = fontFamily, fontSize = fontSize) }
     val measurer = rememberTextMeasurer(cacheSize = 0) // rows are cached below, by identity
     val cell = remember(style, measurer) { measureCell(measurer, style) }
-    val layouts = remember(style) { RowLayouts() }
+    val layouts = remember(style, cell) { RowLayouts(cell) }
     // Where fonts arrive after the text that needs them (see fontsArriveLater), rows drawn
     // without one are laid out again once it has had time to come, and this says to redraw.
     var laterFonts by remember { mutableIntStateOf(0) }
@@ -332,22 +333,11 @@ fun TerminalView(
         val current = frame
         if (current == null) return@Canvas
         laterFonts // read, so that a change draws again
-        drawRect(Color(0xFF000000 or current.background.toLong()))
-        layouts.retain(current.rows)
-        pictures.retain(current.images)
-        // Images a program asked to have behind its text go down first, the rest on top of it.
-        current.images.forEach { if (it.layer != TerminalImagePlacement.Layer.AboveText) drawImage(it, current, cell, pictures) }
-        current.rows.forEachIndexed { rowIndex, row ->
-            drawRow(row, rowIndex, cell, layouts.of(row, measurer, style))
-        }
-        current.images.forEach { if (it.layer == TerminalImagePlacement.Layer.AboveText) drawImage(it, current, cell, pictures) }
-        search?.highlights?.let { found ->
-            found.others.forEach { drawMatch(it, cell, matchColor, selected = false) }
-            found.selected.forEach { drawMatch(it, cell, matchColor, selected = true) }
-        }
-        current.selection.forEach { drawSelection(it, current, cell) }
-        link?.cells?.forEach { drawLinkUnderline(it, current, cell) }
-        current.cursor?.let { drawCursor(it, current, cell, active = focused && (hasKeyboard || screenKeyboard)) }
+        drawTerminal(
+            current, cell, layouts, measurer, style, pictures,
+            matches = search?.highlights, matchColor = matchColor, link = link?.cells.orEmpty(),
+            cursorActive = focused && (hasKeyboard || screenKeyboard),
+        )
     }
     link?.takeIf { linkTargetShown }?.let { LinkTarget(it, cell) }
     search?.let { current ->
@@ -393,29 +383,100 @@ fun TerminalView(
 /** The size of one character cell, in pixels. */
 internal class CellSize(val width: Float, val height: Float)
 
-private fun measureCell(measurer: TextMeasurer, style: TextStyle): CellSize {
-    // Averaged over a run of characters, because a single glyph's width is rounded to whole pixels.
-    val sample = measurer.measure("MMMMMMMMMMMMMMMMMMMM", style, softWrap = false, maxLines = 1)
-    return CellSize(sample.size.width / 20f, ceil(sample.size.height.toFloat()))
+/**
+ * Draws one frame of a terminal: its background, images and text, and over them what is
+ * marked on it. Everything is placed by its cell, [cell] being the size of one.
+ */
+internal fun DrawScope.drawTerminal(
+    frame: TerminalFrame,
+    cell: CellSize,
+    layouts: RowLayouts,
+    measurer: TextMeasurer,
+    style: TextStyle,
+    pictures: Pictures,
+    matches: SearchHighlights? = null,
+    matchColor: Color = Color.Unspecified,
+    link: List<TerminalLink.Cells> = emptyList(),
+    cursorActive: Boolean = false,
+) {
+    drawRect(Color(0xFF000000 or frame.background.toLong()))
+    layouts.retain(frame.rows)
+    pictures.retain(frame.images)
+    // Images a program asked to have behind its text go down first, the rest on top of it.
+    frame.images.forEach { if (it.layer != TerminalImagePlacement.Layer.AboveText) drawImage(it, frame, cell, pictures) }
+    frame.rows.forEachIndexed { rowIndex, row ->
+        drawRow(row, rowIndex, cell, layouts.of(row, measurer, style))
+    }
+    frame.images.forEach { if (it.layer == TerminalImagePlacement.Layer.AboveText) drawImage(it, frame, cell, pictures) }
+    matches?.let { found ->
+        found.others.forEach { drawMatch(it, cell, matchColor, selected = false) }
+        found.selected.forEach { drawMatch(it, cell, matchColor, selected = true) }
+    }
+    frame.selection.forEach { drawSelection(it, frame, cell) }
+    link.forEach { drawLinkUnderline(it, frame, cell) }
+    frame.cursor?.let { drawCursor(it, frame, cell, active = cursorActive) }
 }
 
-/** The laid-out text of each row on screen. A row object is reused while its content is unchanged, so its layout is too. */
-private class RowLayouts {
-    private var cache = HashMap<TerminalRow, List<TextLayoutResult?>>()
+internal fun measureCell(measurer: TextMeasurer, style: TextStyle): CellSize {
+    // How far the text itself runs, over a sample long enough to average out what the
+    // layout does to each glyph. Not the size of the layout: that is the same width rounded
+    // up to a whole pixel, which made every cell up to a twentieth of a pixel wider than
+    // its glyph when the sample was twenty long, and text is drawn a run at a time, so by
+    // column 120 it sat most of a cell to the left of the cell it belonged to.
+    val sample = measurer.measure("M".repeat(CELL_SAMPLE), style, softWrap = false, maxLines = 1)
+    return CellSize(sample.getHorizontalPosition(CELL_SAMPLE, usePrimaryDirection = true) / CELL_SAMPLE, ceil(sample.size.height.toFloat()))
+}
+
+private const val CELL_SAMPLE = 100
+
+/** A piece of a row's text, laid out, and the column of the cell it starts in. */
+internal class PlacedText(val column: Int, val layout: TextLayoutResult)
+
+/**
+ * The laid-out text of each row on screen, for cells of the size given. A row object is
+ * reused while its content is unchanged, so its layout is too.
+ */
+internal class RowLayouts(private val cell: CellSize) {
+    private var cache = HashMap<TerminalRow, List<PlacedText>>()
 
     /** Forgets rows that are no longer on screen. */
     fun retain(rows: List<TerminalRow>) {
         if (cache.size <= rows.size) return
-        val kept = HashMap<TerminalRow, List<TextLayoutResult?>>()
+        val kept = HashMap<TerminalRow, List<PlacedText>>()
         for (row in rows) cache[row]?.let { kept[row] = it }
         cache = kept
     }
 
-    fun of(row: TerminalRow, measurer: TextMeasurer, style: TextStyle): List<TextLayoutResult?> =
+    fun of(row: TerminalRow, measurer: TextMeasurer, style: TextStyle): List<PlacedText> =
         cache.getOrPut(row) {
             if (fontsArriveLater && row !in awaitingFonts && row.runs.any { run -> run.text.any(::mayNeedAnotherFont) }) awaitingFonts[row] = nowMillis()
-            row.runs.map { run -> if (run.text.isBlank()) null else measurer.measure(AnnotatedString(run.text), style.merge(run), softWrap = false, maxLines = 1) }
+            buildList { for (run in row.runs) place(run, measurer, style.merge(run)) }
         }
+
+    /**
+     * Lays out a run's text. A run of plain characters is one piece, which the font lays
+     * out a cell to the character, and that is checked: where it comes out wider or narrower
+     * than its cells (a style of the font with a width of its own, or a character taken
+     * from another font), each character is laid out by itself and placed in its own cell,
+     * so that the difference can't add up along the run.
+     */
+    private fun MutableList<PlacedText>.place(run: TerminalRun, measurer: TextMeasurer, style: TextStyle) {
+        val text = run.text
+        if (text.isBlank()) return
+        val whole = measurer.measure(AnnotatedString(text), style, softWrap = false, maxLines = 1)
+        // Going by the layout's size, which is its text's width rounded up to a whole pixel:
+        // it is already worked out, and asking the layout where a character is costs enough
+        // to show when a whole screen of runs is laid out at once.
+        val over = whole.size.width - run.cells * cell.width
+        if (!run.oneToACell || (over > -OFF_GRID_PIXELS && over < 1f + OFF_GRID_PIXELS)) {
+            add(PlacedText(run.column, whole))
+            return
+        }
+        val decorated = run.underline || run.strikethrough
+        text.forEachIndexed { index, char ->
+            if (decorated || !char.isWhitespace()) add(PlacedText(run.column + index, measurer.measure(AnnotatedString(char.toString()), style, softWrap = false, maxLines = 1)))
+        }
+    }
 
     /** When each row that may be waiting for a font was first laid out. */
     private val awaitingFonts = HashMap<TerminalRow, Long>()
@@ -444,6 +505,9 @@ private class RowLayouts {
 
 /** How often rows waiting for a font are looked at, and how long after a row was laid out it is laid out again. */
 private const val LATER_FONT_CHECK_MILLIS = 500L
+
+/** How far from its cells the end of a run may come out, in pixels, before its characters are placed one by one. */
+private const val OFF_GRID_PIXELS = 0.5f
 private val LATER_FONT_TRIES = listOf(1_000L, 2_500L, 6_000L, 15_000L)
 
 /**
@@ -468,20 +532,19 @@ private fun TextStyle.merge(run: TerminalRun): TextStyle = copy(
     },
 )
 
-private fun DrawScope.drawRow(row: TerminalRow, rowIndex: Int, cell: CellSize, layouts: List<TextLayoutResult?>) {
+private fun DrawScope.drawRow(row: TerminalRow, rowIndex: Int, cell: CellSize, texts: List<PlacedText>) {
     val top = rowIndex * cell.height
-    row.runs.forEachIndexed { index, run ->
-        val left = run.column * cell.width
-        run.background?.let { background ->
-            // Whole pixels, and a pixel of overlap, so adjacent backgrounds leave no seams.
-            drawRect(
-                color = Color(0xFF000000 or background.toLong()),
-                topLeft = Offset(left.toInt().toFloat(), top),
-                size = Size(ceil(run.cells * cell.width) + 1f, cell.height),
-            )
-        }
-        layouts[index]?.let { drawText(it, topLeft = Offset(left, top)) }
+    for (run in row.runs) {
+        val background = run.background ?: continue
+        // Whole pixels, and a pixel of overlap, so adjacent backgrounds leave no seams.
+        drawRect(
+            color = Color(0xFF000000 or background.toLong()),
+            topLeft = Offset((run.column * cell.width).toInt().toFloat(), top),
+            size = Size(ceil(run.cells * cell.width) + 1f, cell.height),
+        )
     }
+    // Over all the row's backgrounds, so that the next run's doesn't cut into a glyph that leans over its cell's edge.
+    for (text in texts) drawText(text.layout, topLeft = Offset(text.column * cell.width, top))
 }
 
 /**
@@ -586,7 +649,7 @@ private const val SCROLL_ROWS_PER_NOTCH = 3f
  * The bitmaps made from the images a terminal shows, kept for as long as each is on screen.
  * An image object stands for one version of one image, so it is the key.
  */
-private class Pictures {
+internal class Pictures {
     private var made = HashMap<TerminalImage, ImageBitmap>()
 
     fun of(image: TerminalImage): ImageBitmap = made.getOrPut(image) {

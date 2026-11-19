@@ -357,14 +357,6 @@ actual class GhosttyRenderer actual constructor() : AutoCloseable {
     }
 }
 
-/**
- * Whether a monospace font can be trusted to draw this character exactly one cell wide, so
- * that it can share a run with its neighbors: printable ASCII, Latin letters, and the
- * box-drawing and block characters that terminal interfaces are built from.
- */
-private fun isPlain(codepoint: Int): Boolean =
-    codepoint in 0x20..0x7E || codepoint in 0xA0..0x17F || codepoint in 0x2500..0x259F
-
 /** Halfway between two colors, for faint text. */
 private fun blend(color: Int, towards: Int): Int {
     fun channel(shift: Int) = (((color shr shift) and 0xFF) + ((towards shr shift) and 0xFF)) / 2
