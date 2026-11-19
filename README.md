@@ -60,7 +60,8 @@ A few things Tono does its own way:
 
 - Tabs live in the sidebar, in one list covering every session on every machine. Ctrl plus a number jumps straight
   to a tab, wherever it is.
-- Colors and the font come from your Omarchy theme. Tono doesn't have theme or font settings of its own.
+- Colors and the font come from your Omarchy theme, and follow it as it changes. You can pick one of Tono's own
+  themes or another terminal font instead, and where there is no Omarchy it uses those.
 - Commands and shortcuts are the same as in Rex's Mac app, with Ctrl where the Mac uses Cmd. If you've bound keys in
   Rex's `init.lua`, they work here too.
 - Tabs are named after what's running in them and where, like `nvim ~/dev/rex`. You can rename a tab, and that name

@@ -210,7 +210,7 @@ place of Cmd, and with Shift added where Ctrl on its own already means something
 | Ctrl+Shift+G / Ctrl+Alt+G | Go to the next match (older) / the previous one (newer) |
 | Shift+PageUp / Shift+PageDown | Scroll through history |
 | Ctrl+Shift+Up / Ctrl+Shift+Down | Jump to the previous / next shell prompt, if the shell marks its prompts |
-| Ctrl+= / Ctrl+- / Ctrl+0 | Larger / smaller / default text |
+| Ctrl+= / Ctrl+- / Ctrl+0 | Larger / smaller / default text in terminals, remembered |
 | Ctrl+Shift+/ | Show or hide the sidebar |
 | Ctrl+Shift+. | Show only the tabs whose programs are active, or every tab again |
 | Ctrl+` | Show or hide the debug log |
@@ -253,6 +253,42 @@ under `keys` if the server finds something wrong with a shortcut changed here.
 
 The debug log (Ctrl+`) is a panel at the bottom of the window that shows what Tono is doing: its connections, the
 events servers send, the requests that change something, and the commands it runs. It never records what you type.
+
+## Themes and the terminal's font
+
+On Omarchy, Tono looks like your desktop: it uses the desktop's theme and its monospace font, and changes when
+they change. That's on purpose, and it's a difference from Rex's Mac app, which has themes of its own.
+
+Without Omarchy (another Linux desktop, or a browser whose server isn't on an Omarchy machine) there is no desktop
+to follow, so Tono uses a theme and a font of its own: Tokyo Night, and JetBrains Mono, which is built in. Either
+way you can choose:
+
+- **Theme…** in the command palette lists Tono's own themes, which are Omarchy's stock themes, dark ones first and
+  then light. As you move through the list the whole window shows the highlighted theme, terminals included. Enter
+  keeps it, and Escape goes back to what you had. On Omarchy the list starts with **Follow Omarchy**, which is what
+  Tono does until you pick something else, and what brings it back to following the desktop.
+- **Terminal Font…** lists the built-in JetBrains Mono and the monospace fonts installed on the machine (in a
+  browser: the ones installed on the machine that serves the page), and shows the highlighted one the same way. On
+  Omarchy the first entry is **Omarchy's Font**, the default there. The font you pick is the terminals'. The rest of
+  the window stays in the desktop's font, or in JetBrains Mono where there's no Omarchy.
+- **Terminal Font Weight…** makes the terminals' text lighter or heavier, if the font comes in more than one weight.
+  Bold text stays bold.
+- Ctrl+=, Ctrl+- and Ctrl+0 change the size of the terminals' text, as before. The size is now remembered.
+
+What you choose is kept with your other settings, under `appearance` in `~/.config/kotlin-test/workspace.json`
+(in a browser, in that browser's storage), and only what you chose is written:
+
+```json
+"appearance": { "theme": "catppuccin-latte", "font_family": "Liberation Mono", "font_size": 14, "font_weight": 300 }
+```
+
+`theme` is a theme's name in lower case with dashes, as in Omarchy. Leave it out to follow the desktop. The
+built-in font is written as `tono:jetbrains-mono`. A theme Tono doesn't have, or a font that is no longer
+installed, counts as not chosen.
+
+The built-in JetBrains Mono has no Nerd Font symbols. On the desktop a symbol it lacks is taken from another
+installed font. In a browser there is none to take it from, so prompts that use those symbols show boxes until you
+choose a Nerd Font from the list.
 
 ## Selecting and copying
 

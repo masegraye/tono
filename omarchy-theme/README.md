@@ -79,13 +79,19 @@ omarchyAppearanceFlow().collect { ... }  // now, and again on every change
 readInstalledOmarchyPalettes()           // every theme installed on this machine
 ```
 
+## Trying an app without Omarchy
+
+Set `OMARCHY_ABSENT=1`, or the system property `omarchy.absent=true`, and the JVM library behaves as on a desktop
+that isn't Omarchy: `readOmarchyAppearance()` is null, `omarchyAppearanceFlow()` never emits and no installed themes
+are found. Nothing of Omarchy's is changed. It is for seeing an app's fallback on a machine that has Omarchy.
+
 ## What each platform can see
 
 | Platform | Theme | Font |
 | --- | --- | --- |
 | JVM on an Omarchy desktop | Live, from the files Omarchy writes | The Omarchy font, loaded by name |
 | Web, served with `omarchy-theme-ktor` | Live, pushed by the server | Default font |
-| Web on static hosting, Android, iOS, JVM elsewhere | A fallback palette (`bundledOmarchyPalettes`) | Default font |
+| Web on static hosting, Android, iOS, JVM elsewhere | A fallback palette, or one the app lets its user choose: every stock Omarchy theme is in `bundledOmarchyPalettes` | Default font |
 
 ## How it works
 

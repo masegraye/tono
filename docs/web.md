@@ -98,7 +98,10 @@ The image above was taken in a desktop browser's phone mode. Tono hasn't been ru
   so other sites open in your browser can't use it, and it only connects to this machine's Rex server and to Rex
   servers on your tailnet.
 - The theme follows the desktop live, as it does in the desktop app. The server also sends the desktop's monospace
-  font, so terminals use the same glyphs, and the desktop's sounds. When a character isn't in that font (a Chinese
+  font, so terminals use the same glyphs, and the desktop's sounds. If the serving machine isn't an Omarchy desktop,
+  or you choose a theme or font yourself, the page uses Tono's own themes and its built-in JetBrains Mono, or any
+  monospace font installed on the serving machine, which the server lists (`/api/tono/fonts`) and hands over by
+  name. See [Themes and the terminal's font](using-tono.md#themes-and-the-terminals-font). When a character isn't in that font (a Chinese
   character or an emoji, for example), the page fetches a Noto font from Google's font service the first time it
   needs one. Compose does this in every web app, and it's the only request the page makes to the internet.
 - Your settings, such as which machines are collapsed and which tab you were on, are stored in the browser, so each

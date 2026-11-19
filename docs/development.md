@@ -50,6 +50,21 @@ Inside a module, `src` holds code for every platform. `src@jvm` and `src@wasmJs`
 The package is still `org.example.kotlintest` and the settings directory is still `~/.config/kotlin-test`, because
 the project was called kotlin-test before it was called Tono.
 
+## Running as if Omarchy weren't there
+
+Tono follows the Omarchy desktop where there is one, and has themes and a font of its own for where there isn't.
+To see the second on a machine that has Omarchy, set `OMARCHY_ABSENT=1` (or the system property
+`-Domarchy.absent=true`): the theme library then reads nothing of the desktop, for the desktop app and for the
+server that feeds the web app alike. Nothing of Omarchy's is touched.
+
+```sh
+OMARCHY_ABSENT=1 task desktop:steady
+OMARCHY_ABSENT=1 task web
+```
+
+The tests in `tono/test@jvm/AppearanceRenderTest.kt` draw the app this way, in several themes and fonts, and leave
+the pictures in `build/appearance-renders/`.
+
 ## Tests
 
 ```sh
