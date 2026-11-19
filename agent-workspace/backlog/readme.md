@@ -54,7 +54,7 @@ The order proposed in inv-001, not yet agreed:
 | 024 | [Hosts over SSH](backlog-024-ssh-hosts.md) | Hosts and other clients | large | captured |
 | 025 | [Let other clients drive Tono](backlog-025-remote-control.md) | Hosts and other clients | medium | captured |
 | 026 | [Download a file from the terminal's machine](backlog-026-downloads.md) | Hosts and other clients | medium | captured (blocked: needs server API 13) |
-| 027 | [Per-host icons](backlog-027-per-host-icons.md) | Hosts and other clients | small | captured |
+| 027 | [Per-host icons](backlog-027-per-host-icons.md) | Hosts and other clients | small | done |
 | 028 | [A settings screen](backlog-028-settings-screen.md) | The app | large | captured |
 | 029 | [Try the web app in Safari and on real phones](backlog-029-safari-and-real-devices.md) | The web app | small | captured |
 | 030 | [Serve fallback fonts ourselves](backlog-030-fallback-fonts-from-our-own-server.md) | The web app | medium | captured |
