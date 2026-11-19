@@ -55,6 +55,40 @@ while the main checkout's server stayed up on 8080.
   adding library functions will conflict there and in `native/ghostty-vt.symbols` and
   `webApp/resources/ghostty-glue.js`. Work that binds new functions goes one at a time.
 
+## A desktop check with real keys and mouse buttons, on a display of its own
+
+The desktop app can be sent real key presses and mouse buttons without the desktop's
+keyboard, pointer or focus, by running it on an X server nested in a window that sits on a
+hidden Hyprland workspace. Worked out for backlog-014 on 2026-11-18; still ask the
+orchestrator first, since it opens a window.
+
+```bash
+# The server: one window, on a hidden workspace, never focused. Pick a display number of your own.
+hyprctl dispatch "hl.dsp.exec_cmd(\"Xwayland :77 -geometry 1400x900 -noreset -nolisten tcp\", { workspace = \"special:<name> silent\" })"
+DISPLAY=:77 xdotool getdisplaygeometry || exit 1     # not up: stop, never fall back to the real display
+
+# The app, as a client of that server only
+env -u WAYLAND_DISPLAY DISPLAY=:77 java --enable-native-access=ALL-UNNAMED \
+  --add-opens=java.desktop/sun.awt.X11=ALL-UNNAMED -jar <the packaged jar> --workspace <file> &
+WIN=$(DISPLAY=:77 xdotool search --name "<scratch session's name>" | head -1)   # the window whose title names the session
+
+DISPLAY=:77 xdotool mousemove --window $WIN 900 500 click 1   # a click gives the app the keyboard; there is no window manager
+DISPLAY=:77 xdotool key ctrl+2
+DISPLAY=:77 xdotool click 8                                   # the mouse's back button; 9 is forward, 6 and 7 the wheel tilted
+```
+
+What to know:
+
+- `DISPLAY` goes on every `xdotool` call. Without it the keys go to the real desktop.
+- There is no window manager in there, so `xdotool windowfocus` and `windowactivate` don't
+  give the app the keyboard. A left click in the window does; wait two seconds after it.
+- The window is never shown, so the app draws late: its window title was seen a step behind
+  what it had done. Read what happened from the server (`rex window ls -s <session> --json`,
+  `active_window_id`) and not from the title or a screenshot.
+- End the app first, then the scratch session, then the server. `pkill -f "Xwayland :77"`
+  also matches the shell running it; find the process by its arguments and kill its number.
+  Never `pkill Xwayland`: the desktop's own is one too.
+
 ## What isn't in the repository yet
 
 The scripts that drive the web app in a headless browser, and the ones that put a real
