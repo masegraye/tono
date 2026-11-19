@@ -213,6 +213,13 @@ class AppearanceState internal constructor(private val client: RexClient, deskto
     /** A weight being tried, the same way. */
     internal var triedWeight: Int? by mutableStateOf(null)
 
+    /**
+     * Whether a font or a weight is being tried. Terminals are drawn in it meanwhile, at the
+     * size their servers have: a size asked for each font gone past in a list would reflow
+     * every terminal on screen, for every other client too. See DesiredGrid in TerminalView.kt.
+     */
+    val tryingFont: Boolean get() = triedFont != null || triedWeight != null
+
     val desktopHasFont: Boolean get() = pageHasDesktopFont || desktop?.fontName != null
 
     /** The palette everything is drawn with. */

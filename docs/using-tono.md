@@ -268,7 +268,8 @@ way you can choose:
   keeps it, and Escape goes back to what you had. On Omarchy the list starts with **Follow Omarchy**, which is what
   Tono does until you pick something else, and what brings it back to following the desktop.
 - **Terminal Font…** lists the built-in JetBrains Mono and the monospace fonts installed on the machine (in a
-  browser: the ones installed on the machine that serves the page), and shows the highlighted one the same way. On
+  browser: the ones installed on the machine that serves the page), and shows the highlighted one the same way.
+  While you look, the terminal keeps its size, so nothing changes for anyone else using it until you press Enter. On
   Omarchy the first entry is **Omarchy's Font**, the default there. The font you pick is the terminals'. The rest of
   the window stays in the desktop's font, or in JetBrains Mono where there's no Omarchy.
 - **Terminal Font Weight…** makes the terminals' text lighter or heavier, if the font comes in more than one weight.

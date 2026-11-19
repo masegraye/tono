@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | done (commits 9800e33 and the one after it, 2026-11-19) |
+| Status | done (commits on `agent/builtin-themes`, 2026-11-19) |
 | Area | The app |
 | Size | medium |
 | Source | Mase, 2026-11-19, comparing with Rex for Mac's Themes and Terminal settings |
@@ -70,6 +70,10 @@ it. Built by a worker; described for users in `docs/using-tono.md` ("Themes and 
 - The weight is for text that isn't bold. Bold stays 700, or 900 where the weight chosen is 600 or more.
 - The action names are guesses: Rex.app's names for these weren't found in the Rex documentation on this machine.
 - On the web the page's background and `theme-color` now follow the theme.
+- A font or weight being tried in its picker is drawn at once, at the size the server has for the terminal: no
+  size is asked of the server while the list is gone through, since each would reflow the terminal for every
+  other client. One is asked when a font is chosen, and none on Escape (`DesiredGrid` in `TerminalView.kt`;
+  asked for by the orchestrator in review). Until then text in a wider font is cut off at the pane's edge.
 - How a selection is drawn (a wash of the foreground) is unchanged; the palette's selection color is carried but not used.
 
 ## Checked
@@ -92,8 +96,6 @@ it. Built by a worker; described for users in `docs/using-tono.md` ("Themes and 
   changes". The settings section was only drawn offscreen, since it isn't in the settings yet.
 - Firefox, Safari and a phone. A machine that really has no Omarchy, or no fontconfig.
 - The built-in font has no Nerd Font symbols. On the web they show as boxes until a Nerd Font is chosen.
-- Trying a font or a weight in the picker changes the size of the cells, so the terminal on screen is resized on
-  its server while the list is gone through, as it is by the font size keys.
 - On the web, a page with nothing chosen shows the default theme for a moment before the server has said what the
   desktop's is, as it showed the old fallback before.
 - The first part of the web check was run by mistake against Mase's real home server (stopped by the orchestrator;

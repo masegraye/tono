@@ -111,6 +111,8 @@ import kotlin.math.roundToInt
  * @param focused whether this is the terminal the user is typing into
  * @param onKey a key was pressed, released, or is repeating while this view had focus
  * @param onText text was typed that no key press stands for, as a keyboard on a screen does
+ * @param holdGrid while true no size is reported, whatever the cells come to: a font is
+ *   being tried, and the terminal is drawn in it at the size the server has
  * @param focusRequests change it to hand the keyboard back to this view, if it is the focused one
  * @param controlHeld whether Control is down, which marks the link under the pointer, to be opened with a click
  * @param onOpenLink a link was clicked with Control held; the address is one of the kinds that are opened
@@ -129,6 +131,7 @@ fun TerminalView(
     onText: (String) -> Unit = {},
     onPointerOver: () -> Unit = {},
     fontSize: TextUnit = 13.sp,
+    holdGrid: Boolean = false,
     focusRequests: Int = 0,
     controlHeld: Boolean = false,
     onOpenLink: (url: String) -> Unit = {},
@@ -163,16 +166,7 @@ fun TerminalView(
     val pictures = remember(terminal) { Pictures() }
 
     var size by remember { mutableStateOf(IntSize.Zero) }
-    // Wait for a resize to settle before asking for a new grid. Keyed on the terminal too:
-    // going to another tab puts a different terminal in the same space, and its size has to
-    // be said even though the space didn't change.
-    LaunchedEffect(terminal, size, cell) {
-        if (size.width <= 0 || size.height <= 0) return@LaunchedEffect
-        delay(150)
-        val columns = (size.width / cell.width).toInt()
-        val rows = (size.height / cell.height).toInt()
-        if (columns >= 2 && rows >= 1) onDesiredGrid(GridSize(columns, rows, cell.width.roundToInt(), cell.height.roundToInt()))
-    }
+    DesiredGrid(terminal, size, cell, holdGrid, onDesiredGrid)
 
     fun input(position: Offset, action: MouseAction, button: MouseButton?, event: PointerEvent? = null): MouseInput {
         // The encoder counts in whole pixels and cells are drawn a fraction wide, so the
@@ -452,6 +446,41 @@ internal fun DrawScope.drawTerminal(
     frame.selection.forEach { drawSelection(it, frame, cell) }
     link.forEach { drawLinkUnderline(it, frame, cell) }
     frame.cursor?.let { drawCursor(it, frame, cell, active = cursorActive) }
+}
+
+/**
+ * Reports the grid that would fill [size] with cells of [cell]'s size, once a resize has
+ * settled. Keyed on the terminal too: going to another tab puts a different terminal in the
+ * same space, and its size has to be said even though the space didn't change.
+ *
+ * While [hold] is true nothing is reported: a font or a weight is being tried in a picker,
+ * and a size said for each one tried would reflow the terminal for every client of its
+ * server. When the hold ends the size is said once if what was tried was kept and changed
+ * it, and not at all if the cells are back as they were.
+ */
+@Composable
+internal fun DesiredGrid(terminal: Any, size: IntSize, cell: CellSize, hold: Boolean, onDesiredGrid: (GridSize) -> Unit) {
+    val said = remember(terminal) { SaidGrid() }
+    LaunchedEffect(terminal, size, cell, hold) {
+        if (hold) { said.held = true; return@LaunchedEffect }
+        if (size.width <= 0 || size.height <= 0) return@LaunchedEffect
+        delay(150)
+        val columns = (size.width / cell.width).toInt()
+        val rows = (size.height / cell.height).toInt()
+        if (columns < 2 || rows < 1) return@LaunchedEffect
+        val grid = GridSize(columns, rows, cell.width.roundToInt(), cell.height.roundToInt())
+        val unchangedByTrying = said.held && grid == said.grid
+        said.held = false
+        if (unchangedByTrying) return@LaunchedEffect
+        said.grid = grid
+        onDesiredGrid(grid)
+    }
+}
+
+/** The grid last reported for a terminal, and whether reporting has been held since. */
+private class SaidGrid {
+    var grid: GridSize? = null
+    var held = false
 }
 
 internal fun measureCell(measurer: TextMeasurer, style: TextStyle, density: Density, fonts: FontFamily.Resolver? = null): CellSize {

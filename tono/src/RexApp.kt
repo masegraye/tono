@@ -965,6 +965,8 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, a
                     onDesiredGrid = { host.setDesiredGrid(pane.blockId, it) },
                     onPointerOver = { host.pointerOver(pane.blockId) },
                     fontSize = ui.fontSize.sp,
+                    // A font being tried in its picker is drawn, and no size is asked of the server for it.
+                    holdGrid = ui.appearance.tryingFont,
                     focusRequests = ui.focusRequests,
                     controlHeld = ui.controlHeld,
                     onOpenLink = { url -> openLink(url) { message, isError -> ui.client.log.add("links", message, isError = isError) } },

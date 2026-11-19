@@ -10,6 +10,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.IntSize
+import org.example.kotlintest.rex.GridSize
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
@@ -302,6 +308,118 @@ class AppearanceRenderTest {
             assertTrue(letters > 0f)
             assertEquals(letters, blanks, 0.01f, "weight $weight, size $size")
             assertEquals(letters / 100, cell, 0.01f)
+        }
+    }
+
+    /** A scene that is kept, and drawn on for long enough that a size waiting to be said is said. */
+    private class Kept(content: @Composable () -> Unit) : AutoCloseable {
+        private val scene = ImageComposeScene(600, 300, Density(1f)) { content() }
+        private var millis = 0L
+
+        // A size is said 150 ms after the cells last changed, by the clock on the wall.
+        fun settle() = repeat(25) {
+            millis += 16
+            scene.render(millis * 1_000_000)
+            Snapshot.sendApplyNotifications()
+            Thread.sleep(12)
+        }
+
+        override fun close() = scene.close()
+    }
+
+    @Test
+    fun `no size is asked for while cells change under a hold, one when it ends changed, none when it ends as it was`() {
+        var width by mutableStateOf(8f)
+        var hold by mutableStateOf(false)
+        val asked = mutableListOf<GridSize>()
+        Kept { DesiredGrid("terminal", IntSize(800, 400), remember(width) { CellSize(width, 20f) }, hold) { asked += it } }.use { scene ->
+            scene.settle()
+            assertEquals(listOf(GridSize(100, 20, 8, 20)), asked)
+
+            // A picker opens and three fonts are gone through.
+            hold = true
+            for (tried in listOf(8f, 10f, 7f, 9f)) {
+                width = tried
+                scene.settle()
+            }
+            assertEquals(1, asked.size, "nothing is asked while trying")
+            // Escape: the cells are as they were, and nothing is asked.
+            width = 8f
+            hold = false
+            scene.settle()
+            assertEquals(1, asked.size, "nothing is asked when what was tried is dropped")
+
+            // Again, and this time the font tried is kept.
+            hold = true
+            width = 10f
+            scene.settle()
+            width = 16f
+            scene.settle()
+            assertEquals(1, asked.size)
+            hold = false
+            scene.settle()
+            assertEquals(listOf(GridSize(100, 20, 8, 20), GridSize(50, 20, 16, 20)), asked, "the size is asked for once, when the font is chosen")
+
+            // Without a hold a change of cells is asked for as before: the font size keys.
+            width = 20f
+            scene.settle()
+            assertEquals(3, asked.size)
+        }
+    }
+
+    @Test
+    fun `going through the font picker asks no terminal size of the server, choosing a font asks one, and Escape none`() {
+        val installed = dev.mg.omarchy.theme.readInstalledMonospaceFonts().map { TerminalFontInfo(it.family, it.weights) }
+        val ui = app()
+        ui.appearance.installedFonts = installed
+        val commands = RexCommands(ui)
+        val asked = mutableListOf<GridSize>()
+        val cells = mutableMapOf<String?, Float>()
+        Kept {
+            TonoTheme(ui) {
+                val font = LocalTerminalFont.current!!
+                val style = TextStyle(fontFamily = font.family, fontWeight = font.weight, fontSize = ui.fontSize.sp)
+                val measurer = rememberTextMeasurer(cacheSize = 0)
+                val cell = remember(style) { measureCell(measurer, style, Density(1f)) }
+                cells[ui.appearance.fontFamily] = cell.width
+                DesiredGrid("terminal", IntSize(900, 500), cell, ui.appearance.tryingFont) { asked += it }
+            }
+        }.use { scene ->
+            fun fonts() = paletteItems(ui, commands, org.example.kotlintest.rex.Keymap(emptyList()), PaletteMode.Fonts)
+            scene.settle()
+            assertEquals(1, asked.size, "the size is said once at the start")
+
+            // Down the whole list, as the arrow keys go: every font is drawn, and none is asked for.
+            for (item in fonts()) {
+                item.onHighlight!!()
+                assertTrue(ui.appearance.tryingFont)
+                scene.settle()
+            }
+            assertEquals(1, asked.size, "nothing is asked while going through the list")
+            // Escape.
+            ui.appearance.endTrying()
+            scene.settle()
+            assertEquals(1, asked.size, "nothing is asked when the list is closed without choosing")
+            assertEquals(BUNDLED_FONT, ui.appearance.fontFamily)
+
+            // A font with cells of another size, gone to and chosen. A machine with none has no more to show.
+            val other = fonts().firstOrNull { item -> cells.entries.any { (family, width) -> family == item.title && width != cells[BUNDLED_FONT] } } ?: return
+            other.onHighlight!!()
+            scene.settle()
+            assertEquals(1, asked.size)
+            other.run()
+            scene.settle()
+            assertEquals(2, asked.size, "the size is asked for once, when the font is chosen")
+            assertEquals(other.title, ui.client.appearance.value.fontFamily)
+
+            // The weights of the font now chosen, tried and dropped.
+            for (item in paletteItems(ui, commands, org.example.kotlintest.rex.Keymap(emptyList()), PaletteMode.FontWeights)) {
+                item.onHighlight!!()
+                scene.settle()
+            }
+            ui.appearance.endTrying()
+            scene.settle()
+            assertEquals(2, asked.size, "nothing is asked for weights tried and dropped")
         }
     }
 
