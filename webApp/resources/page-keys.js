@@ -6,7 +6,7 @@
 // which it does for keys that reach a terminal, but not for a key it has no use for at that
 // moment (a shortcut pressed while a dialog is open), and not at all while the page's focus
 // is outside its canvas, as it is when the page has just loaded. Three things here close
-// those gaps, a fourth is for a keyboard on a screen, a fifth for a mouse's side buttons, and a sixth for its middle one. Each is about the page rather than
+// those gaps, a fourth is for a keyboard on a screen, a fifth for a mouse's side buttons, a sixth for its middle one, and a seventh for its right one. Each is about the page rather than
 // the app, which is why they are not in it.
 (() => {
   'use strict';
@@ -132,6 +132,22 @@
   // text field of the page's own keeps what the browser does there.
   addEventListener('mousedown', (event) => {
     if (event.button !== 1) return;
+    const target = event.composedPath ? event.composedPath()[0] : event.target;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+    event.preventDefault();
+  });
+
+  // --- 7. The right button opens the app's menu, and not the browser's as well ---
+  //
+  // A right click on a pane opens the pane's own menu (Copy, Paste, Split Right and the
+  // rest), and with Shift held it goes to a program that tracks the mouse. The browser's
+  // menu, with its Back, Reload and Save As, would open on top of either. The app hears
+  // the press whatever happens here; cancelling the browser's menu is what keeps it away.
+  // A text field of the page's own keeps the browser's menu, which is where its paste is.
+  //
+  // Firefox opens its own menu on Shift and a right click whatever a page says, which is
+  // its way out of pages that do this. There the program still gets the click, under it.
+  addEventListener('contextmenu', (event) => {
     const target = event.composedPath ? event.composedPath()[0] : event.target;
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
     event.preventDefault();

@@ -20,12 +20,19 @@ import org.example.kotlintest.ghostty.MouseInput
  * then hears nothing of that click. A click is the button going down and coming up in one
  * place; anything else with the middle button pastes nothing.
  *
+ * The right button asks for the pane's menu, wherever it is pressed and whatever the
+ * program asked: the program hears nothing of that press, nor of the drag and the release
+ * that follow it. With Shift held it is the program's instead, if the program asked for the
+ * mouse, and otherwise still asks for the menu. This is Rex Rune's rule, and the other way
+ * round from the middle button's, where Shift is what takes the click away from the program.
+ *
  * Used on the terminal's thread, like the terminal.
  *
  * @param linkAt the link at a cell of the terminal's view, if there is one
  * @param open called with the address of a link that was clicked with Control held
  * @param selected called when the left button comes up after selecting, whether or not anything is selected then
  * @param paste called for a middle click that asks for a paste
+ * @param menu called for a press of the right button that asks for the pane's menu
  */
 internal class TerminalPointer(
     private val mouse: GhosttyMouse,
@@ -34,6 +41,7 @@ internal class TerminalPointer(
     private val open: (url: String) -> Unit = {},
     private val selected: () -> Unit = {},
     private val paste: () -> Unit = {},
+    private val menu: () -> Unit = {},
 ) {
     /** Whether the left button is held after a press that began selecting, so that what the pointer does next is selecting too. */
     private var selecting = false
@@ -46,6 +54,9 @@ internal class TerminalPointer(
 
     /** Where that press was, while the button hasn't moved from it. A release there pastes. */
     private var pasteAt: MouseInput? = null
+
+    /** Whether the right button is held after a press that asked for the menu, which the program wasn't told of. */
+    private var rightHeld = false
 
     /**
      * Where the pointer is held past the top or bottom edge while selecting, or null. While
@@ -82,6 +93,28 @@ internal class TerminalPointer(
                 if (at?.isNear(input) == true) paste()
                 return NOTHING
             }
+        }
+        val right = input.button == MouseButton.Right
+        if (rightHeld) {
+            // The program never heard of the press, so it isn't told of the drag or the release either.
+            if (right && input.action != MouseAction.Press) {
+                if (input.action == MouseAction.Release) rightHeld = false
+                return NOTHING
+            }
+            // The button came up without this hearing of it, as it does when the menu opened under the pointer.
+            rightHeld = false
+        }
+        if (right && input.action == MouseAction.Press) {
+            // Never in the middle of selecting: the left button is down, and this is a slip.
+            if (selecting) return NOTHING
+            if (input.shift && isInside(terminal, input)) {
+                val report = mouse.encode(terminal, input)
+                // The program's, and so are the drag and the release, which go the usual way below.
+                if (report.isNotEmpty()) return report
+            }
+            rightHeld = true
+            menu()
+            return NOTHING
         }
         if (middle && input.action == MouseAction.Press && middlePastes) {
             // Never in the middle of selecting: the left button is down, and this is a slip.

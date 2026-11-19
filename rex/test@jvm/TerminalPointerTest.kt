@@ -35,6 +35,15 @@ class TerminalPointerTest {
         /** How many pastes a middle click asked for. */
         var pastes = 0
 
+        /** How many times the right button asked for the pane's menu. */
+        var menus = 0
+
+        fun rightClick(x: Float, y: Float = 10f, shift: Boolean = false, toX: Float = x): List<String> = listOf(
+            pointer(MouseAction.Press, MouseButton.Right, x, y, shift),
+            pointer(MouseAction.Motion, MouseButton.Right, toX, y, shift),
+            pointer(MouseAction.Release, MouseButton.Right, toX, y, shift),
+        )
+
         fun middleClick(x: Float, y: Float = 10f, shift: Boolean = false, toX: Float = x): List<String> = listOf(
             pointer(MouseAction.Press, MouseButton.Middle, x, y, shift),
             pointer(MouseAction.Motion, MouseButton.Middle, toX, y, shift),
@@ -63,6 +72,7 @@ class TerminalPointerTest {
                         open = { scene.opened += it },
                         selected = { scene.finished += scene.selected },
                         paste = { scene.pastes++ },
+                        menu = { scene.menus++ },
                     )
                     scene = Scene(terminal, selection, pointer)
                     scene.body()
@@ -413,5 +423,103 @@ class TerminalPointerTest {
         assertEquals("", pointer(MouseAction.Release, MouseButton.Middle, 45f, 10f))
         assertEquals(1, pastes)
         assertEquals("$ESC[<1;5;1M", pointer(MouseAction.Press, MouseButton.Middle, 45f, 10f))
+    }
+
+    // --- The right button, which asks for the pane's menu ---
+
+    @Test
+    fun `a right press asks for the menu once, and the program hears none of that click`() = scene("hello world") {
+        assertEquals("", pointer(MouseAction.Press, MouseButton.Right, 45f, 10f))
+        assertEquals(1, menus)
+
+        assertEquals("", pointer(MouseAction.Motion, MouseButton.Right, 95f, 10f))
+        assertEquals("", pointer(MouseAction.Release, MouseButton.Right, 95f, 10f))
+        assertEquals(1, menus)
+    }
+
+    @Test
+    fun `a program that asked for the mouse still doesn't get a right click, and the menu is asked for`() = scene("hello world$tracking") {
+        assertEquals(listOf("", "", ""), rightClick(45f, toX = 95f))
+        assertEquals(1, menus)
+
+        // The next click with another button is the program's as ever.
+        assertEquals("$ESC[<0;1;1M", pointer(MouseAction.Press, MouseButton.Left, 1f, 10f))
+    }
+
+    @Test
+    fun `with shift, a program that asked for the mouse gets the right click, and no menu is asked for`() = scene("hello world$tracking") {
+        val sent = rightClick(45f, shift = true)
+
+        // Button 2 with Shift (4) is 6, pressed (M) and let go (m) in the fifth cell.
+        assertEquals("$ESC[<6;5;1M", sent.first())
+        assertEquals("$ESC[<6;5;1m", sent.last())
+        assertEquals(0, menus)
+    }
+
+    @Test
+    fun `letting go of shift before the button doesn't keep the release from the program`() = scene("hello world$tracking") {
+        assertEquals("$ESC[<6;5;1M", pointer(MouseAction.Press, MouseButton.Right, 45f, 10f, shift = true))
+
+        assertEquals("$ESC[<2;5;1m", pointer(MouseAction.Release, MouseButton.Right, 45f, 10f))
+        assertEquals(0, menus)
+    }
+
+    @Test
+    fun `with shift over a program that hasn't asked for the mouse, the menu is asked for all the same`() = scene("hello world") {
+        assertEquals(listOf("", "", ""), rightClick(45f, shift = true))
+
+        assertEquals(1, menus)
+    }
+
+    @Test
+    fun `a right press outside the terminal asks for the menu, with shift or without`() = scene("hello world$tracking") {
+        rightClick(45f, y = 90f)
+        rightClick(205f, shift = true)
+
+        assertEquals(2, menus)
+    }
+
+    @Test
+    fun `a right click leaves the selection as it is, for the menu to copy`() = scene("hello world") {
+        drag(fromX = 1f, toX = 49f)
+
+        rightClick(85f)
+
+        assertEquals("hello", selected)
+        assertEquals(1, menus)
+    }
+
+    @Test
+    fun `a right press while selecting asks for nothing, and the selection goes on`() = scene("hello world") {
+        pointer(MouseAction.Press, MouseButton.Left, 1f, 10f)
+        pointer(MouseAction.Motion, MouseButton.Left, 29f, 10f)
+
+        pointer(MouseAction.Press, MouseButton.Right, 29f, 10f)
+        pointer(MouseAction.Motion, MouseButton.Left, 49f, 10f)
+        pointer(MouseAction.Release, MouseButton.Left, 49f, 10f)
+
+        assertEquals(0, menus)
+        assertEquals("hello", selected)
+    }
+
+    @Test
+    fun `a release the menu took is not waited for, and the next press is told as it should be`() = scene("hello world$tracking") {
+        // The menu opens under the pointer and takes the release, so this never hears of it.
+        pointer(MouseAction.Press, MouseButton.Right, 45f, 10f)
+
+        assertEquals("$ESC[<0;1;1M", pointer(MouseAction.Press, MouseButton.Left, 1f, 10f))
+        assertEquals("$ESC[<0;1;1m", pointer(MouseAction.Release, MouseButton.Left, 1f, 10f))
+        // And a second right press asks again.
+        pointer(MouseAction.Press, MouseButton.Right, 45f, 10f)
+        assertEquals(2, menus)
+    }
+
+    @Test
+    fun `a program that starts asking while the right button is down is told nothing of that click`() = scene("hello world") {
+        pointer(MouseAction.Press, MouseButton.Right, 45f, 10f)
+        terminal.write(tracking.encodeToByteArray())
+
+        assertEquals("", pointer(MouseAction.Release, MouseButton.Right, 45f, 10f))
+        assertEquals(1, menus)
     }
 }

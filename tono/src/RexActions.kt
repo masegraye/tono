@@ -370,6 +370,14 @@ internal fun clientActions(): List<ClientAction> = buildList {
             onConfirm = { owner.closeBlock(blockId) },
         )
     })
+    // Rex Rune's name and key for the menu a pane also gets from the right button (PaneMenu.kt).
+    // Rex.app has the menu and no action for it. Not while the sidebar is shown instead of
+    // the terminals, as in a narrow window, when there is no pane on screen to open it on.
+    add(ClientAction("pane.actions", "Pane Actions…", "Pane", "menu context right click button popup", keys = listOf("ctrl+shift+space"), available = { focusedBlockId != null && !(narrow && sidebarVisible) }) {
+        val blockId = focusedBlockId ?: return@ClientAction
+        val owner = host ?: return@ClientAction
+        if (paneMenu == null) openPaneMenu(owner, blockId, at = null) else closePaneMenu()
+    })
     add(ClientAction("pane.paste", "Paste into Pane", "Pane", "clipboard insert", keys = listOf("ctrl+shift+v"), available = hasTerminal) {
         val blockId = focusedBlockId ?: return@ClientAction
         val owner = host ?: return@ClientAction

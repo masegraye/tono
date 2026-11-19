@@ -71,7 +71,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -228,7 +230,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Box(
             Modifier.fillMaxSize().focusRequester(rootFocus).focusable().onPreviewKeyEvent { event ->
-                if (ui.palette != null || ui.renamingAnything) return@onPreviewKeyEvent false // an overlay has the keyboard
+                if (ui.palette != null || ui.renamingAnything || ui.paneMenu != null) return@onPreviewKeyEvent false // an overlay has the keyboard
                 when (event.type) {
                     KeyEventType.KeyDown -> {
                         val chord = keyChord(event) ?: return@onPreviewKeyEvent false
@@ -884,6 +886,7 @@ private fun HostContent(host: RexHost, ui: RexUiState, commands: RexCommands, ke
                                 onFocus = { host.focusBlock(pane.blockId) },
                                 host = host,
                                 ui = ui,
+                                commands = commands,
                             )
                             pane.name?.let { PaneNameChip(it, Modifier.align(Alignment.TopEnd)) }
                         }
@@ -908,17 +911,30 @@ private fun HostContent(host: RexHost, ui: RexUiState, commands: RexCommands, ke
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, alone: Boolean, onFocus: () -> Unit, host: RexHost, ui: RexUiState) {
+private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, alone: Boolean, onFocus: () -> Unit, host: RexHost, ui: RexUiState, commands: RexCommands) {
+    val paneMargin = with(LocalDensity.current) { PANE_PADDING.toPx() }
     // Which of several panes has the keyboard is shown by the others being dimmed, not by
     // an outline round the one: an outline round the only pane of a tab says nothing.
     val dim = if (focused || alone) Color.Transparent else MaterialTheme.colorScheme.background.copy(alpha = UNFOCUSED_PANE_DIM)
     // Files dragged from outside the app can be dropped on a terminal: see Uploads.kt.
     var filesOver by remember { mutableStateOf(false) }
     val takesFiles = pane.isTerminal && terminal != null && !ui.overlayOpen
+    val showsTerminal = pane.isTerminal && terminal != null
     Box(
         Modifier
             .fillMaxSize()
+            // The right button asks for the pane's menu. Over a terminal that is the terminal's
+            // to say, since Shift gives the click to a program that tracks the mouse; on the
+            // margin round it, and on a pane with no terminal, it is said here.
+            .onPointerEvent(PointerEventType.Press) { event ->
+                if (event.button != PointerButton.Secondary) return@onPointerEvent
+                val at = event.changes.firstOrNull()?.position ?: return@onPointerEvent
+                val margin = PANE_PADDING.toPx()
+                val overTerminal = showsTerminal && at.x >= margin && at.y >= margin && at.x < size.width - margin && at.y < size.height - margin
+                if (!overTerminal) ui.openPaneMenu(host, pane.blockId, at)
+            }
             .fileDropTarget(onHover = { filesOver = it }) { offer ->
                 if (!takesFiles) return@fileDropTarget
                 // The pane the files were dropped on is the one the paths are typed in, so it has the keyboard next.
@@ -956,6 +972,7 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, a
                     middlePastes = ui.middlePastes,
                     onSelected = { ui.selectionFinished(terminal) },
                     onMiddlePaste = { ui.pastePrimarySelection(host, pane.blockId) },
+                    onMenu = { at -> ui.openPaneMenu(host, pane.blockId, at + Offset(paneMargin, paneMargin)) },
                 )
                 when (val current = status) {
                     TerminalSession.Status.Connecting -> Notice("Restoring…")
@@ -965,6 +982,7 @@ private fun Pane(pane: PaneView, terminal: TerminalSession?, focused: Boolean, a
             }
         }
         PaneUploads(host, pane.blockId, dropping = filesOver && takesFiles)
+        ui.paneMenu?.takeIf { it.host === host && it.blockId == pane.blockId }?.let { PaneMenuPopup(it, ui, commands) }
     }
 }
 

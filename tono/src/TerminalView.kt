@@ -113,6 +113,7 @@ import kotlin.math.roundToInt
  * @param focusRequests change it to hand the keyboard back to this view, if it is the focused one
  * @param controlHeld whether Control is down, which marks the link under the pointer, to be opened with a click
  * @param onOpenLink a link was clicked with Control held; the address is one of the kinds that are opened
+ * @param onMenu the right button asked for the pane's menu, at this point of the view
  * @param topEndInset how far down the top right corner is taken by something drawn over this view, which the search bar keeps clear of
  */
 @OptIn(ExperimentalComposeUiApi::class)
@@ -134,6 +135,7 @@ fun TerminalView(
     middlePastes: Boolean = false,
     onSelected: () -> Unit = {},
     onMiddlePaste: () -> Unit = {},
+    onMenu: (at: Offset) -> Unit = {},
 ) {
     val frame by terminal.frame.collectAsState()
     val fontFamily = MaterialTheme.typography.bodyMedium.fontFamily ?: FontFamily.Monospace
@@ -192,11 +194,15 @@ fun TerminalView(
     // either does is a setting's to say (see SelectionCopy.kt).
     val selected by rememberUpdatedState(onSelected)
     val middlePaste by rememberUpdatedState(onMiddlePaste)
+    // And a press of the right button that asks for the pane's menu, which opens where the press was.
+    val menu by rememberUpdatedState(onMenu)
+    val rightPress = remember(terminal) { RightPress() }
     LaunchedEffect(terminal) {
         terminal.gestures.collect { gesture ->
             when (gesture) {
                 TerminalSession.Gesture.Selected -> selected()
                 TerminalSession.Gesture.Paste -> middlePaste()
+                TerminalSession.Gesture.Menu -> menu(rightPress.position)
             }
         }
     }
@@ -313,7 +319,12 @@ fun TerminalView(
             }
             // The pointer, for programs that track it (Neovim, htop, tmux). Each event is
             // offered to the terminal, which knows what its program asked to be told.
-            .onPointerEvent(PointerEventType.Press) { event -> mouseButton(event.button)?.let { report(event, MouseAction.Press, it) } }
+            .onPointerEvent(PointerEventType.Press) { event ->
+                mouseButton(event.button)?.let { button ->
+                    if (button == MouseButton.Right) event.changes.firstOrNull()?.let { rightPress.position = it.position }
+                    report(event, MouseAction.Press, button)
+                }
+            }
             .onPointerEvent(PointerEventType.Release) { event -> mouseButton(event.button)?.let { report(event, MouseAction.Release, it) } }
             // With the button held, crossing the view's edge is one more step of a drag: a
             // selection is dragged past the edge, and the crossing itself arrives as one of these.
@@ -600,6 +611,11 @@ private const val SELECTED_MATCH_ALPHA = 0.5f
 private class Pointing {
     var position: Offset? = null
     var told = false
+}
+
+/** Where the right button last went down over a terminal's view, which is where its menu opens if the terminal asks for one. */
+private class RightPress {
+    var position = Offset.Zero
 }
 
 /** Underlines the cells of a link that a click would open, in the terminal's foreground color whatever the text's own. */

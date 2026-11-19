@@ -100,6 +100,21 @@ class RexUiState(val client: RexClient) {
     var renamingPane: PaneRename? by mutableStateOf(null)
     var renamingSession: SessionRename? by mutableStateOf(null)
 
+    /** The menu of a pane, while it is open: see PaneMenu.kt. */
+    var paneMenu: PaneMenu? by mutableStateOf(null)
+
+    /** Opens the menu of a pane, which is given the keyboard if it doesn't have it, since that is the pane actions act on. */
+    fun openPaneMenu(host: RexHost, blockId: String, at: androidx.compose.ui.geometry.Offset?) {
+        if (palette != null || renamingAnything || confirmation != null) return
+        if (hostState?.window?.keyboardBlockId != blockId) host.focusBlock(blockId)
+        paneMenu = PaneMenu(host, blockId, at)
+    }
+
+    fun closePaneMenu() {
+        paneMenu = null
+        returnFocusToTerminal()
+    }
+
     /** Whether one of the dialogs that ask for a name is open. It has the keyboard, so no key is a shortcut meanwhile. */
     val renamingAnything: Boolean get() = renaming != null || renamingPane != null || renamingSession != null
 
@@ -213,8 +228,8 @@ class RexUiState(val client: RexClient) {
     var focusRequests by mutableIntStateOf(0)
         private set
 
-    /** Whether something is open over the terminals and has the keyboard: the palette, or a dialog. */
-    val overlayOpen: Boolean get() = palette != null || renamingAnything || confirmation != null
+    /** Whether something is open over the terminals and has the keyboard: the palette, a dialog, or a pane's menu. */
+    val overlayOpen: Boolean get() = palette != null || renamingAnything || confirmation != null || paneMenu != null
 
     /**
      * Whether text a program copied should go on the clipboard: see [takesCopy].

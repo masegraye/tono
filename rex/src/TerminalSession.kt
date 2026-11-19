@@ -99,6 +99,9 @@ class TerminalSession internal constructor(
 
         /** A middle click that asks for a paste: see [mouse]. */
         Paste,
+
+        /** A press of the right button that asks for the pane's menu: see [mouse]. */
+        Menu,
     }
 
     private val mutableGestures = MutableSharedFlow<Gesture>(extraBufferCapacity = 4)
@@ -182,6 +185,10 @@ class TerminalSession internal constructor(
      * A selection the pointer finishes is told of in [gestures]. With [middlePastes], so is
      * a middle click on a program that hasn't asked for the mouse, or with Shift held on one
      * that has, and the program hears nothing of that click.
+     *
+     * The right button asks for the pane's menu, which is also told of in [gestures], and
+     * the program hears nothing of that click either. With Shift held on a program that
+     * asked for the mouse, the click is the program's and no menu is asked for.
      */
     fun mouse(input: MouseInput, scrollRows: Int = 0, middlePastes: Boolean = false) { commands.trySend(Command.Mouse(input, scrollRows, nowMillis(), middlePastes)) }
 
@@ -284,6 +291,7 @@ class TerminalSession internal constructor(
                 },
                 selected = { mutableGestures.tryEmit(Gesture.Selected) },
                 paste = { mutableGestures.tryEmit(Gesture.Paste) },
+                menu = { mutableGestures.tryEmit(Gesture.Menu) },
             )
             colors?.let(terminal::setColors)
             mutableGrid.value = GridSize(terminal.columns, terminal.rows)
