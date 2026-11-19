@@ -91,7 +91,6 @@ Decisions made while building, none of them asked for:
   until one is under it there or the search is closed, as in Rune.
 - Closing the search leaves the view where it was scrolled to. Typing in the terminal goes
   back to the bottom, as it always did.
-- A search belongs to its terminal: it stays open, with its text, while another tab is shown.
 
 Not checked, or not done:
 
@@ -100,7 +99,10 @@ Not checked, or not done:
   desktop window: that needs the real keyboard. Left for a check by hand.
 - A very long history. The tests search about a thousand lines, which is what a terminal
   made in a test keeps; how long tens of thousands of lines from a server take was not timed.
-- A search does not survive a reconnect, which makes a new terminal: the bar closes. Rune's does.
+- A search lasts as long as this client's copy of its terminal, which is made afresh when
+  its tab is shown again and after a reconnect. So going to another tab and back closes the
+  bar and forgets its text, and so does a reconnect. Rune's survives a reconnect. Read from
+  the code (`RexHost` keeps terminals only for the panes on screen), not tried.
 - A match under the bar in both corners stays hidden. Touch: nothing opens the search on a
   phone but the palette. Firefox and Safari.
 - Seen in passing, and not this work's: in the web app, the text of a long run of plain
