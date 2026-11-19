@@ -67,6 +67,10 @@ data class HostState(
      * the server is only where this starts, and where it falls back when the tab closes.
      */
     val shownWindows: Map<String, String> = emptyMap(),
+    /** The progress the program in each terminal last reported, by block id, for every session. See [progressOf]. */
+    val progress: Map<String, TerminalProgress> = emptyMap(),
+    /** The ids of the tabs in which a bell rang while they were out of sight, not looked at since. See [hasBell]. */
+    val bells: Set<String> = emptySet(),
 ) {
     /** The selected session's layout. */
     val view: SessionView? get() = views[selectedSessionId]
@@ -241,6 +245,7 @@ class RexHost(
     fun setInFront(value: Boolean) {
         if (inFront == value) return
         inFront = value
+        look()
         if (value) {
             claimedInFront.clear()
             act(null) { claimInFront(it) }
@@ -281,7 +286,11 @@ class RexHost(
         if (state.value.shownWindows[sessionId] == windowId) return
         mutableState.update { it.copy(shownWindows = if (windowId == null) it.shownWindows - sessionId else it.shownWindows + (sessionId to windowId)) }
         onTabShown(sessionId, windowId)
+        look()
     }
+
+    /** Takes the tab on screen as seen, if it is in front of the user: a bell that rang in it is no longer news. */
+    private fun look() = mutableState.update { it.looked(inFront) }
 
     /**
      * Makes the tab this app shows the session's active window, if it isn't. Actions the
@@ -632,7 +641,7 @@ class RexHost(
             statusRead.clear()
             copies.forget()
             mutableState.value.terminals.values.forEach { it.close() }
-            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason), views = emptyMap(), terminals = emptyMap(), activity = emptyMap(), programs = emptyMap()) }
+            mutableState.update { it.copy(connection = HostConnection.Disconnected(reason), views = emptyMap(), terminals = emptyMap(), activity = emptyMap(), programs = emptyMap(), progress = emptyMap(), bells = emptySet()) }
             val delayMillis = RETRY_DELAYS_MILLIS[minOf(attempt++, RETRY_DELAYS_MILLIS.lastIndex)]
             if (reason != lastFailure) log.add(saved.label, "not connected: $reason. Trying again every few seconds until it answers", isError = true)
             lastFailure = reason
@@ -820,6 +829,7 @@ class RexHost(
             val shown = if (window != null) current.shownWindows + (view.sessionId to window.id) else current.shownWindows - view.sessionId
             current.copy(views = views, terminals = terminals, shownWindows = shown)
         }
+        look() // the tab on screen may have changed, and a tab with a bell may be gone
         if (view.sessionId == state.value.selectedSessionId) {
             onTabShown(view.sessionId, state.value.shownWindows[view.sessionId])
             claimInFront(connection) // a tab just gone to, or a pane just opened, is on screen now
@@ -855,6 +865,8 @@ class RexHost(
                     "process_changed" -> setProgram(blockId, fields)
                     "program_status_removed" -> (fields?.get("ids") as? JsonArray).orEmpty().forEach { id -> setStatus(blockId, (id as? JsonPrimitive)?.content.orEmpty(), null) }
                     "clipboard_written" -> event.sessionId?.let { sessionId -> copies.written(sessionId, blockId, fields) }
+                    "bell" -> event.sessionId?.let { sessionId -> mutableState.update { it.rang(sessionId, blockId, inFront) } }
+                    "progress_report" -> mutableState.update { it.reported(blockId, fields) }
                 }
             }
             "block_closed" -> event.payload.string("block_id")?.let { blockId ->
@@ -868,7 +880,7 @@ class RexHost(
                 claimed.remove(blockId)
                 statusRecords.remove(blockId)
                 publishActivity(blockId, isNews = false)
-                mutableState.update { it.copy(programs = it.programs - blockId) }
+                mutableState.update { it.copy(programs = it.programs - blockId, progress = it.progress - blockId) }
             }
             // Says only that a session's layout changed, so fetch it, unless this one is already known.
             "session_view_changed" -> event.sessionId?.let { sessionId ->

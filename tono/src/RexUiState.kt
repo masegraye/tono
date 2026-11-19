@@ -6,7 +6,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
-import org.example.kotlintest.rex.ActivityState
 import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.HostState
 import org.example.kotlintest.rex.ProgramCopy
@@ -17,6 +16,7 @@ import org.example.kotlintest.rex.TailnetServer
 import org.example.kotlintest.rex.TerminalSession
 import org.example.kotlintest.rex.WindowView
 import org.example.kotlintest.rex.hasDefaultLabel
+import org.example.kotlintest.rex.hasNews
 
 /** What the command palette is listing. */
 enum class PaletteMode {
@@ -61,7 +61,8 @@ class RexUiState(val client: RexClient) {
 
     /**
      * Whether the sidebar lists only the tabs whose programs have something to say: working,
-     * waiting for you, failed or done. For finding what needs you among many tabs.
+     * waiting for you, failed or done, a bell you haven't seen, or progress. For finding what
+     * needs you among many tabs.
      */
     var activityOnly by mutableStateOf(false)
     var debugLogVisible by mutableStateOf(false)
@@ -302,7 +303,7 @@ internal fun linearTabs(
     hosts.filter { (label, state) -> state.connection == HostConnection.Connected && (activityOnly || label !in collapsedHosts) }.flatMap { (label, state) ->
         state.sessions.filter { activityOnly || it.id !in collapsedSessions }.flatMap { session ->
             state.views[session.id]?.windows.orEmpty()
-                .filter { !activityOnly || state.activityOf(it) != ActivityState.Idle }
+                .filter { !activityOnly || state.hasNews(it) }
                 .map { NavigationStop(label, session.id, it.id) }
         }
     }

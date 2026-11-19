@@ -81,11 +81,17 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.example.kotlintest.rex.ActivityState
+import org.example.kotlintest.rex.TerminalProgress
+import org.example.kotlintest.rex.hasBell
+import org.example.kotlintest.rex.hasNews
+import org.example.kotlintest.rex.progressOf
 import org.example.kotlintest.rex.HostConnection
 import androidx.compose.ui.platform.LocalWindowInfo
 import org.example.kotlintest.rex.HostState
@@ -304,6 +310,7 @@ private fun Sidebar(
                     collapsed = hostCollapsed,
                     // Folded away, a heading still shows that something under it is busy.
                     activity = if (hostCollapsed) state.activity.values.maxOrNull() ?: ActivityState.Idle else ActivityState.Idle,
+                    bell = hostCollapsed && state.bells.isNotEmpty(),
                     onClick = { ui.toggleHost(label) },
                     onNewSession = { ui.newSession(host) },
                     onRetry = host::retry,
@@ -327,7 +334,7 @@ private fun HostSessions(
     digitAlpha: Float,
     activityOnly: Boolean,
 ) {
-    fun windowsOf(sessionId: String) = state.views[sessionId]?.windows.orEmpty().filter { !activityOnly || state.activityOf(it) != ActivityState.Idle }
+    fun windowsOf(sessionId: String) = state.views[sessionId]?.windows.orEmpty().filter { !activityOnly || state.hasNews(it) }
     val sessions = if (activityOnly) state.sessions.filter { windowsOf(it.id).isNotEmpty() } else state.sessions
     val sessionOrder = rememberReorder(sessions.map { it.id }) { session, before -> host.moveSession(session, before) }
     Column {
@@ -341,6 +348,7 @@ private fun HostSessions(
                     collapsed = collapsed,
                     tabCount = windows.size,
                     activity = if (collapsed) windows.maxOfOrNull(state::activityOf) ?: ActivityState.Idle else ActivityState.Idle,
+                    bell = collapsed && windows.any(state::hasBell),
                     onClick = { ui.toggleSession(session.id) },
                     onNewTab = { ui.newTab(host, session.id) },
                     modifier = Modifier.reorderHandle(sessionOrder, session.id),
@@ -374,6 +382,8 @@ private fun SessionTabs(
                 digitAlpha = digitAlpha,
                 showing = showing && tab.id == state.shownWindow(sessionId)?.id,
                 activity = state.activityOf(tab),
+                bell = state.hasBell(tab),
+                progress = state.progressOf(tab),
                 dragging = tabOrder.isDragging(tab.id),
                 // A second click soon after the first renames the tab. The first still goes
                 // to it at once: waiting to see whether a second follows would make every
@@ -431,6 +441,7 @@ private fun HostHeader(
     isHome: Boolean,
     collapsed: Boolean,
     activity: ActivityState,
+    bell: Boolean,
     onClick: () -> Unit,
     onNewSession: () -> Unit,
     onRetry: () -> Unit,
@@ -477,6 +488,7 @@ private fun HostHeader(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(start = 8.dp).weight(1f),
             )
+            BellMark(bell)
             ActivityDots(activity)
             when {
                 connected -> {
@@ -503,6 +515,7 @@ private fun SessionHeader(
     collapsed: Boolean,
     tabCount: Int,
     activity: ActivityState,
+    bell: Boolean,
     onClick: () -> Unit,
     onNewTab: () -> Unit,
     modifier: Modifier = Modifier,
@@ -523,6 +536,7 @@ private fun SessionHeader(
             modifier = Modifier.weight(1f),
         )
         if (collapsed) {
+            BellMark(bell)
             ActivityDots(activity)
             // How many tabs are folded away.
             Text(tabCount.toString(), style = MaterialTheme.typography.labelSmall, color = quiet, modifier = Modifier.padding(start = 6.dp, end = 5.dp))
@@ -588,6 +602,8 @@ private fun TabRow(
     digitAlpha: Float,
     showing: Boolean,
     activity: ActivityState,
+    bell: Boolean,
+    progress: TerminalProgress?,
     dragging: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -608,6 +624,8 @@ private fun TabRow(
             // While it is dragged, an outline sets it apart from the tabs it passes over.
             .border(1.dp, if (dragging) MaterialTheme.colorScheme.outline.copy(alpha = 0.6f) else Color.Transparent, MaterialTheme.shapes.small)
             .clickable(onClick = onClick)
+            .progressBar(progress)
+            .semantics { tabNews(bell, progress)?.let { stateDescription = it } }
             .padding(start = 14.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
     ) {
         // The name comes first and takes what it needs; the directory gets what is left, and
@@ -633,6 +651,7 @@ private fun TabRow(
                 )
             }
         }
+        BellMark(bell)
         ActivityDots(activity)
         ShortcutDigit(digit, digitAlpha)
     }
@@ -759,7 +778,7 @@ private fun HostContent(host: RexHost, ui: RexUiState, commands: RexCommands, ke
                 }
             }
         }
-        StatusBar(host, view, window?.let(state::nameOf), state.terminals[focusedId], onShowSidebar) {
+        StatusBar(host, view, window?.let(state::nameOf), state.terminals[focusedId], window?.let(state::progressOf), onShowSidebar) {
             // What can be done to the pane with the keyboard, as in the corner of Rex.app's
             // tabs. Only when there is such a pane.
             if (focusedId != null) {
@@ -822,6 +841,7 @@ private fun StatusBar(
     view: SessionView?,
     tab: TabName?,
     terminal: TerminalSession?,
+    progress: TerminalProgress?,
     onShowSidebar: (() -> Unit)? = null,
     buttons: @Composable RowScope.() -> Unit = {},
 ) {
@@ -848,7 +868,7 @@ private fun StatusBar(
                 Text(tab.text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 tab.directory?.let { HintText(it, Modifier.padding(start = 8.dp)) }
             }
-            val rest = listOfNotNull(grid?.let { "${it.columns}×${it.rows}" }, exit?.let { "exited with $it" })
+            val rest = listOfNotNull(progress?.let(::progressWords), grid?.let { "${it.columns}×${it.rows}" }, exit?.let { "exited with $it" })
             if (rest.isNotEmpty()) HintText(separator + rest.joinToString(separator))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically, content = buttons)
