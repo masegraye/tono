@@ -181,6 +181,7 @@ place of Cmd, and with Shift added where Ctrl on its own already means something
 | Ctrl+Shift+F | Find text in the terminal and its history |
 | Ctrl+Shift+G / Ctrl+Alt+G | Go to the next match (older) / the previous one (newer) |
 | Shift+PageUp / Shift+PageDown | Scroll through history |
+| Ctrl+Shift+Up / Ctrl+Shift+Down | Jump to the previous / next shell prompt, if the shell marks its prompts |
 | Ctrl+= / Ctrl+- / Ctrl+0 | Larger / smaller / default text |
 | Ctrl+Shift+/ | Show or hide the sidebar |
 | Ctrl+Shift+. | Show only the tabs whose programs are active, or every tab again |
@@ -282,6 +283,38 @@ in that terminal, without taking the keyboard.
 Output that arrives while the bar is open is searched too, and the match you're on stays the same text as the
 count grows. The bar floats over the terminal and never changes its size. If the match you're on would be
 under the bar, the bar moves to the bottom right corner.
+
+## Jumping between prompts
+
+Ctrl+Shift+Up scrolls the terminal so that the prompt of the command above is its first line, which is the quick
+way back to where a long command's output starts. Press it again for the command before that. Ctrl+Shift+Down goes
+the other way, a prompt at a time, and ends at the bottom. Both are in the command palette as **Jump to Previous
+Prompt** and **Jump to Next Prompt**. Nothing is typed, and typing takes you back to the bottom as it always does.
+
+This works only where the shell says where its prompts are, with the marks known as shell integration, or
+OSC 133. Where it doesn't, the keys do nothing. Fish, from version 4, marks its prompts without being asked. For
+bash, add this to the end of `~/.bashrc`, after anything else there that sets the prompt:
+
+```bash
+PS0='\e]133;C\a'
+PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND; }printf '\e]133;A\a'"
+```
+
+and for zsh, this to `~/.zshrc`:
+
+```zsh
+mark_prompt() { print -n '\e]133;A\a' }
+mark_output() { print -n '\e]133;C\a' }
+precmd_functions+=(mark_prompt)
+preexec_functions+=(mark_output)
+```
+
+The shell integration scripts that Ghostty, kitty, WezTerm and iTerm2 publish send the same marks, and any of them
+will do. Only prompts drawn after the marks are turned on can be jumped to. The marks are kept by the Rex server
+with the rest of the terminal, so prompts from before Tono was opened count too.
+
+While a command is still running, its prompt is the newest there is: if it has scrolled out of view,
+Ctrl+Shift+Down from it stays put, and Shift+PageDown or typing gets you to the bottom.
 
 ## Inserting a path, and going to a folder
 

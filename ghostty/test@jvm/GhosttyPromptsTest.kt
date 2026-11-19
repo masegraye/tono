@@ -97,6 +97,33 @@ class GhosttyPromptsTest {
     }
 
     @Test
+    fun `a mark before each prompt and one before its output are enough`() = scene {
+        // What bash sends with the two lines docs/using-tono.md gives for it, read off a real one.
+        for (number in 1..4) {
+            terminal.write("$OSC;A$BEL\u001b[?2004h$ cmd$number\r\n\u001b[?2004l\r$OSC;C$BEL")
+            for (line in 1..5) terminal.write("out$number.$line\r\n")
+        }
+        terminal.write("$OSC;A$BEL\u001b[?2004h$ ")
+        assertEquals(live, screen)
+
+        assertEquals(at(4), jump(-1))
+        assertEquals(at(3), jump(-1))
+        assertEquals(at(4), jump(1))
+        assertEquals(live, jump(1))
+    }
+
+    @Test
+    fun `below the newest prompt there is nowhere to go, even when it has left the screen`() = scene {
+        // A command still running, with more output than the screen holds.
+        for (number in 1..2) command(number)
+        terminal.write(prompt() + "cmd3\r\n$OSC;C$BEL")
+        for (line in 1..5) terminal.write("out3.$line\r\n")
+
+        assertEquals(at(3), jump(-1))
+        assertEquals(at(3), jump(1))
+    }
+
+    @Test
     fun `a terminal restored from a snapshot, as a server sends it, keeps its marks`() = scene {
         fourCommands()
 
