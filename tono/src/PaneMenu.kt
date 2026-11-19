@@ -40,6 +40,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -266,6 +267,8 @@ internal fun PaneMenuPopup(menu: PaneMenu, ui: RexUiState, commands: RexCommands
         }
     }
     val focus = remember { FocusRequester() }
+    // In a window too short for all of it, the menu is as tall as the window and scrolls.
+    val windowHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() }
     Popup(popupPositionProvider = position, onDismissRequest = ::close, properties = PopupProperties(focusable = true)) {
         LaunchedEffect(Unit) { focus.requestFocus() }
         Surface(
@@ -275,6 +278,7 @@ internal fun PaneMenuPopup(menu: PaneMenu, ui: RexUiState, commands: RexCommands
             shadowElevation = 8.dp,
             modifier = Modifier
                 .width(MENU_WIDTH)
+                .heightIn(max = windowHeight)
                 .semantics { contentDescription = "Pane menu" }
                 .focusRequester(focus)
                 .focusable()
@@ -298,7 +302,7 @@ internal fun PaneMenuPopup(menu: PaneMenu, ui: RexUiState, commands: RexCommands
             Column(Modifier.verticalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
                 var index = 0
                 groups.forEachIndexed { groupIndex, group ->
-                    if (groupIndex > 0) HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    if (groupIndex > 0) HorizontalDivider(Modifier.padding(vertical = 3.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     for (row in group) {
                         val at = index++
                         PaneMenuRowView(row, selected = at == selected, onHover = { if (row.enabled) selected = at }, onClick = { choose(row) })
@@ -347,7 +351,8 @@ private fun PaneMenuRowView(row: PaneMenuRow, selected: Boolean, onHover: () -> 
 }
 
 private val MENU_WIDTH = 264.dp
-private val MENU_ROW_HEIGHT = 28.dp
+/** Rex.app's rows are this tall. With it the whole menu fits in the window the app opens with, which it has to: a menu can't reach outside its window. */
+private val MENU_ROW_HEIGHT = 24.dp
 
 /** How far in from its pane's corner a menu opens when a key asked for it. */
 private val KEYBOARD_MENU_INSET = 12.dp
