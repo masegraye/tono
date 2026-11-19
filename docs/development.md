@@ -82,20 +82,53 @@ every tab of the showcase offscreen into `build/showcase-renders/`.
 
 ## Measuring scrolling
 
-Scrolling can be measured as it happens. Start the desktop app with `TONO_SCROLL_TELEMETRY=<file>` in the
-environment (or `1` for standard error, or `-Dtono.scrollTelemetry=<file>`), or open the web app with
-`?scrollTelemetry` in its address, where the lines go to the browser's console. Off, it costs a flag read.
+Scrolling can be measured as it happens, from the turn of the wheel to the frame that shows its effect. Start the
+desktop app with `TONO_SCROLL_TELEMETRY=<file>` in the environment (or `-Dtono.scrollTelemetry=<file>`; `1` is
+standard error), or open the web app with `?scrollTelemetry` in its address, where the lines go to the browser's
+console. The installed `tono` command passes the variable on. Off, it costs a flag read.
 
-Every wheel event becomes a line saying what the toolkit sent and what was asked of the terminal for it. So do
-what the terminal did, each frame read and each frame drawn with what it cost, and the gap between the window's
-frames while the wheel turns. When the wheel has been still for a moment, a `summary` line says it all at once, and
-the same summary goes to the app's debug log. `rex/src/ScrollTelemetry.kt` says what each field is.
+```sh
+TONO_SCROLL_TELEMETRY=/tmp/tono-scroll.jsonl tono      # scroll for a while, then
+tools/scroll/analyze.py /tmp/tono-scroll.jsonl         # where the time went, in words and numbers
+tools/scroll/graph.py /tmp/tono-scroll.jsonl           # the same as a page, /tmp/tono-scroll.html
+```
+
+The file is JSON Lines, each with `t` in microseconds on one clock and `ev`. `rex/src/ScrollTelemetry.kt` says
+what each is. In short: the wheel event and what the toolkit said of it; what it became (rows scrolled, or a
+report for the program); the report's wait for the control connection, its handing to the socket and the server's
+answer to it; each chunk of the terminal's output as it came off its socket, and when and how long the terminal's
+thread took it in, with the synchronized updates (mode 2026) in it; each frame read and why; each frame drawn and
+what it cost; the window's own frames; and any stall of the drawing thread or the terminals' thread, with where it
+was. It writes for a second and a half after a turn of the wheel and no longer, and stops at two million lines.
+A file that holds several runs is read for its last.
+
+The analysis gives each stop's share (median, p90, p99, worst), how long scrolling went on after the wheel
+stopped, the gaps between frames beside the gaps between turns of the wheel, and what waited on the control
+connection. The page draws every turn as a line down through its stops to its frame, so a turn answered late
+leans, and the gaps between frames are colored.
+
+More, when that isn't enough:
+
+- `TONO_SCROLL_JFR=<file>` beside it writes a Java Flight Recorder recording of the run (`jfr print <file>`, or JDK
+  Mission Control).
+- `tools/scroll/proxy.py` stands between Tono and a Rex server and holds every chunk for a time, each way, to make
+  a server on another machine reproducible: `--delay 30 --jitter 10` for a slow link, `--tls-cert` and `--tls-key`
+  to be an https host (give the app's Java a trust store that holds the certificate, with
+  `-Djavax.net.ssl.trustStore`). With `--log <file>` it writes down every read and write of the client's socket
+  and every WebSocket frame, on the clock the telemetry's `start` line names, and `analyze.py` and `graph.py` take
+  that file as `--link`: they then show when bytes really left and arrived, and what the server and the program
+  took, apart from what Tono took.
+- `tools/scroll/tui.py` is a full-screen program that redraws for every wheel report, as an agent's interface
+  does, and marks its output so that each report is matched with its answer exactly (`--sync` brackets each redraw
+  as a synchronized update). For any other program the match is by order, which the analysis says.
+- `task probe -- <workspace file> --scroll 10x100,30x8` turns the wheel with no window over the selected host's
+  focused terminal: ten notches a tenth of a second apart, then thirty in a flick. `rexSpike/src/Scroll.kt`.
 
 ```sh
 TONO_SCROLL_MEASURE=mine ./kotlin test -p jvm -m tono --include-classes='*ScrollMeasureTest'
 ```
 
-runs the same work offscreen, from wheel event to picture, over plain text, a colored log, an agent's output and a
+runs the drawing side offscreen, from wheel event to picture, over plain text, a colored log, an agent's output and a
 full-screen program, and writes a table to `build/scroll-measure/mine.md`. Without the variable it is a short test.
 
 ## Checking connections without a window

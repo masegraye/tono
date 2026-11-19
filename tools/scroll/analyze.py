@@ -178,6 +178,12 @@ def main():
         out.append(f"Requests on the control connection that waited or ran over 1 ms while the wheel turned: {len(actions)}; "
                    f"waited median {ms(percentile([a['waited_us'] for a in actions], 50))}, max {ms(max(a['waited_us'] for a in actions))} ms; "
                    f"ran median {ms(percentile([a['ran_us'] for a in actions], 50))}, max {ms(max(a['ran_us'] for a in actions))} ms")
+    lags = [e["blocked_us"] for e in timeline.of("ui_lag")]
+    if lags:
+        out.append(f"The drawing thread kept new work waiting over 8 ms {len(lags)} times while the wheel turned: median {ms(percentile(lags, 50))}, max {ms(max(lags))} ms")
+    held = len(timeline.of("held"))
+    if held:
+        out.append(f"Output after which no frame was read, the program being in the middle of a synchronized update: {held} times")
     stalls = timeline.of("stall")
     for stall in stalls[:12]:
         out.append(f"Stall: {stall['thread']} for {ms(stall['blocked_us'])} ms at {(stall['t'] - wheels[0].t) / 1000:.0f} ms: " + " < ".join(stall["stack"][:6]))

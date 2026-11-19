@@ -215,30 +215,33 @@ class Timeline:
         sent = [e for e in control if e["ev"] == "ws" and e["dir"] == "c2s"]
         passed = {(e["conn"], e["chunk"]): e["t"] for e in self.link if e["ev"] == "s_write"}
         delivered = {(e["conn"], e["chunk"]): e["t"] for e in self.link if e["ev"] == "c_write"}
-        writes = sorted((w for w in self.wheels if w.written is not None), key=lambda w: w.written)
+        # Every request that carried typed input, a wheel's or not (a click is two): each is a frame from the client.
+        writes = sorted(self.of("send_written"), key=lambda e: e["t"])
+        most = max((e.get("last_seq", e["seq"]) - e["seq"] + 1 for e in writes), default=1)
 
         def match(sizes):
-            """Each request that carried reports with the first frame from the client that left after it began to be written."""
+            """Each such request with the first frame from the client that left after it began to be written."""
             at = 0
             found = {}
-            for wheel in writes:
-                carrier = getattr(wheel, "carrier", wheel.seq)
-                if carrier in found:
-                    continue
-                while at < len(sent) and (sent[at]["t"] < (wheel.started or wheel.written) - 300 or (sizes and not sizes[0] <= sent[at]["len"] <= sizes[1])):
+            for event in writes:
+                began = event["t"] - event.get("write_us", 0)
+                # A few milliseconds are allowed for: the two clocks were read a moment apart when the app started.
+                while at < len(sent) and (sent[at]["t"] < began - 3_000 or (sizes and not sizes[0] <= sent[at]["len"] <= sizes[1])):
                     at += 1
                 if at < len(sent):
-                    found[carrier] = sent[at]
+                    found[event["seq"]] = sent[at]
                     at += 1
             return found
 
-        # Other requests cross the same connection. The reports' own are told from them by their size,
-        # which is found by matching once without it.
+        # Other requests cross the same connection. These are told from them by their size, which is
+        # found by matching once without it.
         lengths = sorted(frame["len"] for frame in match(None).values())
-        found = match((lengths[len(lengths) // 2] - 8, lengths[-1] if len(lengths) < 3 else lengths[len(lengths) // 2] + 8 + 14 * max(w.shared for w in writes))) if lengths else {}
-        for wheel in writes:
+        middle = lengths[len(lengths) // 2] if lengths else 0
+        found = match((middle - 10, middle + 10 + 14 * most)) if lengths else {}
+        for wheel in self.wheels:
             frame = found.get(getattr(wheel, "carrier", wheel.seq))
-            if frame:
+            # One that left long after it was written is some other request's frame.
+            if frame and wheel.written is not None and frame["t"] - wheel.written < 500_000:
                 wheel.left_client = frame["t"]
                 wheel.reached_server = passed.get((frame["conn"], frame["chunk"]))
         # A terminal's stream: its chunks are the binary frames from the server, in order, after the one that opened it.

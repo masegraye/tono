@@ -71,7 +71,14 @@ object ScrollTelemetry {
     var enabled: Boolean = sink != null
         private set
 
-    private fun started() = line(micros(), "start", ",\"version\":2${telemetryClock()}")
+    private fun started() {
+        // Read once before it counts: the first reading of a clock is slow, and the two have to be read at one moment.
+        telemetryClock()
+        micros()
+        val at = micros()
+        val clock = telemetryClock()
+        line(at, "start", ",\"version\":2$clock")
+    }
 
     /** Starts measuring, with the lines going to [lines]. For tests and measuring harnesses. */
     fun start(lines: (String) -> Unit) = locked(this) {

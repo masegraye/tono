@@ -251,4 +251,7 @@ internal actual fun scrollTelemetrySink(): ((String) -> Unit)? {
 }
 
 /** `System.nanoTime` is the machine's monotonic clock on Linux, which is what other programs on it can read too. */
-internal actual fun telemetryClock(): String = ",\"mono_us\":${System.nanoTime() / 1000},\"wall_ms\":${System.currentTimeMillis()},\"pid\":${ProcessHandle.current().pid()}"
+internal actual fun telemetryClock(): String {
+    val now = System.nanoTime() / 1000
+    return ",\"mono_us\":$now,\"wall_ms\":${System.currentTimeMillis()},\"pid\":${ProcessHandle.current().pid()}"
+}

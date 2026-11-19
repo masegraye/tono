@@ -34,9 +34,10 @@ def color(total):
     return "#d22d2d"
 
 
-def gap_color(gap):
-    late = gap / 1000.0
-    return "#2e9d4f" if late <= 20 else "#c9a400" if late <= 37 else "#e07b00" if late <= 100 else "#d22d2d"
+def gap_color(gap, rhythm=0):
+    """How much longer a gap between frames is than the wheel's own rhythm, or than a frame of the screen if that is longer."""
+    late = (gap - max(rhythm, 16_700)) / 1000.0
+    return "#2e9d4f" if late <= 4 else "#c9a400" if late <= 20 else "#e07b00" if late <= 83 else "#d22d2d"
 
 
 def picture(timeline, burst, number, linked):
@@ -126,11 +127,12 @@ def picture(timeline, burst, number, linked):
         out.append(f'<rect x="{x(event["t"] - event.get("draw_us", 0)):.1f}" y="{base - 7}" width="{max(2.0, event.get("draw_us", 0) * scale):.1f}" height="14" fill="{"#333" if timeline.changed(event) else "#ccc"}"><title>frame {event["frame"]} drawn in {ms(event.get("draw_us", 0))} ms</title></rect>')
     # The gaps between frames drawn, which are what is seen: colored, and written out where they are long.
     draws = [d for d in draws if timeline.changed(d)]
+    rhythm = percentile([b.t - a.t for a, b in zip(burst, burst[1:])], 50) or 0
     for a, b in zip(draws, draws[1:]):
         gap = b["t"] - a["t"]
-        out.append(f'<line x1="{x(a["t"]):.1f}" y1="{base + 14}" x2="{x(b["t"]):.1f}" y2="{base + 14}" stroke="{gap_color(gap)}" stroke-width="4"><title>{ms(gap)} ms between frames</title></line>')
+        out.append(f'<line x1="{x(a["t"]):.1f}" y1="{base + 14}" x2="{x(b["t"]):.1f}" y2="{base + 14}" stroke="{gap_color(gap, rhythm)}" stroke-width="4"><title>{ms(gap)} ms between frames</title></line>')
         if gap > 37_000 and gap * scale > 26:
-            out.append(f'<text x="{(x(a["t"]) + x(b["t"])) / 2:.1f}" y="{base + 30}" text-anchor="middle" fill="{gap_color(gap)}">{gap / 1000:.0f}</text>')
+            out.append(f'<text x="{(x(a["t"]) + x(b["t"])) / 2:.1f}" y="{base + 30}" text-anchor="middle" fill="{gap_color(gap, rhythm)}">{gap / 1000:.0f}</text>')
     out.append(f'<text x="{LEFT - 8}" y="{base + 18}" text-anchor="end" fill="#888">gaps between frames, ms</text>')
     for event in timeline.of("stall"):
         if first <= event["t"] <= last:
@@ -164,7 +166,8 @@ def main():
 <p>Time runs across. Each turn of the wheel is a line from the top row down to the frame that showed its effect; the further it leans,
 the later the answer, and it is green within 50 ms, amber within 100, orange within 200 and red past that. The bars above are the same
 lateness for each turn. Blue rings are chunks of output as they came off the socket, blue bars the terminal taking them in, ticks are
-frames read (grey: nothing changed), black bars frames drawn (grey: of a frame in which nothing had changed), and the colored line under them the gaps between frames, with the long
+frames read (grey: nothing changed), black bars frames drawn (grey: of a frame in which nothing had changed), and the colored line under them the gaps between frames: green where
+frames came as often as the wheel turned (or the screen shows them), amber, orange and red the longer they took beyond that, with the long
 ones written out. Hold the pointer over anything for its numbers.</p>
 {"".join(parts) if parts else "<p>No turn of the wheel in this file.</p>"}
 """
