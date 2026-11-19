@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | captured (being investigated: inv-003) |
+| Status | captured (investigated: inv-003, awaiting Mase's answers) |
 | Area | Shipping |
 | Size | medium |
 | Source | Mase, 2026-11-19 |
