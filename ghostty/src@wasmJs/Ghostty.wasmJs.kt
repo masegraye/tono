@@ -61,6 +61,15 @@ private fun glueSelectionAll(terminal: Int): Unit = js("globalThis.GhosttyGlue.s
 private fun glueSelectionClear(terminal: Int): Unit = js("globalThis.GhosttyGlue.selectionClear(terminal)")
 private fun glueSelectionText(terminal: Int): String = js("globalThis.GhosttyGlue.selectionText(terminal)")
 
+private fun glueSearchNew(terminal: Int): Int = js("globalThis.GhosttyGlue.searchNew(terminal)")
+private fun glueSearchFree(search: Int): Unit = js("globalThis.GhosttyGlue.searchFree(search)")
+private fun glueSearchSetNeedle(search: Int, binary: String): Unit = js("globalThis.GhosttyGlue.searchSetNeedle(search, binary)")
+private fun glueSearchAdvance(search: Int): Boolean = js("globalThis.GhosttyGlue.searchAdvance(search)")
+private fun glueSearchSelect(search: Int, forward: Boolean): Boolean = js("globalThis.GhosttyGlue.searchSelect(search, forward)")
+private fun glueSearchTotal(search: Int): Int = js("globalThis.GhosttyGlue.searchTotal(search)")
+private fun glueSearchSelected(search: Int): Int = js("globalThis.GhosttyGlue.searchSelected(search)")
+private fun glueSearchHighlights(search: Int): String = js("globalThis.GhosttyGlue.searchHighlights(search)")
+
 /** Bytes as a string of one character each. */
 private fun ByteArray.toBinary(offset: Int = 0, length: Int = size - offset): String =
     CharArray(length) { (this[offset + it].toInt() and 0xFF).toChar() }.concatToString()
@@ -333,6 +342,37 @@ actual class GhosttySelection actual constructor() : AutoCloseable {
     actual fun text(terminal: GhosttyTerminal): String = glueSelectionText(terminal.handle).binaryToBytes().decodeToString()
 
     actual override fun close() = glueSelectionFree(gesture)
+}
+
+actual class GhosttySearch actual constructor(terminal: GhosttyTerminal) : AutoCloseable {
+    private val search = glueSearchNew(terminal.handle)
+
+    actual fun setNeedle(text: String) = glueSearchSetNeedle(search, text.encodeToByteArray().toBinary())
+
+    actual fun advance(): Boolean = glueSearchAdvance(search)
+
+    actual fun selectNext(): Boolean = glueSearchSelect(search, true)
+
+    actual fun selectPrevious(): Boolean = glueSearchSelect(search, false)
+
+    actual val total: Int get() = glueSearchTotal(search)
+
+    actual val selected: Int? get() = glueSearchSelected(search).takeIf { it >= 0 }
+
+    actual fun highlights(): SearchHighlights {
+        // The glue's `searchHighlights` says how this is written.
+        val (others, selected) = glueSearchHighlights(search).split('\u001f')
+        return SearchHighlights(cells(others), cells(selected))
+    }
+
+    private fun cells(described: String): List<SelectedCells> =
+        if (described.isEmpty()) emptyList()
+        else described.split(';').map {
+            val (row, first, last) = it.split(',')
+            SelectedCells(row.toInt(), first.toInt(), last.toInt())
+        }
+
+    actual override fun close() = glueSearchFree(search)
 }
 
 actual fun encodePaste(text: String, bracketed: Boolean): ByteArray =

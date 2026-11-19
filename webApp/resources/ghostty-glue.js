@@ -756,7 +756,146 @@
     return ex.ghostty_row_get(view().getBigUint64(rowOut, true), E('GhosttyRowData', 'WRAP'), wraps) === OK && bytes()[wraps] !== 0;
   }
 
+  // --- Search ---
+  //
+  // See ghostty/src@jvm/GhosttySearch.kt, which this mirrors.
+
+  const searches = new Map(); // by search: its terminal, and room for the matches near the view
+  /** How much looking one `searchAdvance` does before it lets something else happen. */
+  const SEARCH_MAX_TICKS = 64;
+  const searchGet = (search, data, out) => ex.ghostty_search_get(search, E('GhosttySearchData', data), out);
+
+  function searchNew(terminal) {
+    check('search_new', ex.ghostty_search_new(0, slots + SLOT.a, terminal));
+    const search = view().getUint32(slots + SLOT.a, true);
+    searches.set(search, { terminal, matches: 0, capacity: 0 });
+    return search;
+  }
+
+  /** Frees a search. Its terminal must still be there. */
+  function searchFree(search) {
+    const held = searches.get(search);
+    if (!held) return;
+    ex.ghostty_search_free(search);
+    if (held.matches) ex.ghostty_wasm_free(held.matches, held.capacity * sizeOf('GhosttySelection'));
+    searches.delete(search);
+  }
+
+  /** What to look for, as UTF-8 bytes. Changing it starts over; empty looks for nothing. */
+  function searchSetNeedle(search, binary) {
+    if (!binary.length) {
+      check('search_set', ex.ghostty_search_set(search, E('GhosttySearchOption', 'NEEDLE'), 0));
+      return;
+    }
+    const data = put(binary);
+    const needle = slots + SLOT.a;
+    view().setUint32(needle + F('GhosttyString', 'ptr'), data, true);
+    view().setUint32(needle + F('GhosttyString', 'len'), binary.length, true);
+    check('search_set', ex.ghostty_search_set(search, E('GhosttySearchOption', 'NEEDLE'), needle));
+  }
+
+  function searchStatus(search) {
+    check('search_get', searchGet(search, 'STATUS', slots + SLOT.a));
+    return view().getInt32(slots + SLOT.a, true);
+  }
+
+  /** Takes in what the terminal holds now and looks through some more of it. Returns whether it has been through it all. */
+  function searchAdvance(search) {
+    check('search_feed', ex.ghostty_search_feed(search));
+    const running = E('GhosttySearchStatus', 'RUNNING');
+    for (let ticks = 0; ticks < SEARCH_MAX_TICKS && searchStatus(search) === running; ticks++) {
+      check('search_tick', ex.ghostty_search_tick(search, 0));
+    }
+    return searchStatus(search) === E('GhosttySearchStatus', 'COMPLETE');
+  }
+
+  /** Selects the next match, towards older output, or the previous. False when there are none. */
+  function searchSelect(search, forward) {
+    const result = ex.ghostty_search_set(search, E('GhosttySearchOption', forward ? 'SELECT_NEXT' : 'SELECT_PREV'), 0);
+    if (result === E('GhosttyResult', 'NO_VALUE')) return false;
+    check('search_set', result);
+    return true;
+  }
+
+  function searchTotal(search) {
+    check('search_get', searchGet(search, 'TOTAL_MATCHES', slots + SLOT.a));
+    return view().getUint32(slots + SLOT.a, true);
+  }
+
+  /** Which match is selected, counting from 0 for the newest, or -1. */
+  function searchSelected(search) {
+    return searchGet(search, 'SELECTED_INDEX', slots + SLOT.a) === OK ? view().getUint32(slots + SLOT.a, true) : -1;
+  }
+
+  /** The column and row of the view a place in the terminal is at, or null when it is out of view. */
+  function searchInView(terminal, place) {
+    const coordinate = slots + SLOT.b;
+    if (ex.ghostty_terminal_point_from_grid_ref(terminal, place, E('GhosttyPointTag', 'VIEWPORT'), coordinate) !== OK) return null;
+    return [view().getUint16(coordinate + F('GhosttyPointCoordinate', 'x'), true), view().getUint32(coordinate + F('GhosttyPointCoordinate', 'y'), true)];
+  }
+
+  /**
+   * A match's cells in the view, "row,first column,last column" for each row, with ";"
+   * between. As cellsBetween in ghostty/src/SearchCells.kt: an end out of view is taken to
+   * be above the top (the first) or below the bottom (the last).
+   */
+  function searchCells(terminal, match, columns, rows) {
+    let first = searchInView(terminal, match + F('GhosttySelection', 'start'));
+    let last = searchInView(terminal, match + F('GhosttySelection', 'end'));
+    if (first && last && (first[1] > last[1] || (first[1] === last[1] && first[0] > last[0]))) [first, last] = [last, first];
+    if (first && first[1] >= rows) first = null;
+    if (last && last[1] >= rows) last = null;
+    if (!first && !last) return '';
+    const [fromColumn, fromRow] = first || [0, 0];
+    const [toColumn, toRow] = last || [columns - 1, rows - 1];
+    if (toRow < fromRow || (toRow === fromRow && toColumn < fromColumn)) return '';
+    const cells = [];
+    for (let row = fromRow; row <= toRow; row++) {
+      cells.push(row + ',' + (row === fromRow ? Math.min(fromColumn, columns - 1) : 0) + ',' + (row === toRow ? Math.min(toColumn, columns - 1) : columns - 1));
+    }
+    return cells.join(';');
+  }
+
+  /**
+   * Where the matches are in the view, as of the last `searchAdvance`: the cells of every
+   * match but the selected one, then US, then the selected one's.
+   */
+  function searchHighlights(search) {
+    const held = searches.get(search);
+    const terminal = held.terminal;
+    const columns = terminalColumns(terminal);
+    const rows = terminalRows(terminal);
+    const size = sizeOf('GhosttySelection');
+    const one = selecting + SEL.selection;
+    view().setUint32(one, size, true);
+    const selected = searchGet(search, 'SELECTED_MATCH', one) === OK ? searchCells(terminal, one, columns, rows) : '';
+
+    const buffer = slots + SLOT.c;
+    let count = 0;
+    for (;;) {
+      for (let i = 0; i < held.capacity; i++) view().setUint32(held.matches + i * size, size, true);
+      view().setUint32(buffer + F('GhosttySelectionBuffer', 'ptr'), held.matches, true);
+      view().setUint32(buffer + F('GhosttySelectionBuffer', 'cap'), held.capacity, true);
+      view().setUint32(buffer + F('GhosttySelectionBuffer', 'len'), 0, true);
+      const result = searchGet(search, 'VIEWPORT_MATCHES', buffer);
+      const length = view().getUint32(buffer + F('GhosttySelectionBuffer', 'len'), true);
+      if (result === OK) { count = length; break; }
+      if (result !== E('GhosttyResult', 'OUT_OF_SPACE') || length <= held.capacity) break;
+      if (held.matches) ex.ghostty_wasm_free(held.matches, held.capacity * size);
+      held.capacity = Math.max(length * 2, 64);
+      held.matches = ex.ghostty_wasm_alloc(held.capacity * size);
+    }
+    const others = [];
+    for (let i = 0; i < count; i++) {
+      const cells = searchCells(terminal, held.matches + i * size, columns, rows);
+      // The selected match is among them, and is marked in its own way.
+      if (cells && cells !== selected) others.push(cells);
+    }
+    return others.join(';') + US + selected;
+  }
+
   globalThis.GhosttyGlue = {
+    searchNew, searchFree, searchSetNeedle, searchAdvance, searchSelect, searchTotal, searchSelected, searchHighlights,
     terminalHyperlinkAt, terminalRowWraps,
     selectionNew, selectionFree, selectionPress, selectionDrag, selectionRelease, selectionAutoscroll, selectionAll, selectionClear, selectionText,
     init, terminalNew, terminalRestore, terminalFree, terminalWrite, terminalResize, terminalColumns, terminalRows,
