@@ -15,7 +15,7 @@ The order proposed in inv-001, not yet agreed:
 1. ~~backlog-001: Program copies reach the clipboard (OSC 52)~~ done
 2. ~~backlog-002: Select and copy text~~ done
 3. ~~backlog-005: Open links with Ctrl+click~~ done
-4. backlog-006: Search a terminal
+4. ~~backlog-006: Search a terminal~~ done
 5. ~~backlog-008: Desktop notifications~~ done
 6. ~~backlog-009: The bell, and progress~~ done
 7. ~~backlog-010: Name the window after the tab~~ done
@@ -33,7 +33,7 @@ The order proposed in inv-001, not yet agreed:
 | 003 | [Paste or drop files and images](backlog-003-paste-files-and-images.md) | Clipboard | medium | captured |
 | 004 | [Copy on select, and middle-click paste](backlog-004-copy-on-select-and-middle-click-paste.md) | Clipboard | small | captured |
 | 005 | [Open links with Ctrl+click](backlog-005-open-links.md) | Reading a terminal | medium | done |
-| 006 | [Search a terminal](backlog-006-search-scrollback.md) | Reading a terminal | medium | captured |
+| 006 | [Search a terminal](backlog-006-search-scrollback.md) | Reading a terminal | medium | done |
 | 007 | [Jump between shell prompts](backlog-007-jump-between-prompts.md) | Reading a terminal | small | captured |
 | 008 | [Desktop notifications](backlog-008-desktop-notifications.md) | Knowing what happened | medium | done |
 | 009 | [The bell, and progress](backlog-009-bell-and-progress.md) | Knowing what happened | small | done |
@@ -67,3 +67,4 @@ The order proposed in inv-001, not yet agreed:
 | 037 | [The web relay may keep a page's connection after the page is gone](backlog-037-the-relay-may-keep-a-page-that-is-gone.md) | The web app | small | captured |
 | 038 | [A host that is still being connected to looks like one that is connected](backlog-038-a-host-being-connected-to-looks-connected.md) | The sidebar | small | captured |
 | 039 | [Pane keys reach the terminal in a tab with one pane](backlog-039-pane-keys-reach-the-terminal-with-one-pane.md) | Typing and keys | small | done |
+| 040 | [Text drifts from its cells in the web app](backlog-040-text-drifts-from-the-grid-in-the-web-app.md) | Drawing | small | captured |
