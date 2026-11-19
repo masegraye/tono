@@ -29,8 +29,23 @@ data class SelectedCells(val row: Int, val firstColumn: Int, val lastColumn: Int
 /**
  * One row, as the runs of cells that have something to draw. A row object is reused from
  * frame to frame while its content doesn't change, so a renderer can cache work per row.
+ *
+ * Two rows that draw the same are equal, whichever frame each is from and wherever in it.
+ * That matters because the terminal library reads every row again after the view scrolls,
+ * and after a full-screen program draws its screen again a few lines on: the rows are new
+ * objects then, and most of them are rows that were already on screen. Work kept by row
+ * (the text's layout, which is most of what a frame costs) is found again for those.
  */
 class TerminalRow(val runs: List<TerminalRun>) {
+    private var hash = 0
+
+    override fun equals(other: Any?): Boolean = this === other || (other is TerminalRow && hashCode() == other.hashCode() && runs == other.runs)
+
+    override fun hashCode(): Int {
+        if (hash == 0) hash = runs.hashCode().let { if (it == 0) 1 else it }
+        return hash
+    }
+
     /** The row's text, for tests and debugging. Cells with nothing in them read as spaces. */
     fun text(): String = buildString {
         for (run in runs) {
@@ -67,6 +82,23 @@ class TerminalRun(
 ) {
     /** Whether this is plain characters, one to a cell, and not one character that takes all the run's cells. */
     val oneToACell: Boolean get() = text.length == cells && text.all { isPlain(it.code) }
+
+    override fun equals(other: Any?): Boolean = this === other || (
+        other is TerminalRun && column == other.column && cells == other.cells && foreground == other.foreground &&
+            background == other.background && bold == other.bold && italic == other.italic && underline == other.underline &&
+            strikethrough == other.strikethrough && underlineColor == other.underlineColor && overline == other.overline && text == other.text
+        )
+
+    override fun hashCode(): Int {
+        var hash = text.hashCode()
+        hash = hash * 31 + column
+        hash = hash * 31 + cells
+        hash = hash * 31 + foreground
+        hash = hash * 31 + (background ?: -1)
+        hash = hash * 31 + (underlineColor ?: -1)
+        hash = hash * 31 + underline.ordinal
+        return hash * 31 + ((if (bold) 1 else 0) or (if (italic) 2 else 0) or (if (strikethrough) 4 else 0) or (if (overline) 8 else 0))
+    }
 }
 
 /**

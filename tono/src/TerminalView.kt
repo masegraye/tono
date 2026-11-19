@@ -527,31 +527,48 @@ private const val CELL_SAMPLE = 100
 internal class PlacedText(val column: Int, val layout: TextLayoutResult)
 
 /**
- * The laid-out text of each row on screen, for cells of the size given. A row object is
- * reused while its content is unchanged, so its layout is too.
+ * The laid-out text of rows, for cells of the size given, kept by what a row draws: rows
+ * that draw the same are equal (see [TerminalRow]), so a row that only moved has its layout
+ * here still, which is what makes scrolling cheap. Laying out a screen of colored text
+ * takes several frames' worth of time; laying out the three rows a turn of the wheel
+ * brings in takes a fraction of one.
+ *
+ * The rows of the last few screens drawn are kept, so that scrolling back the way one came
+ * finds them too.
  */
 internal class RowLayouts(private val cell: CellSize) {
-    private var cache = HashMap<TerminalRow, List<PlacedText>>()
+    private class Kept(val texts: List<PlacedText>, var drawn: Int)
 
-    /** Forgets rows that are no longer on screen. */
+    private val cache = HashMap<TerminalRow, Kept>()
+
+    /** Counts the frames drawn, to tell which rows were drawn lately. */
+    private var frame = 0
+
+    /** Called once for each frame drawn, with its rows. Forgets the rows drawn longest ago, once there are several screens of them. */
     fun retain(rows: List<TerminalRow>) {
-        if (cache.size <= rows.size) return
-        val kept = HashMap<TerminalRow, List<PlacedText>>()
-        for (row in rows) cache[row]?.let { kept[row] = it }
-        cache = kept
+        frame++
+        val room = rows.size * SCREENS_KEPT + 16
+        if (cache.size <= room) return
+        // Down to half, so that this isn't done again for a while.
+        val oldest = cache.values.map { it.drawn }.sorted()[cache.size - room / 2]
+        cache.entries.removeAll { it.value.drawn < oldest }
     }
 
-    fun of(row: TerminalRow, measurer: TextMeasurer, style: TextStyle): List<PlacedText> =
-        cache.getOrPut(row) {
-            if (fontsArriveLater && row !in awaitingFonts && row.runs.any { run -> run.text.any(::mayNeedAnotherFont) }) awaitingFonts[row] = nowMillis()
-            val started = if (counting) ScrollTelemetry.micros() else 0L
-            buildList { for (run in row.runs) place(run, measurer, style.merge(run)) }.also {
-                if (counting) {
-                    laidOut++
-                    layoutMicros += ScrollTelemetry.micros() - started
-                }
-            }
+    fun of(row: TerminalRow, measurer: TextMeasurer, style: TextStyle): List<PlacedText> {
+        cache[row]?.let { kept ->
+            kept.drawn = frame
+            return kept.texts
         }
+        if (fontsArriveLater && row !in awaitingFonts && row.runs.any { run -> run.text.any(::mayNeedAnotherFont) }) awaitingFonts[row] = nowMillis()
+        val started = if (counting) ScrollTelemetry.micros() else 0L
+        val texts = buildList { for (run in row.runs) place(run, measurer, style.merge(run)) }
+        if (counting) {
+            laidOut++
+            layoutMicros += ScrollTelemetry.micros() - started
+        }
+        cache[row] = Kept(texts, frame)
+        return texts
+    }
 
     /** While scrolling is measured (ScrollTelemetry): how many rows were laid out for the frame being drawn, and how long that took. */
     var laidOut = 0
@@ -615,6 +632,9 @@ internal class RowLayouts(private val cell: CellSize) {
         return forgot
     }
 }
+
+/** How many screens of rows have their layouts kept. */
+private const val SCREENS_KEPT = 4
 
 /** How often rows waiting for a font are looked at, and how long after a row was laid out it is laid out again. */
 private const val LATER_FONT_CHECK_MILLIS = 500L

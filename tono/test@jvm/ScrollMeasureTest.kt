@@ -221,14 +221,20 @@ class ScrollMeasureTest {
 
     private fun measure(screen: Screen, wheelSteps: Int): List<Result> {
         val results = ArrayList<Result>()
-        fun scrollBack(name: String, content: (Bench) -> String) = Bench(screen).use { bench ->
-            bench.terminal.write(content(bench))
-            bench.read(); bench.draw()
-            // Up and back down once unmeasured, so that what is timed is not the first use of anything.
-            repeat(wheelSteps) { bench.step(-3) }
-            repeat(wheelSteps) { bench.step(3) }
-            results += Result("$name, wheel up", List(wheelSteps) { bench.step(-3) })
-            results += Result("$name, wheel back down", List(wheelSteps) { bench.step(3) })
+        fun scrollBack(name: String, content: (Bench) -> String) {
+            // Once unmeasured in a terminal of its own, so that what is timed is not the first run of the code.
+            Bench(screen).use { bench ->
+                bench.terminal.write(content(bench))
+                bench.read(); bench.draw()
+                repeat(wheelSteps) { bench.step(-3) }
+                repeat(wheelSteps) { bench.step(3) }
+            }
+            Bench(screen).use { bench ->
+                bench.terminal.write(content(bench))
+                bench.read(); bench.draw()
+                results += Result("$name, wheel up", List(wheelSteps) { bench.step(-3) })
+                results += Result("$name, wheel back down the same way", List(wheelSteps) { bench.step(3) })
+            }
             for (result in results.takeLast(2)) assertTrue(result.steps.all { it.moved == 3L || it.moved == -3L }, "${result.name}: every step moves the view three rows")
         }
         scrollBack("plain text") { plain(10_000) }
@@ -245,8 +251,6 @@ class ScrollMeasureTest {
             // Scrolled back while the program at the bottom goes on writing, as a spinner does.
             bench.terminal.write(agent(400, bench.columns))
             bench.read(); bench.draw()
-            repeat(wheelSteps) { bench.step(-3) }
-            repeat(wheelSteps) { bench.step(3) }
             val spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
             fun spin(i: Int) = bench.terminal.write("\r$ESC[38;5;141m${spinner[i % spinner.length]}$ESC[0m Working… $ESC[2m(${i}s)$ESC[0m$ESC[K")
             results += Result("agent's output, wheel up while a spinner turns", List(wheelSteps) { spin(it); bench.step(-3) })
@@ -283,11 +287,21 @@ class ScrollMeasureTest {
                 val results = measure(small, wheelSteps = 6)
                 assertEquals(8, results.size)
                 for (result in results) assertTrue(result.steps.all { it.rows > 0 && it.drawMicros > 0 }, result.name)
+                // Rows that only moved keep their layouts: a step lays out the rows it brings in, and none on the way back.
+                for (result in results) {
+                    val most = result.steps.maxOf { it.laidOut }
+                    when {
+                        "back down" in result.name -> assertEquals(0, most, result.name)
+                        // The program's status line changes with every step.
+                        "program" in result.name -> assertTrue(most <= 4, "${result.name}: $most rows laid out in a step")
+                        else -> assertTrue(most <= 3, "${result.name}: $most rows laid out in a step")
+                    }
+                }
                 return
             }
             val text = buildString {
                 append("# Scrolling measured offscreen: $label\n\n")
-                append("Each step is one wheel event of three rows and the frame after it: handled by `TerminalPointer`, read by `GhosttyRenderer`, and composed, laid out, drawn and rasterized on the CPU by `drawTerminal` in an `ImageComposeScene`. 50 steps a line, after as many unmeasured.\n\n")
+                append("Each step is one wheel event of three rows and the frame after it: handled by `TerminalPointer`, read by `GhosttyRenderer`, and composed, laid out, drawn and rasterized on the CPU by `drawTerminal` in an `ImageComposeScene`. 50 steps a line. The code has run once before it is timed, in another terminal, so going up lays out rows for the first time and coming back down finds them.\n\n")
                 for (screen in listOf(large, small)) append(table(screen, measure(screen, wheelSteps = 50)))
             }
             File(outputDir, "$label.md").writeText(text)
