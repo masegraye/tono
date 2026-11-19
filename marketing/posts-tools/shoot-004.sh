@@ -12,7 +12,8 @@ variant=${1:-all}
 tono_stop
 # The agents: a session of their own on studio, a tab each, named after its task as workers' tabs are.
 old=$(session_id studio agents); [ -n "$old" ] && rx studio session kill "$old" >/dev/null
-home=$PM/studio/home; mkdir -p "$home/bin"; cp "$tools/agent-sim.sh" "$home/bin/agent"
+cp "$tools/agent-sim.sh" "$PM/studio/home/bin/agent"
+home=$HOME                          # studio's home, as it sees it
 rm -f "$PM/004-ask"
 sid=$(rx studio new agents --window smooth-scroll -c "$home/dev/tono" --json -- "$home/bin/agent" scroll | jq -r .session_id)
 rx studio window new -s "$sid" host-icons -c "$home/dev/tono" --focus=false -- "$home/bin/agent" icons "$PM/004-ask" >/dev/null
