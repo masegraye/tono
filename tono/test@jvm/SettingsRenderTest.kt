@@ -137,10 +137,13 @@ class SettingsRenderTest {
         for (width in listOf(700, 1100)) {
             ui.settings.section = null
             settings(width).use { settings ->
-                val first = settings.draw()
                 // Nothing chosen yet: the first section shows, marked in the list down the left.
-                assertTrue(first.has(scheme.secondaryContainer, 0 until 200), "$width: the first section is marked")
-                assertEquals(6, first.switchesOn().size, "$width: Notifications shows first, with its six switches, all on")
+                assertTrue(settings.draw("first-$width").has(scheme.secondaryContainer, 0 until 200), "$width: the first section is marked")
+                // The second line of the list: Notifications.
+                settings.click(Offset(100f, 52f + 48f + 24f))
+                assertEquals(SettingsSection.Notifications, ui.settings.section)
+                val first = settings.draw()
+                assertEquals(6, first.switchesOn().size, "$width: Notifications has six switches, all on")
                 assertTrue(first.switchesOn().all { it.x > 200 && it.x < width }, "$width: the switches are beside the list, and within the window")
             }
         }
@@ -154,8 +157,8 @@ class SettingsRenderTest {
             assertFalse(list.has(scheme.secondaryContainer), "nothing is chosen in the list")
             assertTrue(list.switchesOn().isEmpty(), "and no section is showing")
 
-            // The second line of the list: Terminal.
-            settings.click(Offset(120f, 48f + 62f + 30f))
+            // The third line of the list: Terminal.
+            settings.click(Offset(120f, 52f + 2 * 54f + 27f))
             assertEquals(SettingsSection.Terminal, ui.settings.section)
             val section = settings.draw("list-420-chosen")
             assertTrue(section.switchesOn().isEmpty(), "Terminal's two switches start off")
@@ -194,6 +197,70 @@ class SettingsRenderTest {
             settings.draw()
             val off = settings.draw("notifications-700-system-off").switchesOn()
             assertEquals(listOf(before.first()), off, "only the sounds' switch is still in the full color")
+        }
+    }
+
+    /** Presses a key with Control, as the toolkit reports it. */
+    @OptIn(androidx.compose.ui.InternalComposeUiApi::class)
+    private fun Settings.press(code: Int, control: Boolean = false) {
+        val source = object : java.awt.Component() {}
+        for (type in listOf(java.awt.event.KeyEvent.KEY_PRESSED, java.awt.event.KeyEvent.KEY_RELEASED)) {
+            val modifiers = if (control) java.awt.event.InputEvent.CTRL_DOWN_MASK else 0
+            scene.sendKeyEvent(
+                androidx.compose.ui.input.key.KeyEvent(
+                    key = androidx.compose.ui.input.key.Key(code),
+                    type = if (type == java.awt.event.KeyEvent.KEY_PRESSED) androidx.compose.ui.input.key.KeyEventType.KeyDown else androidx.compose.ui.input.key.KeyEventType.KeyUp,
+                    isCtrlPressed = control,
+                    nativeEvent = java.awt.event.KeyEvent(source, type, 0L, modifiers, code, java.awt.event.KeyEvent.CHAR_UNDEFINED, java.awt.event.KeyEvent.KEY_LOCATION_STANDARD),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `choosing an action in Shortcuts records a key for it, and its line then offers to put it back`() {
+        ui.settings.section = SettingsSection.Shortcuts
+        settings(700, height = 900).use { settings ->
+            settings.draw("shortcuts-700-before")
+            // The first action listed is the first of the app's: the command palette.
+            val first = commands.shortcutTargets(client.keymap.value).first()
+            assertEquals("client.palette.toggle", first.action)
+            // Its line: under the search field, the note, the line with Reset All, and the group's name.
+            val line = Offset(400f, 300f)
+            settings.click(line)
+            assertEquals(first, ui.settings.shortcutEdit, "a click on a line starts recording for its action")
+            settings.draw("shortcuts-700-recording")
+
+            // Control+J is nothing's, so it is set without a question. Enter chooses Set.
+            settings.press(java.awt.event.KeyEvent.VK_J, control = true)
+            settings.draw("shortcuts-700-recorded")
+            settings.press(java.awt.event.KeyEvent.VK_ENTER)
+            assertEquals(null, ui.settings.shortcutEdit)
+            assertEquals(null, ui.settings.confirmation)
+            assertEquals(listOf("ctrl+j"), client.shortcuts.value.bindings.single { it.action == "client.palette.toggle" }.keys)
+            assertFalse(Workspace.load(file).shortcuts.isEmpty, "and it is kept")
+            settings.draw("shortcuts-700-changed")
+
+            // Reset All asks first, and does nothing until answered.
+            ui.settings.confirmation = resetAllShortcutsQuestion(1) { client.resetAllShortcuts() }
+            assertFalse(client.shortcuts.value.isEmpty)
+            ui.settings.confirmation!!.onConfirm()
+            ui.settings.confirmation = null
+            assertTrue(client.shortcuts.value.isEmpty)
+            assertTrue(Workspace.load(file).shortcuts.isEmpty)
+        }
+    }
+
+    @Test
+    fun `where no keyboard has been seen the shortcuts can be read and not changed`() {
+        ui.settings.section = SettingsSection.Shortcuts
+        ui.keyboardSeen = false
+        settings(420, height = 844).use { settings ->
+            settings.draw("shortcuts-420-read-only")
+            for (y in 200..800 step 40) settings.click(Offset(200f, y.toFloat()))
+            assertEquals(null, ui.settings.shortcutEdit, "no line starts recording")
+            assertEquals(null, ui.settings.confirmation)
+            assertTrue(client.shortcuts.value.isEmpty)
         }
     }
 

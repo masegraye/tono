@@ -274,7 +274,19 @@ Each phase is committed separately, with its tests, and leaves both apps working
 - **About:** `Workspace.location` says where the workspace is kept, and `Keymap.configPath` is the `config.path` of the server's `client.keymap` answer.
 - **Phones:** every row, switch line and button is at least 48 dp (`TOUCH_TARGET`). The browser's back goes from a section to the list and then closes the panel (`WatchBrowserBack`, history entries of the page's own). The Notifications section says what the browser reports, offers Allow Notifications only when the browser hasn't been asked, and where there are none says why: an iPhone or iPad not opened from the Home Screen, or a page not served securely.
 
+### Phase 2 (2026-11-19)
+
+- **The Shortcuts section** (`ShortcutSettings` in `tono/src/Settings.kt`), first in the list: a search field, the line about whose keys these are with a link to the Rex documentation's Keyboard Shortcuts page, how many were changed in Tono beside **Reset All Shortcuts**, and every action by category with its keys and where they come from (`Shortcut.sourceShown()`).
+- **Recording** is backlog-042's panel, now `ShortcutRecorder` in `tono/src/ChangeShortcut.kt`, which the palette's Change Shortcut… and the settings both open. It is drawn in the settings' own window, and so are the questions it asks.
+- **Reset:** a changed action has a reset button on its line (`resetShortcutAsking`, the recorder's own Reset to Default). `RexClient.resetAllShortcuts()` empties this client's layer, after `resetAllShortcutsQuestion`.
+- **Search:** `filterShortcuts` matches every word against title, category, action name, keywords, keys as shown and source.
+- **Read-only without a keyboard:** `RexUiState.keyboardSeen` is true on the desktop, and in a browser becomes true at the first key pressed with Ctrl, Alt or the system's key. Until then no line can be pressed and Reset All isn't offered.
+
 ### Decisions made while building, none of them asked for
+
+- **A desktop browser starts read-only too,** until the first such key, which Ctrl+, itself is. Opened with the mouse, the list says "Press one on a keyboard here, and this list can be changed."
+- **The search field isn't given the keyboard when the section opens,** so that a phone's keyboard doesn't come up unasked.
+- **Escape with a recorder or a question open closes that, not the panel.**
 
 - **Terminal Notifications is Program Messages.** `NotificationSwitches.programMessages` is what the action `client.setting.notifications.macos.terminal_notifications` already switched, so there is one switch, under Rex for Mac's name.
 - **The kinds are under the master switch.** With Show System Notifications off, Blocked, Error, Done and Terminal Notifications are faded and can't be turned, and still show how they are set. That is how `NotificationSwitches.want` reads them.
@@ -298,6 +310,15 @@ Each phase is committed separately, with its tests, and leaves both apps working
   - About showed the workspace file, the home server, API revision 12 and `~/.config/rex/init.lua`.
 - **Web, headless Chromium, 1400 wide:** Ctrl+, reached the page (`defaultPrevented`) and opened the panel; a click on Play Activity Sounds wrote `sounds: false` to the browser's storage, the palette said "Notifications · off", and it was still off after a reload; Escape closed the panel.
 - **Phone size, Chromium's phone emulation (390×844, scale 3, touch):** Settings… chosen in the palette filled the screen with the list; a tap on Terminal opened it; a tap on the words of Copy on Selection turned its switch; the browser's back went to the list, and again closed the panel, on the same page. After closing with the panel's own ✕, one more back left the page, as it would have before the settings were opened.
+
+### What was checked in phase 2
+
+- **Unit and render tests:** search and sources, Reset All and its question, read-only until a key is seen (`SettingsTest`); a click on a line, Ctrl+J and Enter recording a shortcut in an offscreen settings picture, and no line answering while read-only (`SettingsRenderTest`). Pictures `shortcuts-*.png` were looked at.
+- **Desktop, nested Xwayland:** in the settings window, searching "ui showcase", clicking its line, Ctrl+J and Enter wrote the binding to the workspace file, and the main window's palette showed UI Showcase with Ctrl+J. A click on the line's reset button emptied the layer again.
+- **Web, headless Chromium, 1400 wide:** the same recording, kept in the browser's storage; Ctrl+K recorded for the same action asked "…is already a shortcut" and changed nothing on Escape; the line's reset, and Reset All Shortcuts answered with Enter, each emptied the layer.
+- **Phone size, Chromium's phone emulation:** Shortcuts opened read-only and no tap on a line did anything; a tap on the search field put the page's focus in a text input, and typing "split" filtered the list; after Ctrl+J was sent as a key, the line with Reset All appeared and a tap on a line opened the recorder.
+
+Not checked in phase 2: a real on-screen keyboard (emulation has none, so "the field stays in view above it" rests on the field being pinned over the list and on `page-keys.js` part 4); a configuration file with bindings of its own, as in backlog-042; opening the documentation link.
 
 ### Not known yet, as far as phase 1 found out
 

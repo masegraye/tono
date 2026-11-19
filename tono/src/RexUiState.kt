@@ -12,6 +12,7 @@ import org.example.kotlintest.rex.ActivityState
 import kotlin.time.TimeSource
 import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.HostState
+import org.example.kotlintest.rex.KeyChord
 import org.example.kotlintest.rex.MutedTab
 import org.example.kotlintest.rex.TabPlace
 import org.example.kotlintest.rex.mutes
@@ -218,6 +219,18 @@ class RexUiState(val client: RexClient) {
     /** Goes up each time the settings are asked for, so that a window already open can come to the front. */
     var settingsRaises by mutableIntStateOf(0)
         private set
+
+    /**
+     * Whether a keyboard with real keys has been seen, which is what it takes to record a
+     * shortcut. A touch screen's keyboard edits text and never sends a key with Control or
+     * Alt, so in a browser this waits for one; the desktop has one.
+     */
+    var keyboardSeen by mutableStateOf(!runsInBrowser)
+
+    /** A key was pressed. One with Control, Alt or the system's key can only have come from a real keyboard. */
+    fun sawKey(chord: KeyChord) {
+        if (!keyboardSeen && (chord.ctrl || chord.alt || chord.cmd)) keyboardSeen = true
+    }
 
     /** Which part of the settings is showing, and what is open over them. */
     internal val settings = SettingsState()

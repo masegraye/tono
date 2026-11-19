@@ -234,7 +234,8 @@ replies with the final bindings after applying your Rex configuration. That's wh
 
 ### Changing a shortcut
 
-To change a shortcut for Tono alone, run **Change Shortcut…** from the command palette. It lists every command
+To change a shortcut for Tono alone, run **Change Shortcut…** from the command palette, or choose the command under
+Shortcuts in [Settings](#settings). Change Shortcut… lists every command
 with its keys and where they come from: `default`, your Rex configuration file, or `Tono` for one you changed
 here. Choose a command and press the new keys. Then choose what to do:
 
@@ -303,6 +304,10 @@ screen, and back goes from a section to the list of sections first.
 There's nothing to save. A switch takes effect as you turn it, and Tono remembers it. The palette's toggles are the
 same switches, so turning one there shows in Settings at once, and the other way round.
 
+- **Shortcuts** lists every command with its keys and where they come from, with a search field over the list.
+  Choose a command to record new keys for it, as [Change Shortcut…](#changing-a-shortcut) does. A command you've
+  changed has a button that puts it back, and Reset All Shortcuts puts them all back after asking. On a phone or
+  tablet the list is read-only until a key has been pressed with Ctrl or Alt on a real keyboard.
 - **Notifications** has the sound and the notifications for tabs you aren't looking at, a switch for each kind of
   news (Blocked, Error, Done) and for the notifications programs ask for themselves. In a browser it also says
   whether the browser allows notifications, and offers to ask if it hasn't been asked.

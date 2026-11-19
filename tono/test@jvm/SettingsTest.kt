@@ -174,6 +174,77 @@ class SettingsTest {
     }
 
     @Test
+    fun `while a shortcut is being recorded no key is the settings' own`() = withApp(windowed = true) { ui, commands ->
+        ui.openSettings()
+        ui.settings.shortcutEdit = commands.shortcutTargets(ui.client.keymap.value).first()
+        assertFalse(settingsKey(ui, key(AwtKeyEvent.VK_W, InputEvent.CTRL_DOWN_MASK)))
+        assertFalse(settingsKey(ui, key(AwtKeyEvent.VK_COMMA, InputEvent.CTRL_DOWN_MASK)))
+        assertTrue(ui.settingsOpen)
+        // Closing the settings ends the recording with them.
+        ui.closeSettings()
+        assertNull(ui.settings.shortcutEdit)
+    }
+
+    @Test
+    fun `the shortcuts list every action with its keys and where they come from, and can be searched`() = withApp { ui, commands ->
+        val client = ui.client
+        fun listed() = client.shortcutList(commands.shortcutTargets(client.keymap.value))
+        val all = listed()
+        // Every action of the palette is there, and each tab's digit.
+        assertTrue(all.size > 60)
+        assertEquals("Ctrl+,", all.single { it.target.action == "client.settings" }.keysShown())
+        assertEquals("default", all.single { it.target.action == "client.settings" }.sourceShown())
+        assertEquals("no shortcut", all.single { it.target.action == "client.shortcuts.edit" }.sourceShown())
+        assertEquals(all, filterShortcuts(all, "  "))
+
+        // By title, by category, by the action's name, and by key.
+        assertEquals(listOf("Settings…"), filterShortcuts(all, "settings").map { it.target.title })
+        assertEquals(listOf("client.find.open", "client.find.next", "client.find.previous"), filterShortcuts(all, "client.find").map { it.target.action })
+        assertEquals(setOf("Find"), filterShortcuts(all, "find match").map { it.target.category }.toSet())
+        assertEquals(listOf("Change Session…"), filterShortcuts(all, "ctrl+k").map { it.target.title })
+        assertEquals(listOf("Split Pane Right"), filterShortcuts(all, "split right").map { it.target.title })
+        assertTrue(filterShortcuts(all, "no such action").isEmpty())
+
+        // By where a key comes from: what was changed here is found by the app's name.
+        assertTrue(filterShortcuts(all, "changed in tono").isEmpty())
+        client.setShortcut("session.switch", null, org.example.kotlintest.rex.KeyChord.parse("ctrl+shift+k")!!)
+        eventually { client.keymap.value.shortcutFor("session.switch")?.display() == "Ctrl+Shift+K" }
+        val changed = listed()
+        assertEquals(listOf("Change Session…" to "Tono"), filterShortcuts(changed, "ctrl+shift+k").map { it.target.title to it.sourceShown() })
+        assertEquals(1, changed.count { it.changed })
+        assertEquals("1 changed in Tono", changedShortcutsWords(changed.count { it.changed }))
+
+        // Reset All puts everything back, and is kept.
+        client.resetAllShortcuts()
+        eventually { client.keymap.value.shortcutFor("session.switch")?.display() == "Ctrl+K" }
+        assertEquals(0, listed().count { it.changed })
+        assertTrue(Workspace.load(file).shortcuts.isEmpty)
+    }
+
+    @Test
+    fun `Reset All Shortcuts asks first, and says how many`() {
+        var reset = 0
+        val one = resetAllShortcutsQuestion(1) { reset++ }
+        assertEquals("Reset all shortcuts?", one.title)
+        assertTrue(one.text.startsWith("The shortcut changed in Tono goes back to its default"))
+        assertTrue(resetAllShortcutsQuestion(3) {}.text.startsWith("The 3 shortcuts changed in Tono go back to their defaults"))
+        assertEquals(0, reset)
+        one.onConfirm()
+        assertEquals(1, reset)
+    }
+
+    @Test
+    fun `shortcuts can be changed once a key that only a keyboard sends has been seen`() = withApp { ui, _ ->
+        // As in a browser, where a phone has no such keys.
+        ui.keyboardSeen = false
+        ui.sawKey(org.example.kotlintest.rex.KeyChord("a"))
+        ui.sawKey(org.example.kotlintest.rex.KeyChord("enter"))
+        assertFalse(ui.keyboardSeen)
+        ui.sawKey(org.example.kotlintest.rex.KeyChord("k", ctrl = true))
+        assertTrue(ui.keyboardSeen)
+    }
+
+    @Test
     fun `what is said about notifications depends on who has to allow them`() {
         assertNull(notificationAccessWords(NotificationAccess.Granted, browser = false))
         assertTrue("notify-send" in notificationAccessWords(NotificationAccess.Unavailable, browser = false)!!)

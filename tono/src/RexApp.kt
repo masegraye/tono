@@ -233,6 +233,8 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Box(
             Modifier.fillMaxSize().focusRequester(rootFocus).focusable().onPreviewKeyEvent { event ->
+                // Whatever the key is for, it says there is a keyboard: see RexUiState.keyboardSeen.
+                if (event.type == KeyEventType.KeyDown && !ui.keyboardSeen) keyChord(event)?.let(ui::sawKey)
                 if (ui.palette != null || ui.renamingAnything || ui.paneMenu != null || ui.shortcutEdit != null || ui.settingsPanelOpen) return@onPreviewKeyEvent false // an overlay has the keyboard
                 when (event.type) {
                     KeyEventType.KeyDown -> {

@@ -22,7 +22,9 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
+import org.example.kotlintest.rex.KeyBinding
 import org.example.kotlintest.rex.KeyChord
+import org.example.kotlintest.rex.RexClient
 import org.example.kotlintest.rex.Shortcut
 import org.example.kotlintest.rex.ShortcutTarget
 
@@ -72,9 +74,45 @@ internal fun canRecord(chord: KeyChord): Boolean =
 
 private val TYPING_KEYS = setOf("enter", "tab", "space", "backspace", "escape")
 
+/** Change Shortcut… as the palette opens it, over the terminals. */
 @Composable
-fun ChangeShortcut(ui: RexUiState, commands: RexCommands, target: ShortcutTarget) {
-    val client = ui.client
+fun ChangeShortcut(ui: RexUiState, commands: RexCommands, target: ShortcutTarget) = ShortcutRecorder(
+    client = ui.client, commands = commands, target = target,
+    onClose = { ui.shortcutEdit = null },
+    ask = { ui.confirmation = it },
+    onDone = ui::returnFocusToTerminal,
+)
+
+/**
+ * Puts an action back as it was before this app changed it, asking first if that takes a
+ * key back from something it was given to here.
+ *
+ * @param ask puts a question to the user, wherever this was asked from
+ */
+internal fun resetShortcutAsking(client: RexClient, commands: RexCommands, target: ShortcutTarget, ask: (Confirmation) -> Unit) {
+    val reset = { client.resetShortcut(target.action, target.args) }
+    val losers = client.shortcutResetConflicts(target.action, target.args)
+    if (losers.isEmpty()) reset() else ask(
+        Confirmation(
+            title = "Its default keys were given to something else",
+            text = "In this app, ${losers.joinToString(" and ") { "${it.keys.joinToString(" ") { key -> KeyChord.parse(key)?.display() ?: key }} was set for “${commands.titleOf(KeyBinding(emptyList(), it.action, it.args))}”" }}. Resetting “${target.title}” takes that back.",
+            confirmLabel = "Reset",
+            destructive = false,
+            onConfirm = reset,
+        ),
+    )
+}
+
+/**
+ * The panel that records keys for [target] and offers what to do with them. It is drawn
+ * over whatever it is in, the main window or the settings, and takes every key while open.
+ *
+ * @param onClose takes it down. Called before anything it chose is done, since a question may open in its place.
+ * @param ask puts a question to the user
+ * @param onDone called after it has closed and done what was chosen, to hand the keyboard on
+ */
+@Composable
+internal fun ShortcutRecorder(client: RexClient, commands: RexCommands, target: ShortcutTarget, onClose: () -> Unit, ask: (Confirmation) -> Unit, onDone: () -> Unit) {
     val keymap by client.keymap.collectAsState()
     val overrides by client.shortcuts.collectAsState()
     var recorded by remember(target) { mutableStateOf<KeyChord?>(null) }
@@ -89,41 +127,33 @@ fun ChangeShortcut(ui: RexUiState, commands: RexCommands, target: ShortcutTarget
     LaunchedEffect(target) { focus.requestFocus() }
 
     fun close() {
-        ui.shortcutEdit = null
-        ui.returnFocusToTerminal()
+        onClose()
+        onDone()
     }
 
     fun choose(option: ShortcutOption) {
         // Close first: a question may open in its place.
-        ui.shortcutEdit = null
+        onClose()
         when (option.choice) {
             ShortcutChoice.Set -> {
                 val chord = recorded ?: return
                 val set = { client.setShortcut(target.action, target.args, chord) }
                 val losers = conflicts.map { commands.titleOf(it) }.distinct()
                 // Taking a key from something else is asked about, and happens only on a yes.
-                if (losers.isEmpty()) set() else ui.confirmation = Confirmation(
-                    title = "${chord.display()} is already a shortcut",
-                    text = "It is the shortcut for ${losers.joinToString(" and ") { "“$it”" }}. Setting it for “${target.title}” leaves ${if (losers.size == 1) "that" else "those"} without it.",
-                    confirmLabel = "Replace",
-                    destructive = false,
-                    onConfirm = set,
+                if (losers.isEmpty()) set() else ask(
+                    Confirmation(
+                        title = "${chord.display()} is already a shortcut",
+                        text = "It is the shortcut for ${losers.joinToString(" and ") { "“$it”" }}. Setting it for “${target.title}” leaves ${if (losers.size == 1) "that" else "those"} without it.",
+                        confirmLabel = "Replace",
+                        destructive = false,
+                        onConfirm = set,
+                    ),
                 )
             }
             ShortcutChoice.Remove -> client.removeShortcut(target.action, target.args)
-            ShortcutChoice.Reset -> {
-                val reset = { client.resetShortcut(target.action, target.args) }
-                val losers = client.shortcutResetConflicts(target.action, target.args)
-                if (losers.isEmpty()) reset() else ui.confirmation = Confirmation(
-                    title = "Its default keys were given to something else",
-                    text = "In this app, ${losers.joinToString(" and ") { "${it.keys.joinToString(" ") { key -> KeyChord.parse(key)?.display() ?: key }} was set for “${commands.titleOf(org.example.kotlintest.rex.KeyBinding(emptyList(), it.action, it.args))}”" }}. Resetting “${target.title}” takes that back.",
-                    confirmLabel = "Reset",
-                    destructive = false,
-                    onConfirm = reset,
-                )
-            }
+            ShortcutChoice.Reset -> resetShortcutAsking(client, commands, target, ask)
         }
-        ui.returnFocusToTerminal()
+        onDone()
     }
 
     PaletteFrame(onDismiss = ::close) {

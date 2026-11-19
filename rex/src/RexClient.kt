@@ -370,6 +370,11 @@ class RexClient(
         changeShortcuts("$action${args.shown()} reset") { it.reset(action, args, defaultBindings) }
     }
 
+    /** Forgets everything changed in this app, so that every action has its default keys, or the configuration file's. */
+    fun resetAllShortcuts() {
+        changeShortcuts("all reset") { ShortcutOverrides() }
+    }
+
     private fun JsonObject?.shown() = this?.takeIf { it.isNotEmpty() }?.let { " $it" }.orEmpty()
 
     private fun changeShortcuts(what: String, change: (ShortcutOverrides) -> ShortcutOverrides) {

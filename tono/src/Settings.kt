@@ -64,7 +64,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.example.kotlintest.rex.HostState
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.style.TextAlign
 import org.example.kotlintest.rex.KeyChord
+import org.example.kotlintest.rex.Shortcut
+import org.example.kotlintest.rex.ShortcutTarget
 import org.example.kotlintest.rex.TonoClient
 
 /*
@@ -81,6 +91,7 @@ import org.example.kotlintest.rex.TonoClient
 
 /** The parts of the settings, in the order they are listed. */
 internal enum class SettingsSection(val title: String, val summary: String) {
+    Shortcuts("Shortcuts", "The keys for every action, and changing them"),
     Notifications("Notifications", "Sounds and notifications for tabs out of view"),
     Terminal("Terminal", "What selecting text copies"),
     About("About", "Versions, and where things are kept"),
@@ -109,9 +120,16 @@ internal class SettingsState {
     /** A question the settings are asking, which is theirs to show: on the desktop they are not in the main window. */
     var confirmation: Confirmation? by mutableStateOf(null)
 
+    /** The action whose shortcut is being recorded, while it is: see ChangeShortcut.kt. Every key is the recorder's meanwhile. */
+    var shortcutEdit: ShortcutTarget? by mutableStateOf(null)
+
+    /** What is typed in the search field over the shortcuts. */
+    var shortcutQuery by mutableStateOf("")
+
     /** The settings were closed: nothing is left waiting for an answer. */
     fun closed() {
         confirmation = null
+        shortcutEdit = null
     }
 }
 
@@ -123,6 +141,9 @@ internal class SettingsState {
 internal fun settingsKey(ui: RexUiState, event: KeyEvent): Boolean {
     val chord = keyChord(event) ?: return false
     val down = event.type == KeyEventType.KeyDown
+    if (down) ui.sawKey(chord)
+    // Keys being recorded as a shortcut are shortcuts already, most of them, and none of them is to act.
+    if (ui.settings.shortcutEdit != null) return false
     val closes = if (ui.settingsWindowed) chord == CLOSE_WINDOW else chord == KeyChord("escape")
     return when {
         closes -> true.also { if (down) ui.closeSettings() }
@@ -141,8 +162,6 @@ private val CLOSE_WINDOW = KeyChord("w", ctrl = true)
  */
 @Composable
 internal fun SettingsPanel(ui: RexUiState, commands: RexCommands) {
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
     BoxWithConstraints(
         Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
@@ -157,7 +176,6 @@ internal fun SettingsPanel(ui: RexUiState, commands: RexCommands) {
             Modifier.align(Alignment.CenterEnd).fillMaxHeight().widthIn(max = SETTINGS_PANEL_WIDTH).fillMaxWidth()
                 // Clicks inside the panel stop here instead of closing it.
                 .pointerInput(Unit) { detectTapGestures { } }
-                .focusRequester(focus).focusable()
                 .onPreviewKeyEvent { settingsKey(ui, it) },
         ) {
             SettingsContent(ui, commands, Modifier.fillMaxSize(), onClose = ui::closeSettings)
@@ -182,8 +200,13 @@ internal val SETTINGS_PANEL_WIDTH = 760.dp
 @Composable
 internal fun SettingsContent(ui: RexUiState, commands: RexCommands, modifier: Modifier = Modifier, onClose: (() -> Unit)? = null) {
     val state = ui.settings
+    // The settings keep the keyboard while nothing of theirs is open over them, so that the
+    // keys that close them are heard, and a tap beside a text field takes the keyboard from it.
+    val focus = remember { FocusRequester() }
+    val overlaid = state.shortcutEdit != null || state.confirmation != null
+    LaunchedEffect(overlaid) { if (!overlaid) focus.requestFocus() }
     Surface(modifier, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
+        BoxWithConstraints(Modifier.fillMaxSize().focusRequester(focus).focusable().pointerInput(Unit) { detectTapGestures { focus.requestFocus() } }) {
             when (settingsLayout(maxWidth)) {
                 SettingsLayout.Wide -> {
                     val shown = state.section ?: SettingsSection.entries.first()
@@ -220,6 +243,9 @@ internal fun SettingsContent(ui: RexUiState, commands: RexCommands, modifier: Mo
                     }
                 }
             }
+        }
+        state.shortcutEdit?.let { target ->
+            ShortcutRecorder(ui.client, commands, target, onClose = { state.shortcutEdit = null }, ask = { state.confirmation = it }, onDone = {})
         }
         state.confirmation?.let { pending ->
             val dismiss = { state.confirmation = null }
@@ -295,6 +321,7 @@ private fun HeadingButton(icon: ImageVector, description: String, onClick: () ->
 @Composable
 private fun SectionBody(section: SettingsSection, ui: RexUiState, commands: RexCommands) {
     when (section) {
+        SettingsSection.Shortcuts -> ShortcutSettings(ui, commands)
         SettingsSection.Notifications -> ScrollingSection { NotificationSettings(ui) }
         SettingsSection.Terminal -> ScrollingSection { TerminalSettings(ui) }
         SettingsSection.About -> ScrollingSection { AboutSettings(ui) }
@@ -352,6 +379,159 @@ private fun InfoRow(label: String, value: String) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 9.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         SelectionContainer { Text(value, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp)) }
+    }
+}
+
+/**
+ * Keeps the shortcuts matching every word of [query], in the order given. A word matches an
+ * action's title, category, name or keywords, its keys as shown (`ctrl+k`), or where they
+ * come from (`tono`, `init.lua`, `default`).
+ */
+internal fun filterShortcuts(shortcuts: List<Shortcut>, query: String): List<Shortcut> {
+    val words = query.lowercase().split(' ').filter { it.isNotEmpty() }
+    if (words.isEmpty()) return shortcuts
+    return shortcuts.filter { shortcut ->
+        val target = shortcut.target
+        val text = listOf(target.title, target.category, target.action, target.keywords, shortcut.keysShown().orEmpty(), shortcut.sourceShown()).joinToString(" ").lowercase()
+        words.all { it in text }
+    }
+}
+
+/** How many shortcuts this app has changed, in words, for the line over the list. */
+internal fun changedShortcutsWords(changed: Int): String = when (changed) {
+    0 -> "None changed in $APP_NAME"
+    1 -> "1 changed in $APP_NAME"
+    else -> "$changed changed in $APP_NAME"
+}
+
+/** The question Reset All Shortcuts asks before it does anything. */
+internal fun resetAllShortcutsQuestion(changed: Int, reset: () -> Unit) = Confirmation(
+    title = "Reset all shortcuts?",
+    text = "${if (changed == 1) "The shortcut" else "The $changed shortcuts"} changed in $APP_NAME ${if (changed == 1) "goes" else "go"} back to ${if (changed == 1) "its default" else "their defaults"}, or to what Rex's configuration file says. The file itself isn't touched.",
+    confirmLabel = "Reset All",
+    onConfirm = reset,
+)
+
+/** Where Rex's documentation says how keys are bound for every client. */
+internal const val SHORTCUTS_DOCUMENTATION = "https://www.superlogical.com/rex/docs/customize/keyboard-shortcuts"
+
+/**
+ * Every action with its keys and where they come from, and the means to change them, which
+ * are Change Shortcut…'s (ChangeShortcut.kt, rex/src/Shortcuts.kt). The list is read and not
+ * changed until a real keyboard has been seen, since a shortcut is recorded by pressing it.
+ */
+@Composable
+private fun ShortcutSettings(ui: RexUiState, commands: RexCommands) {
+    val client = ui.client
+    val state = ui.settings
+    val keymap by client.keymap.collectAsState()
+    val overrides by client.shortcuts.collectAsState()
+    val all = remember(keymap, overrides) { client.shortcutList(commands.shortcutTargets(keymap)) }
+    val shown = remember(all, state.shortcutQuery) { filterShortcuts(all, state.shortcutQuery) }
+    val changed = all.count { it.changed }
+    val canChange = ui.keyboardSeen
+    // A keyboard on the screen goes when the list does, as when the settings close.
+    val screenKeyboard = LocalSoftwareKeyboardController.current
+    DisposableEffect(Unit) { onDispose { screenKeyboard?.hide() } }
+    Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
+        Column(Modifier.widthIn(max = SECTION_WIDTH).fillMaxWidth()) {
+            // The search field stays put over the list, where a keyboard on the screen leaves it in view.
+            TextField(
+                value = state.shortcutQuery,
+                onValueChange = { state.shortcutQuery = it },
+                singleLine = true,
+                placeholder = { Text("Search actions and keys", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                shape = MaterialTheme.shapes.medium,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh, unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                ),
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            )
+            LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(bottom = 20.dp)) {
+                item {
+                    Column(Modifier.padding(start = 6.dp, end = 6.dp, top = 12.dp)) {
+                        Text(
+                            "Keys set here are this client's alone, and sit above Rex's configuration file. To change a key for every client, bind it with rex.bind in ${keymap.configPath ?: "init.lua"}.",
+                            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            "Keyboard shortcuts in the Rex documentation",
+                            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 2.dp).clip(MaterialTheme.shapes.extraSmall)
+                                .clickable { openLink(SHORTCUTS_DOCUMENTATION) { message, isError -> client.log.add("links", message, isError = isError) } }
+                                // The words are small, and what is pressed is the height a finger needs.
+                                .heightIn(min = TOUCH_TARGET).wrapContentHeight(),
+                        )
+                    }
+                }
+                item {
+                    Row(Modifier.fillMaxWidth().padding(start = 6.dp).heightIn(min = TOUCH_TARGET), verticalAlignment = Alignment.CenterVertically) {
+                        if (canChange) {
+                            Text(changedShortcutsWords(changed), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                            TextButton(
+                                onClick = { state.confirmation = resetAllShortcutsQuestion(changed) { client.resetAllShortcuts() } },
+                                enabled = changed > 0,
+                                modifier = Modifier.heightIn(min = TOUCH_TARGET),
+                            ) { Text("Reset All Shortcuts") }
+                        } else {
+                            Text(
+                                "Shortcuts are changed from a device with a keyboard: a shortcut is recorded by pressing it. Press one on a keyboard here, and this list can be changed.",
+                                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 6.dp, bottom = 6.dp),
+                            )
+                        }
+                    }
+                }
+                if (shown.isEmpty()) item {
+                    Text("No action matches", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp, top = 12.dp))
+                }
+                // By category, in the order the palette lists the actions.
+                for ((category, shortcuts) in shown.groupBy { it.target.category.ifEmpty { "Actions" } }) {
+                    item(key = category) {
+                        Column {
+                            SettingsGroup(category) {
+                                shortcuts.forEachIndexed { index, shortcut ->
+                                    if (index > 0) RowDivider()
+                                    ShortcutRow(
+                                        shortcut, canChange,
+                                        onClick = { state.shortcutEdit = shortcut.target },
+                                        onReset = { resetShortcutAsking(client, commands, shortcut.target) { state.confirmation = it } },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * One action: its name over where its keys come from, the keys, and, where this app changed
+ * them, the way to put them back. Pressing the line records new keys for it.
+ *
+ * @param canChange false where shortcuts can only be read: nothing on the line can be pressed
+ */
+@Composable
+private fun ShortcutRow(shortcut: Shortcut, canChange: Boolean, onClick: () -> Unit, onReset: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+            .then(if (canChange) Modifier.clickable(onClick = onClick) else Modifier)
+            .heightIn(min = TOUCH_TARGET)
+            .padding(start = 14.dp, end = 14.dp),
+    ) {
+        Column(Modifier.weight(1f).padding(vertical = 5.dp)) {
+            Text(shortcut.target.title, style = MaterialTheme.typography.bodyMedium)
+            Text(shortcut.sourceShown(), style = MaterialTheme.typography.labelMedium, color = if (shortcut.changed) colors.primary else colors.onSurfaceVariant, modifier = Modifier.padding(top = 1.dp))
+        }
+        // Before the keys, so that the keys line up down the list whether or not a line has it.
+        if (canChange && shortcut.changed) HeadingButton(Icons.Filled.Refresh, "Reset ${shortcut.target.title} to its default", onReset)
+        shortcut.keysShown()?.let { keys ->
+            Text(keys, style = MaterialTheme.typography.labelLarge, color = colors.onSurface, textAlign = TextAlign.End, modifier = Modifier.padding(start = 12.dp, top = 5.dp, bottom = 5.dp).widthIn(max = 200.dp))
+        }
     }
 }
 
