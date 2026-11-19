@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | done (commits `313dab0`, `f44fd24`, `COMMIT3`, 2026-11-19); the real link between omranchy and omwork is still to be recorded |
+| Status | done (commits `313dab0`, `f44fd24`, `07abebc`, 2026-11-19); the real link between omranchy and omwork is still to be recorded |
 | Area | Reading a terminal |
 | Size | medium |
 | Source | Mase, 2026-11-19, on omranchy, after backlog-053 |
@@ -63,7 +63,7 @@ queued in the app meanwhile.
 
 - Against a local server a round trip is about 1 ms, so nothing queued. backlog-053 measured there.
 - At 5 ms each way (a round trip of 13 ms) a wheel flicked at 30 notches in a quarter of a second queued up to 11
-  reports, and scrolling went on for 135 to 150 ms after the wheel stopped.
+  reports, and scrolling went on for 130 to 150 ms after the wheel stopped.
 - At 30 ms each way (a round trip of 62 ms) it queued up to 26, and went on for **1.6 to 1.7 seconds** after the
   wheel stopped. Notches 40 ms apart, an ordinary steady scroll, already fell behind: 0.5 s. A frame came every 50
   to 83 ms where the wheel turned every 8 to 40.
@@ -82,7 +82,7 @@ Each of these was measured, with the link's own log beside the app's (`--link`):
 | TLS (Ktor's CIO) buffering | No. The same queueing with and without it; TLS adds about 0.4 ms each way. Checked against a self-signed certificate on the slow link, not against Tailscale's. |
 | Reports queued behind other traffic on the control connection | No other request waited or ran while the wheel turned. They queued behind each other. |
 | Output applied late or in batches | No. A chunk was read off its socket 0.3 to 0.6 ms after it reached the machine, waited 0.1 ms (most 1.2) for the terminals' thread, and was taken in in 0.1 to 0.2 ms (most 3). The server's chunks arrive as it sent them, one WebSocket frame each, up to 30 kB. |
-| The terminals' thread or the drawing thread blocked | No stall over 25 ms, but for one of 28 ms in drawing at startup. With software rendering the drawing thread is busy 9 ms of every 16. |
+| The terminals' thread or the drawing thread blocked | No stall over 25 ms in the runs kept (one of 28 ms, in drawing, in an earlier run). With software rendering the drawing thread kept new work waiting 9 ms at the median in about half of its frames, and 24 ms at worst; a wheel event reached Tono 1 ms after the toolkit stamped it at the median, and up to 16. |
 | Frames not asked for | A frame is read when output lands. But the terminals' thread slept 4 ms after every frame, and a turn of the wheel that came in that time waited for it: up to 10 ms before its report was even asked to be sent. Fixed, below. |
 | Synchronized updates (mode 2026) | Neovim brackets every redraw with them. In these runs each redraw arrived whole, in one chunk, so no frame was read in the middle of one. But libghostty-vt doesn't hold a frame for them (checked: a frame read between the begin and the end shows the screen half drawn), so a redraw that arrives in two pieces would have shown. Fixed, below; this is backlog-019. |
 
@@ -130,7 +130,7 @@ From the wheel to the program's answer drawn, in milliseconds. The desktop app, 
 | 30 ms ± 10 each way, tui | all turns | 452 / 1418 / 1662 | 82 / 86 / 98 |
 | | a flick: median / worst | 851 / 1661 | 82 / 98 |
 | | went on after a flick stopped | 1661 | 84 to 86 |
-| | waiting for the control connection, p90 / worst | 1338 / 1576 | 0.1 / 0.2 |
+| | waiting for the control connection, p90 / p99 | 1338 / 1576 | 0.1 / 0.2 |
 | | answers over 17 ms later than the wheel's own rhythm | 61 of 86 | 1 of 86 |
 | 30 ms ± 10, Neovim | all turns | 465 / 1431 / 1671 | 100 / 164 / 211 |
 | | went on after a flick stopped | 1667 to 1671 | 69 to 84 |
