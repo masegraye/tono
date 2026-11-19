@@ -21,8 +21,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -142,16 +142,9 @@ internal fun BoxScope.PaneUploads(host: RexHost, blockId: String, dropping: Bool
     }
     Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         if (slow && sending.isNotEmpty()) {
-            val fraction = uploadFraction(sending)
             Chip(
                 uploadingWords(sending), MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.colorScheme.onSurface,
-                Modifier.testTag("upload-progress").drawBehind {
-                    // How far along, as a line under the words.
-                    if (fraction != null) {
-                        val height = 2.dp.toPx()
-                        drawRoundRect(accent, Offset(0f, size.height - height), Size(size.width * fraction, height), CornerRadius(height / 2))
-                    }
-                },
+                Modifier.testTag("upload-progress"), bar = uploadFraction(sending), barColor = accent,
             )
         }
         if (failed != null) {
@@ -167,8 +160,9 @@ internal fun BoxScope.PaneUploads(host: RexHost, blockId: String, dropping: Bool
     }
 }
 
+/** A few words on a pane. [bar], from 0 to 1, draws how far along something is as a line under them. */
 @Composable
-private fun Chip(text: String, background: Color, color: Color, modifier: Modifier = Modifier) {
+private fun Chip(text: String, background: Color, color: Color, modifier: Modifier = Modifier, bar: Float? = null, barColor: Color = color) {
     Text(
         text,
         style = MaterialTheme.typography.labelMedium,
@@ -177,7 +171,14 @@ private fun Chip(text: String, background: Color, color: Color, modifier: Modifi
         overflow = TextOverflow.Ellipsis,
         modifier = modifier
             .widthIn(max = 520.dp)
-            .background(background.copy(alpha = 0.95f), RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(6.dp))
+            .background(background.copy(alpha = 0.95f))
+            .drawBehind {
+                if (bar != null) {
+                    val height = 2.dp.toPx()
+                    drawRect(barColor, Offset(0f, size.height - height), Size(size.width * bar, height))
+                }
+            }
             .padding(horizontal = 10.dp, vertical = 5.dp),
     )
 }
