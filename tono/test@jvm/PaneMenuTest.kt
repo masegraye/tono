@@ -169,9 +169,14 @@ class PaneMenuTest {
     }
 
     @Test
-    fun `near the bottom it is moved up until it fits`() {
-        assertEquals(IntOffset(300, 300), menuPosition(IntOffset(300, 700), size, window))
-        assertEquals(IntOffset(640, 300), menuPosition(IntOffset(900, 790), size, window))
+    fun `near the bottom it opens above the click`() {
+        assertEquals(IntOffset(300, 200), menuPosition(IntOffset(300, 700), size, window))
+        assertEquals(IntOffset(640, 290), menuPosition(IntOffset(900, 790), size, window))
+    }
+
+    @Test
+    fun `with room neither below nor above it is moved up until it fits`() {
+        assertEquals(IntOffset(300, 300), menuPosition(IntOffset(300, 400), size, window))
     }
 
     @Test

@@ -56,7 +56,9 @@ There are three ways around that:
 
 A mouse's back and forward buttons go through Tono's tabs and don't take the browser off the page. The middle
 button does only what Tono does with it: the browser's own use for it on a page, such as scrolling by moving the
-mouse, is turned off.
+mouse, is turned off. The right button opens [the pane's menu](using-tono.md#the-pane-menu) and not the
+browser's own. Firefox is known to show its own menu on Shift and a right click whatever a page asks, so there
+the click that Shift sends to a program should arrive with Firefox's menu on top; this wasn't tried.
 
 A browser has no primary selection, and a page can neither set nor read the desktop's. So with Primary Selection
 turned on (see [Selecting and copying](using-tono.md#copy-on-selection-and-pasting-with-the-middle-button)) the

@@ -146,6 +146,33 @@ The rest is in the command palette:
   gives it a tab of its own. The program in it carries on.
 - **Rename Pane…** names the focused pane. The name shows in the pane's top right corner, and on every client.
 
+## The pane menu
+
+Right-click a pane for what can be done to it, or press Ctrl+Shift+Space for the menu of the pane you're typing in.
+
+| | |
+| --- | --- |
+| Copy, Paste, Select All | The clipboard. Copy is dimmed until something is selected |
+| Find…, Insert Path…, Go to Directory… | [Finding text](#finding-text), and [browsing the terminal's machine](#inserting-a-path-and-going-to-a-folder) |
+| Split Right / Left / Down / Up, Zoom Pane, Balance Splits | The layout |
+| Move Pane to Tab…, Move Pane to New Tab, Rename Pane… | The pane itself |
+| Close Pane, Clear Terminal, Reset Terminal | Close asks first. Clear empties the screen and the history, keeping the line you're on. Reset does that and puts the terminal back as it started, for when a program has left it in a mess; the program keeps running |
+
+Each row shows its shortcut, if it has one. A row that can't be used right now is dimmed and stays where it is:
+Balance Splits in a tab with one pane, for example. Right-clicking a pane you aren't typing in moves the keyboard
+to it first, so the menu is always about the pane you clicked.
+
+With the menu open, Up and Down move through the rows, Enter runs one, and Escape closes it, as does a click anywhere
+else or Ctrl+Shift+Space again.
+
+The right button always opens the menu, even over a program that uses the mouse itself, such as Neovim or htop.
+Hold Shift while you right-click to send the click to that program instead. This is the other way round from the
+[middle button](#copy-on-selection-and-pasting-with-the-middle-button), where the plain click is the program's and
+Shift takes it away, and it's on purpose: it is what Rex Rune does, and the menu is the one thing here that only
+the right button reaches, so it shouldn't depend on what's running in the pane.
+
+Moving, resizing and focusing a pane by direction aren't in the menu. They're on their keys and in the palette.
+
 ## The status line
 
 The line at the bottom of the window shows where you are: the machine, the session, the tab and the terminal's size.
@@ -173,6 +200,7 @@ place of Cmd, and with Shift added where Ctrl on its own already means something
 | Alt+] / Alt+[ | Focus the next / previous pane |
 | Ctrl+Alt+Shift+arrows | Move the pane: it trades places with the pane on that side |
 | Ctrl+Shift+Enter | Zoom the pane, or restore the layout |
+| Ctrl+Shift+Space, or a right click | The pane's menu |
 | Ctrl+Shift+W / Ctrl+Alt+W | Close the pane / the tab, after asking |
 | Ctrl+Shift+C / Ctrl+Shift+V | Copy the selected text / paste text, or upload a copied image or files |
 | Ctrl+Shift+A | Select everything in the terminal, including its history |

@@ -145,8 +145,8 @@
   // the press whatever happens here; cancelling the browser's menu is what keeps it away.
   // A text field of the page's own keeps the browser's menu, which is where its paste is.
   //
-  // Firefox opens its own menu on Shift and a right click whatever a page says, which is
-  // its way out of pages that do this. There the program still gets the click, under it.
+  // Firefox is known to open its own menu on Shift and a right click whatever a page says,
+  // which is its way out of pages that do this. Not tried here.
   addEventListener('contextmenu', (event) => {
     const target = event.composedPath ? event.composedPath()[0] : event.target;
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;

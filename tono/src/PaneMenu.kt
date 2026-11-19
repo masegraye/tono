@@ -201,13 +201,19 @@ internal fun stepMenuRow(enabled: List<Boolean>, from: Int, down: Boolean): Int?
 
 /**
  * Where a menu goes: its corner at the point asked for, opening to the right and downwards.
- * With no room to the right it opens to the left of the point, and with none below it is
- * moved up until it fits, as a desktop's menus are. Never off the top or the left.
+ * With no room to the right it opens to the left of the point, and with none below, above
+ * it, as a desktop's menus do, so that the pointer is at a corner of the menu and not on
+ * one of its rows. With room neither below nor above it is moved up until it fits. Never
+ * off the top or the left.
  */
 internal fun menuPosition(at: IntOffset, menu: IntSize, window: IntSize): IntOffset {
     val x = if (at.x + menu.width <= window.width) at.x else at.x - menu.width
-    val y = if (at.y + menu.height <= window.height) at.y else window.height - menu.height
-    return IntOffset(x.coerceAtLeast(0), y.coerceAtLeast(0))
+    val y = when {
+        at.y + menu.height <= window.height -> at.y
+        at.y - menu.height >= 0 -> at.y - menu.height
+        else -> window.height - menu.height
+    }
+    return IntOffset(x.coerceAtMost(window.width - menu.width).coerceAtLeast(0), y.coerceAtLeast(0))
 }
 
 /**
