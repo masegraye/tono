@@ -44,6 +44,32 @@ Settings are palette toggles today, each found only by knowing its name. Some ca
 
 A browser can't open a window that tiles. So the web app shows the same settings composable as a panel over the app: full height, the same width rules, and closed by Escape or a close button. There's no `window.open`.
 
+### Phones (the web app on a phone)
+
+A phone gets the web app's panel. On a phone it has to work by touch, at phone size:
+
+- **Size:**
+  - when the app is in its narrow, one-thing-at-a-time layout (`RexUiState.narrow`), the panel fills the whole screen rather than floating over the app;
+  - it uses the narrow settings layout: the list of sections, a tap opens one, and a back control returns to the list;
+  - the browser's back gesture or button goes back too. It goes from a section to the list, then closes the panel, and never leaves the page; see `webApp/resources/page-keys.js` for how the page keeps the mouse's back button today.
+- **Touch:**
+  - every switch, row and button is a touch target of at least 48 dp;
+  - a whole row toggles its switch, not only the switch itself;
+  - nothing in the panel needs hover: no controls that only appear under the pointer.
+- **The on-screen keyboard:**
+  - typing in the Shortcuts search field brings up the on-screen keyboard;
+  - the field stays in view above it (the page already shrinks to what the keyboard leaves; see `page-keys.js` part 4);
+  - the panel closes the keyboard when it closes.
+- **Shortcuts without a hardware keyboard:**
+  - a key chord can't be recorded on a touch-only device, so there the Shortcuts section is a read-only list of what's bound and where from, with a line saying shortcuts are changed from a device with a keyboard;
+  - with a hardware keyboard attached (an iPad with a keyboard, a phone with a Bluetooth one), recording works as on the desktop;
+  - deciding which applies: read-only until a real key event arrives from a keyboard. A touch-only device never sends Ctrl or Alt chords, so no device detection is needed.
+- **Notification permission:**
+  - the Notifications section shows what the browser reports (allowed, blocked, not asked, or unavailable), and only offers the button to ask when asking can work;
+  - iOS Safari allows web notifications only to a web app added to the home screen. Where they're unavailable, say so plainly instead of offering a button that does nothing.
+
+The native iOS app (inv-002) isn't built yet. When it is, it shows the same settings content full screen with the narrow layout. The desktop-only parts drop out: the separate window, Ctrl+W, and the primary selection.
+
 ### Changes apply at once
 
 - **No Save or Cancel:** a change takes effect in the main window immediately, and is saved to the workspace file as the palette toggles are saved today.
@@ -51,7 +77,7 @@ A browser can't open a window that tiles. So the web app shows the same settings
 
 ### Sections in this spec
 
-1. **Shortcuts:**
+1. **Shortcuts** (read-only on a touch-only device; see Phones):
    - every action with its title and category, its current key or keys, and where each key comes from: Tono's default, the configuration file (with file and line), or Tono;
    - a search field at the top;
    - choosing an action records a new key, using backlog-042's code (`rex/src/Shortcuts.kt`, `tono/src/ChangeShortcut.kt`). The same Set, Remove and Reset to Default options apply, and so does the same question before taking a key from another action;
@@ -95,9 +121,11 @@ These are later backlog entries, not this spec:
 
 Both apps keep working, and the palette toggles still work.
 
+Phase 1 includes the phone rules for the panel and the switches: full screen, touch targets, back, and notification permission.
+
 ### Phase 2: Shortcuts
 
-The Shortcuts section on backlog-042's code: list, search, record, per-action reset, and Reset All.
+The Shortcuts section on backlog-042's code: list, search, record, per-action reset, and Reset All. It's read-only on a touch-only device, and the search field must work with the on-screen keyboard.
 
 Each phase is committed separately, with its tests, and leaves both apps working.
 
@@ -116,6 +144,14 @@ Each phase is committed separately, with its tests, and leaves both apps working
 
   There's no window manager in there, so tiling itself isn't checked there. Mase checks it by eye, on the real desktop.
 - **Web, headless Chromium:** Ctrl+, opens the panel; switches change what the palette shows and are kept across a reload; Escape closes it.
+- **Phone size, Chromium's phone emulation** (touch events, a 390×844 viewport, scale 3):
+  - opening Settings… from the palette fills the screen;
+  - tapping a section opens it, and back (the in-panel control, and the browser's back) returns, then closes, never leaving the page;
+  - a tap on a row toggles its switch;
+  - Shortcuts is read-only until a key chord has been seen;
+  - every target measures at least 48 dp in the screenshot.
+
+  A real phone is backlog-029's and not required here.
 - **Mase, by hand on the real desktop:** Ctrl+,, then check the window tiles beside the main one and looks right at that size.
 
 ## Not known yet
