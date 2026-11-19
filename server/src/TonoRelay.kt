@@ -190,10 +190,10 @@ private val RELAYED = listOf("/api/control" to "rex.control.v1", "/api/data" to 
 
 /**
  * How often a page is asked whether it is still there, and how long it has to answer: a page
- * that is gone is noticed within a minute. A Rex server asks its clients every two minutes
- * and gives up on one after about nine, having learnt to be patient with slow links. This is
- * less patient because being wrong costs little here: a page that is cut off while it is
- * still there connects again and carries on as the client it was.
+ * that is gone is noticed within a minute. A Rex server gives a quiet client five (a ping
+ * after two, then one a minute, three unanswered), having learnt to be patient with slow
+ * links. This is less patient because being wrong costs little here: a page that is cut off
+ * while it is still there connects again and carries on as the client it was.
  */
 private const val PAGE_ASK_MILLIS = 20_000L
 private const val PAGE_PATIENCE_MILLIS = 40_000L
