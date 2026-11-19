@@ -9,3 +9,4 @@ An investigation records findings and may recommend, but it is not a work order.
 | # | Document | Status |
 |---|----------|--------|
 | 001 | [inv-001-rex-rune-feature-audit.md](inv-001-rex-rune-feature-audit.md): what Rex Rune does that Tono doesn't, and what in it is worth building. Its findings are the backlog's first entries | in-review |
+| 002 | [inv-002-ios-app-and-testflight.md](inv-002-ios-app-and-testflight.md): what it takes to build Tono for iOS and ship it through TestFlight | done |
