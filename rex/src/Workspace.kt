@@ -16,6 +16,9 @@ interface WorkspaceStorage {
     fun read(): String?
 
     fun write(text: String)
+
+    /** Where that is, in words a person can use to find it: a file's path, say. Null if there is nothing to say. */
+    val location: String? get() = null
 }
 
 /** A Rex server the app connects to every time it starts. */
@@ -151,6 +154,9 @@ class Workspace(
     var hosts: List<SavedHost> = hosts
     val sessions: MutableMap<String, String> = sessions.toMutableMap()
 
+    /** Where it is kept, for showing: the file's path on the desktop. Null for one that is never saved. */
+    val location: String? get() = storage?.location
+
     /** Writes it out. Several threads may ask at once; one writes at a time. */
     fun save() {
         locked(this) {
@@ -165,7 +171,7 @@ class Workspace(
                 lastHost?.let { put("last_host", it) }
                 putJsonObject("sessions") { for ((host, session) in sessions) put(host, session) }
                 if (!sounds) put("sounds", false)
-                // Always written, every switch: until there is a settings screen, this file is where they are found.
+                // Always written, every switch, so that the file shows what there is to set.
                 put("notifications", notifications.toJson())
                 // The same goes for these, which Rex Rune keeps under its terminal settings.
                 put("terminal", selection.toJson())

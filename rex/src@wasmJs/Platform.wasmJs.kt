@@ -86,6 +86,7 @@ actual fun defaultWorkspace(): Workspace = Workspace.load(
     object : WorkspaceStorage {
         override fun read(): String? = storageGet(STORAGE_KEY)
         override fun write(text: String) = storageSet(STORAGE_KEY, text)
+        override val location: String get() = "this browser's storage for ${pageOrigin()}, under $STORAGE_KEY"
     },
 )
 

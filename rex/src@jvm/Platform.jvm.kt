@@ -84,6 +84,8 @@ actual fun defaultWorkspace(): Workspace = Workspace.load()
 
 /** A workspace kept in a file, written through a temporary one so a crash can't leave it half-written. */
 class WorkspaceFile(val file: Path) : WorkspaceStorage {
+    override val location: String get() = file.toAbsolutePath().toString()
+
     override fun read(): String? = runCatching { Files.readString(file) }.getOrNull()
 
     override fun write(text: String) {

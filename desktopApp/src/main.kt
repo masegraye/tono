@@ -1,6 +1,9 @@
 package org.example.kotlintest
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.window.ApplicationScope
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toComposeImageBitmap
@@ -43,7 +46,10 @@ fun main(args: Array<String>) {
     val client = RexClient(connections, workspace)
 
     application {
+        val tono = rememberTono(client, settingsInOwnWindow = true)
+        val icon = remember { windowIcon() }
         Window(
+            // Closing the main window ends the app, and the settings window with it.
             onCloseRequest = {
                 client.close()
                 connections.cancel()
@@ -51,16 +57,50 @@ fun main(args: Array<String>) {
             },
             // Says where the window is, for a window list or a workspace overview.
             title = currentWindowTitle(client),
-            icon = remember { windowIcon() },
+            icon = icon,
             state = rememberWindowState(size = DpSize(1280.dp, 820.dp)),
         ) {
             // Renders at the Hyprland monitor's scale, which the JVM doesn't see under XWayland.
             OmarchyWindowScale {
-                TonoApp(client)
+                TonoApp(tono)
             }
+        }
+        if (tono.settingsOpen) SettingsWindow(tono, icon)
+    }
+}
+
+/**
+ * The settings, in a window of their own: an ordinary one, with no fixed size and nothing
+ * that marks it a dialog, so that a tiling window manager places it as it does any other,
+ * which on Hyprland is beside the main window. It is the same program and the same
+ * connections as the main window. Closing it leaves the app running.
+ */
+@Composable
+private fun ApplicationScope.SettingsWindow(tono: Tono, icon: Painter?) {
+    // For a window manager that lets windows float. The window is measured in the toolkit's
+    // pixels and drawn at the monitor's scale, so the size is scaled here to come out the same.
+    val scale = remember { detectOmarchyUiScale() ?: 1f }
+    Window(
+        onCloseRequest = tono::closeSettings,
+        title = "$APP_NAME Settings",
+        icon = icon,
+        state = rememberWindowState(size = DpSize(SETTINGS_WIDTH * scale, SETTINGS_HEIGHT * scale)),
+        // Control+W closes it, from wherever in it the keyboard is.
+        onPreviewKeyEvent = tono::settingsKey,
+    ) {
+        // Asked for again while open: it comes to the front, as far as the desktop lets a window do that.
+        LaunchedEffect(tono.settingsRaises) {
+            window.toFront()
+            window.requestFocus()
+        }
+        OmarchyWindowScale {
+            TonoSettings(tono)
         }
     }
 }
+
+private val SETTINGS_WIDTH = 760.dp
+private val SETTINGS_HEIGHT = 640.dp
 
 /**
  * The app's icon, for window lists and title bars that show one. A launcher takes its icon

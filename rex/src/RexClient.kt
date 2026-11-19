@@ -97,6 +97,49 @@ class RexClient(
         workspace.save()
     }
 
+    private val mutableSounds = MutableStateFlow(workspace.sounds)
+    private val mutableNotifications = MutableStateFlow(workspace.notifications)
+    private val mutableSelection = MutableStateFlow(workspace.selection)
+
+    /*
+     * The switches a person sets, as they stand. Each is kept in the workspace, and is here so
+     * that everything showing one (a palette, a settings window, another window of the app)
+     * hears of a change wherever it was made.
+     */
+
+    /** Whether a program in a tab out of view makes a sound when it wants the user, fails, or finishes. */
+    val sounds: StateFlow<Boolean> get() = mutableSounds
+
+    /** What a desktop notification is shown for. */
+    val notifications: StateFlow<NotificationSwitches> get() = mutableNotifications
+
+    /** What selecting with the pointer copies, and whether the middle button pastes. */
+    val selection: StateFlow<SelectionSwitches> get() = mutableSelection
+
+    /** Turns the sounds on or off. Applies at once, and is remembered. */
+    fun setSounds(enabled: Boolean) {
+        if (mutableSounds.value == enabled) return
+        mutableSounds.value = enabled
+        workspace.sounds = enabled
+        workspace.save()
+    }
+
+    /** Sets what a desktop notification is shown for. Applies at once, and is remembered. */
+    fun setNotifications(switches: NotificationSwitches) {
+        if (mutableNotifications.value == switches) return
+        mutableNotifications.value = switches
+        workspace.notifications = switches
+        workspace.save()
+    }
+
+    /** Sets what selecting with the pointer does. Applies at once, and is remembered. */
+    fun setSelection(switches: SelectionSwitches) {
+        if (mutableSelection.value == switches) return
+        mutableSelection.value = switches
+        workspace.selection = switches
+        workspace.save()
+    }
+
     private val mutableTabNews = MutableSharedFlow<TabNews>(extraBufferCapacity = 16, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     /**

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | accepted |
+| Status | in-progress |
 | Promoted from | backlog-028 |
 | Builds on | backlog-042 (Change Shortcut…), backlog-008 (notification switches), backlog-004 (selection switches) |
 | Asked for by | Mase, 2026-11-19 |
@@ -261,3 +261,45 @@ Each phase is committed separately, with its tests, and leaves both apps working
 
 - Whether Compose Desktop's second `Window` can be brought to the front under Hyprland on demand. `toFront()` and `requestFocus` with XWayland may need Hyprland's `focus_on_activate`, which is on here. Find out, and write down what happens.
 - Whether the settings window should open on the main window's workspace when the main window is on a special workspace. Hyprland decides by itself; note what it does.
+
+## What was built
+
+### Phase 1 (2026-11-19)
+
+- **The action:** `client.settings`, **Settings…**, on Ctrl+,, in the palette and in the sidebar's ⋮ menu (`tono/src/RexActions.kt`, `RexApp.kt`).
+- **The settings themselves:** `tono/src/Settings.kt`. `SettingsContent` is the one composable both apps show. `settingsLayout(width)` chooses Wide from 640 dp and Narrow below. Sections: Notifications, Terminal, About.
+- **The desktop window:** `desktopApp/src/main.kt` shows a second `Window`, "Tono Settings", while `Tono.settingsOpen`. `rememberTono(client, settingsInOwnWindow = true)` makes the one `RexUiState` and `RexCommands` both windows use (`tono/src/TonoApp.kt`), so there is one client and one connection.
+- **The web panel:** `SettingsPanel`, over the app at the page's right edge, at most 760 dp wide and the full height. On a page narrower than that it is the whole page.
+- **Observable switches:** `RexClient.sounds`, `.notifications` and `.selection` are `StateFlow`s with setters that save the workspace. `RexUiState` sets them and follows them (`followSettings`), so the palette's toggles and the settings' switches are one thing.
+- **About:** `Workspace.location` says where the workspace is kept, and `Keymap.configPath` is the `config.path` of the server's `client.keymap` answer.
+- **Phones:** every row, switch line and button is at least 48 dp (`TOUCH_TARGET`). The browser's back goes from a section to the list and then closes the panel (`WatchBrowserBack`, history entries of the page's own). The Notifications section says what the browser reports, offers Allow Notifications only when the browser hasn't been asked, and where there are none says why: an iPhone or iPad not opened from the Home Screen, or a page not served securely.
+
+### Decisions made while building, none of them asked for
+
+- **Terminal Notifications is Program Messages.** `NotificationSwitches.programMessages` is what the action `client.setting.notifications.macos.terminal_notifications` already switched, so there is one switch, under Rex for Mac's name.
+- **The kinds are under the master switch.** With Show System Notifications off, Blocked, Error, Done and Terminal Notifications are faded and can't be turned, and still show how they are set. That is how `NotificationSwitches.want` reads them.
+- **Groups and wording** are Rex for Mac's where it has the setting: Program Activity, System Notifications, Selection, "Automatically copy selected terminal text to the clipboard."
+- **Turning a switch on from the settings does what the palette does:** a sound is played, a notification is shown, or the browser is asked.
+- **Escape closes the panel and not the window; Ctrl+W closes the window and not the panel.** In a browser tab Ctrl+W never reaches the page.
+- **The window opens at 760×640 dp times the monitor's scale,** since the toolkit counts in pixels and `OmarchyWindowScale` draws at the monitor's scale. The main window's 1280×820 isn't scaled so, and was left alone.
+- **No row is wider than 720 dp,** so that on a full workspace a switch stays near its name.
+- **The section chosen is remembered** while the app runs, so opening the settings again shows it.
+- **Closing the panel over a narrow window's sidebar leaves the sidebar,** where the palette closing goes to the terminals.
+- **The browser's back closes the panel in any browser,** not only on a phone.
+
+### What was checked in phase 1
+
+- **Unit and render tests:** `rex/test@jvm/SettingSwitchesTest.kt`, `tono/test@jvm/SettingsTest.kt`, `SettingsRenderTest.kt`. The pictures, each section at 420, 700 and 1100 wide, are in `build/settings-renders/` and were looked at.
+- **Desktop, nested Xwayland, real keys and clicks:**
+  - Ctrl+, in the main window opened one window titled "Tono Settings", class `tono`, 760×640, with no window type and no transient-for hint;
+  - Ctrl+, again, with the main window raised over it, opened no other and brought it back on top;
+  - a click on Copy on Selection wrote `copy_on_selection: true` to the workspace file, and the main window's palette then said "Terminal · on"; choosing that entry in the palette turned the switch off in the settings window as it stood open;
+  - Ctrl+W closed the settings window and left the main one. So did WM_DELETE_WINDOW sent to it. Sent to the main window, it ended both and the process;
+  - About showed the workspace file, the home server, API revision 12 and `~/.config/rex/init.lua`.
+- **Web, headless Chromium, 1400 wide:** Ctrl+, reached the page (`defaultPrevented`) and opened the panel; a click on Play Activity Sounds wrote `sounds: false` to the browser's storage, the palette said "Notifications · off", and it was still off after a reload; Escape closed the panel.
+- **Phone size, Chromium's phone emulation (390×844, scale 3, touch):** Settings… chosen in the palette filled the screen with the list; a tap on Terminal opened it; a tap on the words of Copy on Selection turned its switch; the browser's back went to the list, and again closed the panel, on the same page. After closing with the panel's own ✕, one more back left the page, as it would have before the settings were opened.
+
+### Not known yet, as far as phase 1 found out
+
+- **Bringing the window to the front:** on an X server with no window manager, `toFront()` raised the settings window over the main one. Whether Hyprland lets it take the focus (`focus_on_activate`) wasn't seen: that needs the real desktop.
+- **A special workspace:** not tried.

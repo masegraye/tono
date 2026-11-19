@@ -115,8 +115,8 @@ them: the first time a tab has news, Tono shows a line at the bottom of the wind
 button, and never asks before that.
 
 Show System Notifications in the palette turns them all off and on, and Terminal Notifications does the same for the
-ones programs ask for. Each kind also has a switch of its own in `~/.config/kotlin-test/workspace.json`, which Tono
-reads when it starts:
+ones programs ask for. Each kind also has a switch of its own in [Settings](#settings), under Notifications. They
+are kept in `~/.config/kotlin-test/workspace.json`, which Tono reads when it starts:
 
 ```json
 "notifications": {
@@ -291,6 +291,28 @@ The built-in JetBrains Mono has no Nerd Font symbols. On the desktop a symbol it
 installed font. In a browser there is none to take it from, so prompts that use those symbols show boxes until you
 choose a Nerd Font from the list.
 
+## Settings
+
+**Settings…** in the command palette, Ctrl+, or the ⋮ menu at the top of the sidebar opens everything you can
+choose in Tono in one place. On the desktop it's a window of its own, an ordinary one, so Hyprland tiles it beside
+the main window. Ctrl+W closes it, and so does closing it as you close any window; closing the main window quits
+Tono. Asking for the settings while they're open brings their window to the front. In a browser the settings are a
+panel over the page instead, closed with Escape, its ✕, or the browser's back. On a phone the panel fills the
+screen, and back goes from a section to the list of sections first.
+
+There's nothing to save. A switch takes effect as you turn it, and Tono remembers it. The palette's toggles are the
+same switches, so turning one there shows in Settings at once, and the other way round.
+
+- **Notifications** has the sound and the notifications for tabs you aren't looking at, a switch for each kind of
+  news (Blocked, Error, Done) and for the notifications programs ask for themselves. In a browser it also says
+  whether the browser allows notifications, and offers to ask if it hasn't been asked.
+- **Terminal** has Copy on Selection and Primary Selection.
+- **About** says which Tono this is, where its workspace file is, which server is its home and the API revision it
+  speaks, and where Rex's configuration file is.
+
+In a wide window the sections are listed down the left. In a narrow one, such as a third of the screen, the list
+comes first and each section has a way back to it.
+
 ## Selecting and copying
 
 Drag across a terminal to select text. Double-click selects a word and triple-click a line, and dragging after
@@ -306,8 +328,8 @@ a program that clears the screen.
 
 ### Copy on selection, and pasting with the middle button
 
-Two settings change what selecting with the mouse does. Both are off until you turn them on, in the palette or in
-`~/.config/kotlin-test/workspace.json`:
+Two settings change what selecting with the mouse does. Both are off until you turn them on, in the palette, in
+[Settings](#settings) under Terminal, or in `~/.config/kotlin-test/workspace.json`:
 
 ```json
 "terminal": {

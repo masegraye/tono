@@ -167,6 +167,11 @@ internal fun clientActions(): List<ClientAction> = buildList {
     add(ClientAction("client.shortcuts.edit", "Change Shortcut…", "App", "keyboard key binding bindings keybinding keybindings rebind record hotkey shortcut remove unbind reset") {
         palette = PaletteMode.Shortcuts
     })
+    // Rex.app's name and title, on Control where it has Command. Everything that can be chosen,
+    // in one place: a window of its own on the desktop, a panel over the app in a browser.
+    add(ClientAction("client.settings", "Settings…", "App", "preferences settings options configure", keys = listOf("ctrl+,")) {
+        openSettings()
+    })
     add(ClientAction("client.showcase.toggle", "UI Showcase", "App", "compose components demo gallery") {
         showcase = !showcase
     })
@@ -528,13 +533,10 @@ internal fun clientActions(): List<ClientAction> = buildList {
         "sound audio chime alert beep bell mute silence program finished blocked error",
         state = { if (soundsEnabled) "on" else "off" },
     ) {
-        setSounds(!soundsEnabled)
-        client.log.add("sound", "activity sounds ${if (soundsEnabled) "on" else "off"}")
-        // Turning them on plays one, so you know what to listen for and that it works here.
-        if (soundsEnabled) sounds?.request(ActivityState.Done)
+        switchSounds(!soundsEnabled)
     })
-    // The switches for the kinds of news a program's own state makes (waiting, failed, done) are
-    // in the workspace file until there is a settings screen. These two are Rex.app's actions.
+    // The switches for the kinds of news a program's own state makes (waiting, failed, done)
+    // are in the settings. These two are Rex.app's actions.
     add(ClientAction(
         "client.setting.notifications.activity.system_notifications", "Show System Notifications", "Notifications",
         "desktop notification notify alert popup banner program finished blocked error needs allow permission",
@@ -551,14 +553,7 @@ internal fun clientActions(): List<ClientAction> = buildList {
         },
     ) {
         // On, and the browser not asked yet: what is wanted is the question, not turning them off.
-        val ask = notificationAccess() == NotificationAccess.Undecided
-        if (!(notifications.desktop && ask)) notifications = notifications.copy(desktop = !notifications.desktop)
-        client.log.add("notify", "notifications ${if (notifications.desktop) "on" else "off"}")
-        when {
-            !notifications.desktop -> notificationQuestion = false
-            ask -> notifier.askAccess() // this runs from a key or a click, which is when a browser will ask
-            else -> notifier.showExample()
-        }
+        switchSystemNotifications(on = !notifications.desktop || notificationAccess() == NotificationAccess.Undecided)
     })
     add(ClientAction(
         // Rex.app files this one under macOS, where it is the system that shows them. The name is kept, so a key bound to it means the same here.

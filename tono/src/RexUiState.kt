@@ -6,6 +6,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import org.example.kotlintest.rex.ActivityState
 import kotlin.time.TimeSource
 import org.example.kotlintest.rex.HostConnection
 import org.example.kotlintest.rex.HostState
@@ -124,7 +127,7 @@ class RexUiState(val client: RexClient) {
 
     /** Opens the menu of a pane, which is given the keyboard if it doesn't have it, since that is the pane actions act on. */
     fun openPaneMenu(host: RexHost, blockId: String, at: androidx.compose.ui.geometry.Offset?) {
-        if (palette != null || renamingAnything || confirmation != null || shortcutEdit != null) return
+        if (palette != null || renamingAnything || confirmation != null || shortcutEdit != null || settingsPanelOpen) return
         if (hostState?.window?.keyboardBlockId != blockId) host.focusBlock(blockId)
         paneMenu = PaneMenu(host, blockId, at)
     }
@@ -137,8 +140,14 @@ class RexUiState(val client: RexClient) {
     /** Whether one of the dialogs that ask for a name is open. It has the keyboard, so no key is a shortcut meanwhile. */
     val renamingAnything: Boolean get() = renaming != null || renamingPane != null || renamingSession != null
 
+    /*
+     * The switches a person sets are the client's (RexClient.sounds and the rest), so that a
+     * settings window and this one agree. What is here is what the interface draws from: it
+     * is set along with the client's, and follows it when it is changed elsewhere (followSettings).
+     */
+
     /** Whether a program in a tab out of view makes a sound when it wants you, fails, or finishes. Remembered between runs. */
-    var soundsEnabled by mutableStateOf(client.workspace.sounds)
+    var soundsEnabled by mutableStateOf(client.sounds.value)
         private set
 
     /** Plays the sounds. Set once the app's window exists. */
@@ -149,23 +158,92 @@ class RexUiState(val client: RexClient) {
         get() = notificationSwitches
         set(switches) {
             notificationSwitches = switches
-            client.workspace.notifications = switches
-            client.workspace.save()
+            client.setNotifications(switches)
         }
-    private var notificationSwitches by mutableStateOf(client.workspace.notifications)
+    private var notificationSwitches by mutableStateOf(client.notifications.value)
 
     /** What selecting with the pointer copies, and whether the middle button pastes: see SelectionCopy.kt. Remembered between runs. */
     var selection: SelectionSwitches
         get() = selectionSwitches
         set(switches) {
             selectionSwitches = switches
-            client.workspace.selection = switches
-            client.workspace.save()
+            client.setSelection(switches)
         }
-    private var selectionSwitches by mutableStateOf(client.workspace.selection)
+    private var selectionSwitches by mutableStateOf(client.selection.value)
+
+    /** Keeps the switches here in step with the client's, whoever changes those. Runs until cancelled. */
+    suspend fun followSettings(): Unit = coroutineScope {
+        launch { client.sounds.collect { soundsEnabled = it } }
+        launch { client.notifications.collect { notificationSwitches = it } }
+        launch { client.selection.collect { selectionSwitches = it } }
+    }
+
+    /**
+     * Turns the sounds on or off because someone asked to, in the palette or in the settings.
+     * Turning them on plays one, so you know what to listen for and that it works here.
+     */
+    fun switchSounds(on: Boolean) {
+        setSounds(on)
+        client.log.add("sound", "activity sounds ${if (on) "on" else "off"}")
+        if (on) sounds?.request(ActivityState.Done)
+    }
+
+    /**
+     * Turns desktop notifications on or off because someone asked to. Turning them on shows
+     * one, or has a browser that hasn't been asked yet ask whether it may: call this while a
+     * click or a key press is being handled, which is when a browser will.
+     */
+    fun switchSystemNotifications(on: Boolean) {
+        val ask = notificationAccess() == NotificationAccess.Undecided
+        notifications = notifications.copy(desktop = on)
+        client.log.add("notify", "notifications ${if (on) "on" else "off"}")
+        when {
+            !on -> notificationQuestion = false
+            ask -> notifier.askAccess()
+            else -> notifier.showExample()
+        }
+    }
+
+    /**
+     * Whether the settings are open: see Settings.kt. On the desktop they are a window of
+     * their own, which whatever makes the app's windows shows while this is set
+     * ([settingsWindowed]); elsewhere they are a panel over the app.
+     */
+    var settingsOpen by mutableStateOf(false)
+        private set
+
+    /** Whether the settings are shown in a window of their own, by whoever made this app's window. Set once, at the start. */
+    var settingsWindowed = false
+
+    /** Goes up each time the settings are asked for, so that a window already open can come to the front. */
+    var settingsRaises by mutableIntStateOf(0)
+        private set
+
+    /** Which part of the settings is showing, and what is open over them. */
+    internal val settings = SettingsState()
+
+    /** Whether the settings are open over this window's terminals, and have the keyboard. */
+    val settingsPanelOpen: Boolean get() = settingsOpen && !settingsWindowed
+
+    /** Opens the settings, or brings them to the front if they are open. */
+    fun openSettings() {
+        settingsOpen = true
+        settingsRaises++
+    }
+
+    fun closeSettings() {
+        settingsOpen = false
+        settings.closed()
+        // A window of their own never had this window's keyboard, so there is nothing to hand back.
+        // In a narrow window showing its sidebar, that stays: the settings were over it, not a way to a tab.
+        if (!settingsWindowed && !(narrow && sidebarVisible)) returnFocusToTerminal()
+    }
 
     /** Shows the notifications. */
     internal val notifier = Notifier(this)
+
+    /** Goes up each time a browser has answered whether it allows notifications, for whatever shows the answer. */
+    var notificationAnswers by mutableIntStateOf(0)
 
     /** Whether to ask if the browser may show notifications: there has been something to show, and it hasn't been asked. */
     var notificationQuestion by mutableStateOf(false)
@@ -207,8 +285,7 @@ class RexUiState(val client: RexClient) {
 
     fun setSounds(enabled: Boolean) {
         soundsEnabled = enabled
-        client.workspace.sounds = enabled
-        client.workspace.save()
+        client.setSounds(enabled)
     }
 
     /** The Rex servers found on the tailnet, for the host picker. Null until they have been looked for. */
@@ -247,8 +324,8 @@ class RexUiState(val client: RexClient) {
     var focusRequests by mutableIntStateOf(0)
         private set
 
-    /** Whether something is open over the terminals and has the keyboard: the palette, a dialog, or a pane's menu. */
-    val overlayOpen: Boolean get() = palette != null || renamingAnything || confirmation != null || paneMenu != null || shortcutEdit != null
+    /** Whether something is open over the terminals and has the keyboard: the palette, a dialog, a pane's menu, or the settings as a panel. */
+    val overlayOpen: Boolean get() = palette != null || renamingAnything || confirmation != null || paneMenu != null || shortcutEdit != null || settingsPanelOpen
 
     /**
      * Whether text a program copied should go on the clipboard: see [takesCopy].

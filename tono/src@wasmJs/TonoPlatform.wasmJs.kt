@@ -211,6 +211,8 @@ private class BelowAnchor(private val gap: Int) : PopupPositionProvider {
     }
 }
 
+internal actual val runsInBrowser: Boolean = true
+
 internal actual val fontsArriveLater: Boolean = true
 
 private fun isFullScreen(): Boolean = js("document.fullscreenElement != null")
@@ -369,3 +371,67 @@ internal actual fun historyButton(button: PointerButton?): Boolean? = when (butt
 /** Nothing to watch: in a browser the presses come through Compose, as [historyButton] says. */
 @Composable
 internal actual fun WatchHistoryButtons(onPress: (forward: Boolean) -> Unit) {}
+
+private fun notificationsMissingName(): String = js(
+    """(() => {
+        if (!isSecureContext) return 'insecure';
+        const apple = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const installed = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+        return apple && !installed ? 'home-screen' : 'unknown';
+    })()""",
+)
+
+internal actual fun notificationsMissing(): NotificationsMissing = when (notificationsMissingName()) {
+    "insecure" -> NotificationsMissing.Insecure
+    "home-screen" -> NotificationsMissing.NeedsHomeScreen
+    else -> NotificationsMissing.Unknown
+}
+
+/*
+ * The browser's back, kept in the app. An entry is added to the page's history for each
+ * step something open is from the app, all of them this same page, so going back through
+ * them loads nothing and is only heard of here.
+ */
+
+private fun pushHistoryEntry(): Unit = js("{ history.pushState({ tono: 'back' }, '') }")
+private fun goBackInHistory(steps: Int): Unit = js("{ history.go(-steps) }")
+private fun watchHistoryBack(onBack: () -> Unit): JsAny = js(
+    """(() => {
+        const say = () => onBack();
+        addEventListener('popstate', say);
+        return () => removeEventListener('popstate', say);
+    })()""",
+)
+
+@Composable
+internal actual fun WatchBrowserBack(depth: Int, onBack: () -> Unit) {
+    val report by rememberUpdatedState(onBack)
+    // How many entries of ours the history holds, and how many steps back of our own asking are still to be heard of.
+    val entries = remember { intArrayOf(0) }
+    val expected = remember { intArrayOf(0) }
+    DisposableEffect(Unit) {
+        val watching = watchHistoryBack {
+            if (expected[0] > 0) expected[0]--
+            else {
+                if (entries[0] > 0) entries[0]--
+                report()
+            }
+        }
+        onDispose {
+            stop(watching)
+            // Closed some other way than by going back: the entries go, so that back means what it did before.
+            if (entries[0] > 0) goBackInHistory(entries[0])
+            entries[0] = 0
+        }
+    }
+    DisposableEffect(depth) {
+        while (entries[0] < depth) { pushHistoryEntry(); entries[0]++ }
+        if (entries[0] > depth) {
+            val steps = entries[0] - depth
+            entries[0] = depth
+            expected[0]++
+            goBackInHistory(steps)
+        }
+        onDispose { }
+    }
+}

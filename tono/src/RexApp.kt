@@ -145,6 +145,8 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
     val inFront = windowFocused && pageFocused
     LaunchedEffect(inFront) { ui.client.setWindowFocused(inFront) }
 
+    // The switches may be set from the settings, which on the desktop are another window.
+    LaunchedEffect(ui) { ui.followSettings() }
     // A sound and a notification for what has just happened in tabs out of view, each if it is on.
     LaunchedEffect(ui) {
         val player = Sounds(this) { message, isError -> ui.client.log.add("sound", message, isError = isError) }
@@ -208,7 +210,8 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
     // In a narrow window the sidebar is shown instead of the terminals. The terminal that had
     // the keyboard is then gone, and the keyboard with it, so it is taken back here, or no
     // shortcut would work until a tab was chosen with the pointer.
-    LaunchedEffect(ui.narrow, ui.sidebarVisible) { if (ui.narrow && ui.sidebarVisible) rootFocus.requestFocus() }
+    // The same when the settings close over it.
+    LaunchedEffect(ui.narrow, ui.sidebarVisible, ui.settingsPanelOpen) { if (ui.narrow && ui.sidebarVisible && !ui.settingsPanelOpen) rootFocus.requestFocus() }
 
     // The mouse's back and forward buttons go through the tabs shown, wherever the pointer
     // is, and are nothing to a terminal. Not while something is open over the terminals, as
@@ -230,7 +233,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Box(
             Modifier.fillMaxSize().focusRequester(rootFocus).focusable().onPreviewKeyEvent { event ->
-                if (ui.palette != null || ui.renamingAnything || ui.paneMenu != null || ui.shortcutEdit != null) return@onPreviewKeyEvent false // an overlay has the keyboard
+                if (ui.palette != null || ui.renamingAnything || ui.paneMenu != null || ui.shortcutEdit != null || ui.settingsPanelOpen) return@onPreviewKeyEvent false // an overlay has the keyboard
                 when (event.type) {
                     KeyEventType.KeyDown -> {
                         val chord = keyChord(event) ?: return@onPreviewKeyEvent false
@@ -287,6 +290,8 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
             }
             ui.palette?.let { CommandPalette(ui, commands, it) }
             ui.shortcutEdit?.let { ChangeShortcut(ui, commands, it) }
+            // Where the settings have no window of their own, they are a panel over the app.
+            if (ui.settingsPanelOpen) SettingsPanel(ui, commands)
             ui.renaming?.let { renaming -> RenameTabDialog(renaming, onDismiss = { ui.renaming = null; ui.returnFocusToTerminal() }) }
             ui.renamingPane?.let { renaming -> RenamePaneDialog(renaming, onDismiss = { ui.renamingPane = null; ui.returnFocusToTerminal() }) }
             ui.renamingSession?.let { renaming -> RenameSessionDialog(renaming, onDismiss = { ui.renamingSession = null; ui.returnFocusToTerminal() }) }
@@ -361,6 +366,11 @@ private fun Sidebar(
                         text = { Text("Command Palette…") },
                         trailingIcon = paletteShortcut?.let { { HintText(it) } },
                         onClick = { menuOpen = false; commands.run("client.palette.toggle", origin = "menu") },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Settings…") },
+                        trailingIcon = keymap.shortcutFor("client.settings")?.display()?.let { { HintText(it) } },
+                        onClick = { menuOpen = false; commands.run("client.settings", origin = "menu") },
                     )
                     DropdownMenuItem(text = { Text("Add Host…") }, onClick = { menuOpen = false; commands.run("client.host.add", origin = "menu") })
                     DropdownMenuItem(text = { Text("UI Showcase") }, onClick = { menuOpen = false; commands.run("client.showcase.toggle", origin = "menu") })

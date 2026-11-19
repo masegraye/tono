@@ -217,6 +217,7 @@ internal class Notifier(private val ui: RexUiState) {
         ui.notificationQuestion = false
         ui.scope?.launch {
             val access = requestNotificationAccess()
+            ui.notificationAnswers++
             log("the browser was asked to allow notifications: ${access.name.lowercase()}", isError = access != NotificationAccess.Granted)
             if (access == NotificationAccess.Granted) showExample()
         }

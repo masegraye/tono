@@ -117,6 +117,8 @@ class Keymap(
     val serverActions: List<RexAction> = emptyList(),
     /** What the server found wrong with the keymap. */
     val diagnostics: List<KeymapDiagnostic> = emptyList(),
+    /** Where the server's configuration file is, whether or not there is one there. Null until a server has said. */
+    val configPath: String? = null,
 ) {
     /** The bindings on a single key press, in the order to try them. Sequences aren't supported yet. */
     fun bindingsFor(chord: KeyChord): List<KeyBinding> = bindings.filter { it.keys.size == 1 && it.keys[0] == chord }
@@ -184,5 +186,5 @@ internal fun parseKeymap(result: JsonObject): Keymap {
         val problem = element as? JsonObject ?: return@mapNotNull null
         KeymapDiagnostic(problem.string("severity") ?: "warning", problem.string("message") ?: return@mapNotNull null, problem.string("source"), problem.string("action"), problem.string("key"))
     }
-    return Keymap(bindings, actions, diagnostics)
+    return Keymap(bindings, actions, diagnostics, result.obj("config")?.string("path")?.takeIf { it.isNotEmpty() })
 }

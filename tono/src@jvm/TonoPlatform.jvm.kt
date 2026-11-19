@@ -59,6 +59,8 @@ internal actual fun Tooltip(tip: @Composable () -> Unit, content: @Composable ()
     TooltipArea(tooltip = tip, delayMillis = 500, tooltipPlacement = TooltipPlacement.CursorPoint(offset = DpOffset(0.dp, 18.dp)), content = content)
 }
 
+internal actual val runsInBrowser: Boolean = false
+
 internal actual val fontsArriveLater: Boolean = false
 
 /** A window on the desktop is made full screen by the window manager, with its own key. */
@@ -355,3 +357,8 @@ internal fun historyButton(button: Int, x11: Boolean): Boolean? = when (button) 
     if (x11) 7 else 5 -> true
     else -> null
 }
+
+internal actual fun notificationsMissing(): NotificationsMissing = NotificationsMissing.Unknown
+
+@Composable
+internal actual fun WatchBrowserBack(depth: Int, onBack: () -> Unit) = Unit

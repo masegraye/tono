@@ -63,6 +63,9 @@ internal expect fun Tooltip(tip: @Composable () -> Unit, content: @Composable ()
  */
 internal expect val fontsArriveLater: Boolean
 
+/** Whether the app is a page in a browser, where some things are the browser's to allow and some it hasn't got. */
+internal expect val runsInBrowser: Boolean
+
 /**
  * The app filling the screen, where the app is what asks for that. Null on the desktop,
  * where it is the window manager's to do.
@@ -142,3 +145,30 @@ internal expect fun historyButton(button: PointerButton?): Boolean?
  */
 @Composable
 internal expect fun WatchHistoryButtons(onPress: (forward: Boolean) -> Unit)
+
+/**
+ * Why notifications can't be shown here, when [notificationAccess] says they can't, as far
+ * as that can be told.
+ */
+internal expect fun notificationsMissing(): NotificationsMissing
+
+internal enum class NotificationsMissing {
+    /** The page isn't served securely, and a browser gives such a page none. */
+    Insecure,
+
+    /** An iPhone or iPad, whose browser gives them only to a web app opened from the Home Screen. */
+    NeedsHomeScreen,
+
+    /** There is no saying. On the desktop: no program to show them with. */
+    Unknown,
+}
+
+/**
+ * Keeps the browser's own way back (its button, a phone's gesture) inside the app while
+ * something is open that it should close: [depth] is how many steps back that something is
+ * from the app itself, and [onBack] is called for each step the browser's user takes. A step
+ * taken in the app instead, which lowers [depth], is taken out of the browser's history too,
+ * so back never leaves the page for something that was closed already. Nothing on the desktop.
+ */
+@Composable
+internal expect fun WatchBrowserBack(depth: Int, onBack: () -> Unit)
