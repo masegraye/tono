@@ -78,6 +78,35 @@ your desktop's own sounds and plays them with `mpv`, the way Omarchy does. The t
 while the window has focus. If several things happen at once you hear one sound, for the most urgent of them. You
 can turn sounds off and on with Play Activity Sounds in the palette.
 
+### Notifications
+
+Tono also shows a desktop notification, which says what happened and where: `agent · Needs you` over the session
+and machine. You get one when a program in a tab you aren't looking at starts waiting for you, fails, or finishes,
+and when a program asks for one itself (OSC 9 or OSC 777). The tab you're looking at never notifies while the window
+has focus.
+
+- A tab's newest notification replaces its last one, so a busy tab leaves one notification and not a pile.
+- Ones for a program that is waiting for you or has failed stay up until you dismiss them. The rest time out.
+- Clicking a notification goes to its tab. Going to a tab any other way takes its notifications down.
+
+On the desktop Tono shows them with `notify-send`, which comes with libnotify. In a browser the browser has to allow
+them: the first time a tab has news, Tono shows a line at the bottom of the window with an Allow Notifications
+button, and never asks before that.
+
+Show System Notifications in the palette turns them all off and on, and Terminal Notifications does the same for the
+ones programs ask for. Each kind also has a switch of its own in `~/.config/kotlin-test/workspace.json`, which Tono
+reads when it starts:
+
+```json
+"notifications": {
+    "system_notifications": true,
+    "blocked": true,
+    "error": true,
+    "done": true,
+    "program_messages": true
+}
+```
+
 ## The status line
 
 The line at the bottom of the window shows where you are: the machine, the session, the tab and the terminal's size.

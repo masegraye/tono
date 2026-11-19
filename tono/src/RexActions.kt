@@ -302,9 +302,9 @@ internal fun clientActions(): List<ClientAction> = buildList {
                 !notifications.desktop -> "off"
                 else -> when (notificationAccess()) {
                     NotificationAccess.Granted -> "on"
-                    NotificationAccess.Undecided -> "on, once the browser allows it"
-                    NotificationAccess.Refused -> "blocked in the browser's settings"
-                    NotificationAccess.Unavailable -> "on, with nothing here to show them"
+                    NotificationAccess.Undecided -> "not allowed yet"
+                    NotificationAccess.Refused -> "blocked by the browser"
+                    NotificationAccess.Unavailable -> "unavailable"
                 }
             }
         },

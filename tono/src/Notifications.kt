@@ -247,7 +247,7 @@ internal fun NotificationQuestion(ui: RexUiState) {
     if (!ui.notificationQuestion) return
     Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
-            "A tab had news while you were away. $APP_NAME can show a notification when that happens.",
+            "A tab you weren't looking at had news. $APP_NAME can show a notification when that happens.",
             style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
         )

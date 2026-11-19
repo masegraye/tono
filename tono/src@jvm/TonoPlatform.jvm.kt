@@ -166,6 +166,17 @@ private val shownNotifications = java.util.concurrent.ConcurrentHashMap<String, 
 /** One notification is handed over at a time, so that the second of two for a tab replaces the first. */
 private val notifying = kotlinx.coroutines.sync.Mutex()
 
+/** The address of the D-Bus session to reach the notification service on, when it isn't the desktop's own. For tests. */
+@Volatile internal var notificationBus: String? = null
+
+/** Starts one of the programs that talk to the notification service, with nothing to read and no errors kept. */
+private fun startQuietly(command: List<String>, keepOutput: Boolean = false): Process {
+    val builder = ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD)
+    if (!keepOutput) builder.redirectOutput(ProcessBuilder.Redirect.DISCARD)
+    notificationBus?.let { builder.environment()["DBUS_SESSION_BUS_ADDRESS"] = it }
+    return builder.start().also { it.outputStream.close() }
+}
+
 private val endNotifiersOnExit by lazy {
     // The notifications stay; only the programs waiting on them go, so none outlives the app.
     Runtime.getRuntime().addShutdownHook(Thread { shownNotifications.values.forEach { it.process.destroy() } })
@@ -229,11 +240,10 @@ internal actual suspend fun showNotification(note: DesktopNote, log: (message: S
         try {
             endNotifiersOnExit
             val before = shownNotifications[note.tag]
-            val process = ProcessBuilder(notifyCommand(program, note, before?.id)).redirectError(ProcessBuilder.Redirect.DISCARD).start()
-            process.outputStream.close()
+            val process = startQuietly(notifyCommand(program, note, before?.id), keepOutput = true)
             val output = process.inputStream.bufferedReader()
-            // The first line is the number. A service that isn't there ends the program without one.
-            val id = output.readLine()?.trim()?.toLongOrNull()
+            // The first line is the number. With no service to give one, there is no line, or a nought.
+            val id = output.readLine()?.trim()?.toLongOrNull()?.takeIf { it > 0 }
             if (id == null) {
                 process.destroy()
                 log("the desktop didn't take the notification: is a notification service running?", true)
@@ -252,7 +262,9 @@ internal actual suspend fun showNotification(note: DesktopNote, log: (message: S
                 shownNotifications.remove(note.tag, shown)
                 process.destroy()
                 if (clicked) {
-                    closeNotificationNumbered(id) // some desktops leave a clicked notification up
+                    // A desktop may leave a clicked notification up. Newer versions of notify-send
+                    // close it themselves; asking a second time does no harm.
+                    closeNotificationNumbered(id)
                     runCatching { onClick() }
                 }
             }, "tono-notification-$id").apply { isDaemon = true }.start()
@@ -284,16 +296,15 @@ internal actual fun closeNotification(tag: String) {
 private fun closeNotificationNumbered(id: Long) {
     val command = closeNotificationCommand(id, ::findProgram) ?: return
     runCatching {
-        val closing = ProcessBuilder(command).redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start()
-        closing.outputStream.close()
+        val closing = startQuietly(command)
         if (!closing.waitFor(CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) closing.destroyForcibly()
     }
 }
 
 /**
- * A window can't take the keyboard on Wayland just by asking: the toolkit's request marks it
- * as wanting attention at most. Hyprland, which is what Omarchy runs, will focus a program's
- * window when told to, which also goes to the workspace it is on. So both are tried.
+ * Asks the toolkit to raise the window and give it the keyboard. Whether that happens is the
+ * window manager's to say: Hyprland as Omarchy sets it up (`misc:focus_on_activate`) goes to
+ * the window, on whichever workspace it is; others only mark it as wanting attention.
  */
 internal actual fun bringWindowToFront() {
     java.awt.EventQueue.invokeLater {
@@ -304,16 +315,6 @@ internal actual fun bringWindowToFront() {
             }
         }
     }
-    if (System.getenv("HYPRLAND_INSTANCE_SIGNATURE").isNullOrEmpty()) return
-    val hyprctl = findProgram("hyprctl") ?: return
-    Thread({
-        runCatching {
-            val asking = ProcessBuilder(hyprctl.toString(), "dispatch", "focuswindow", "pid:${ProcessHandle.current().pid()}")
-                .redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start()
-            asking.outputStream.close()
-            if (!asking.waitFor(CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) asking.destroyForcibly()
-        }
-    }, "tono-window-forward").apply { isDaemon = true }.start()
 }
 
 private const val MAX_NOTIFICATIONS = 32
