@@ -87,7 +87,6 @@ internal fun FormDialog(
     content: @Composable ColumnScope.(first: FocusRequester) -> Unit,
 ) {
     val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
     var asking by remember { mutableStateOf(false) }
     val cancel = { if (changed && !busy) asking = true else if (!busy) onClose() }
     val save = { if (canSave && !busy) onSave() }
@@ -110,6 +109,7 @@ internal fun FormDialog(
     }
     if (sheet) {
         Surface(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { } }.then(keys), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+            LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (asking) {
@@ -134,12 +134,18 @@ internal fun FormDialog(
             text = {
                 Column(Modifier.widthIn(max = FORM_WIDTH).fillMaxWidth().verticalScroll(rememberScrollState()).then(keys)) {
                     content(first)
+                    // Asked for from in here, once the dialog has put the field there to be given the keyboard.
+                    LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
                     if (asking) Text("Discard what you changed? Nothing of it has been saved.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp))
                 }
             },
             // The question is answered where Cancel and Save were, so that it is the form's own and its keys answer it.
-            confirmButton = { if (asking) PrimaryDialogButton("Discard", discard, destructive = true) else PrimaryDialogButton(saveLabel, save, enabled = canSave && !busy) },
-            dismissButton = { if (asking) SecondaryDialogButton("Keep Editing", keep) else SecondaryDialogButton("Cancel", cancel) },
+            // Escape from a button is the form's Escape too: a browser doesn't always hand it to the dialog.
+            confirmButton = {
+                if (asking) PrimaryDialogButton("Discard", discard, Modifier.onEscape(keep), destructive = true)
+                else PrimaryDialogButton(saveLabel, save, Modifier.onEscape(cancel), enabled = canSave && !busy)
+            },
+            dismissButton = { if (asking) SecondaryDialogButton("Keep Editing", keep, Modifier.onEscape(keep)) else SecondaryDialogButton("Cancel", cancel, Modifier.onEscape(cancel)) },
         )
     }
 }

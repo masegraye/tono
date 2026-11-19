@@ -171,9 +171,8 @@ class SettingsHostsRenderTest {
 
     @Test
     fun `a host's form is saved by Enter, and Escape asks before throwing away what was typed`() {
-        // As a sheet. As a dialog it is the same form with the same keys, but an offscreen picture
-        // doesn't hand a dialog the keyboard: that one was pressed through in a browser.
-        for (width in listOf(420)) {
+        // As a sheet, and as a dialog: the same form with the same keys.
+        for (width in listOf(420, 700)) {
             ui.settings.replace(SettingsPlace(SettingsSection.RemoteHosts, hostDetail("attic")))
             ui.settings.form = SettingsForm.EditHost("attic")
             settings(width, height = 900).use { settings ->

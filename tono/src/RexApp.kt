@@ -48,7 +48,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.foundation.Canvas
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -297,21 +296,7 @@ fun RexApp(ui: RexUiState, commands: RexCommands) {
             ui.renaming?.let { renaming -> RenameTabDialog(renaming, onDismiss = { ui.renaming = null; ui.returnFocusToTerminal() }, sheet = ui.narrow) }
             ui.renamingPane?.let { renaming -> RenamePaneDialog(renaming, onDismiss = { ui.renamingPane = null; ui.returnFocusToTerminal() }, sheet = ui.narrow) }
             ui.renamingSession?.let { renaming -> RenameSessionDialog(renaming, onDismiss = { ui.renamingSession = null; ui.returnFocusToTerminal() }, sheet = ui.narrow) }
-            ui.confirmation?.let { pending ->
-                val dismiss = { ui.confirmation = null; ui.returnFocusToTerminal() }
-                // The confirm button has the keyboard, so Enter confirms and Escape cancels.
-                val confirmFocus = remember { FocusRequester() }
-                LaunchedEffect(pending) { confirmFocus.requestFocus() }
-                AlertDialog(
-                    onDismissRequest = dismiss,
-                    title = { Text(pending.title) },
-                    text = { Text(pending.text) },
-                    confirmButton = {
-                        PrimaryDialogButton(pending.confirmLabel, onClick = { dismiss(); pending.onConfirm() }, Modifier.focusRequester(confirmFocus).onEscape(dismiss), destructive = pending.destructive)
-                    },
-                    dismissButton = { SecondaryDialogButton("Cancel", dismiss) },
-                )
-            }
+            ui.confirmation?.let { pending -> ConfirmationDialog(pending, onDismiss = { ui.confirmation = null; ui.returnFocusToTerminal() }) }
         }
     }
 }

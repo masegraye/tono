@@ -29,7 +29,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -421,20 +420,7 @@ internal fun SettingsContent(ui: RexUiState, commands: RexCommands, modifier: Mo
         state.shortcutEdit?.let { target ->
             ShortcutRecorder(ui.client, commands, target, onClose = { state.shortcutEdit = null }, ask = { state.confirmation = it }, onDone = {})
         }
-        state.confirmation?.let { pending ->
-            val dismiss = { state.confirmation = null }
-            val confirmFocus = remember { FocusRequester() }
-            LaunchedEffect(pending) { confirmFocus.requestFocus() }
-            AlertDialog(
-                onDismissRequest = dismiss,
-                title = { Text(pending.title) },
-                text = { Text(pending.text) },
-                confirmButton = {
-                    PrimaryDialogButton(pending.confirmLabel, onClick = { dismiss(); pending.onConfirm() }, Modifier.focusRequester(confirmFocus).onEscape(dismiss), destructive = pending.destructive)
-                },
-                dismissButton = { SecondaryDialogButton("Cancel", dismiss) },
-            )
-        }
+        state.confirmation?.let { pending -> ConfirmationDialog(pending, onDismiss = { state.confirmation = null }) }
     }
 }
 
