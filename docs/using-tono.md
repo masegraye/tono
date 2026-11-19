@@ -219,6 +219,33 @@ The selection stays on its text. When more output arrives the highlight moves up
 can still copy them after they've scrolled out of view. Clicking, or typing into the terminal, clears it. So does
 a program that clears the screen.
 
+### Copy on selection, and pasting with the middle button
+
+Two settings change what selecting with the mouse does. Both are off until you turn them on, in the palette or in
+`~/.config/kotlin-test/workspace.json`:
+
+```json
+"terminal": {
+    "copy_on_selection": false,
+    "primary_selection": false
+}
+```
+
+- **Copy on Selection** copies a selection to the clipboard as soon as you let go of the mouse button, as if you
+  had pressed Ctrl+Shift+C.
+- **Primary Selection** is the Linux convention: what you select becomes the desktop's primary selection, which is
+  separate from the clipboard, and a middle click pastes the primary selection, whichever program it was selected
+  in. The clipboard is left alone. Pasting this way does what Ctrl+Shift+V does, bracketed paste included.
+
+Only a selection made with the mouse is copied. Select All isn't, and a click that selects nothing leaves the
+clipboard and the primary selection as they were. With Primary Selection off, the middle button pastes nothing.
+
+A program that uses the mouse gets the middle click itself. Hold Shift while you click to paste there anyway. A
+middle click pastes only if the button goes down and comes up in the same place.
+
+Both settings can be turned on together. In a browser there is no primary selection, so Primary Selection works
+with the clipboard there: see [the web app](web.md#the-mouse).
+
 ## Opening links
 
 Hold Ctrl and click a link to open it. An address written out in the output is a link, including one too long for

@@ -68,7 +68,7 @@ hyprctl dispatch "hl.dsp.exec_cmd(\"Xwayland :77 -geometry 1400x900 -noreset -no
 DISPLAY=:77 xdotool getdisplaygeometry || exit 1     # not up: stop, never fall back to the real display
 
 # The app, as a client of that server only
-env -u WAYLAND_DISPLAY DISPLAY=:77 java --enable-native-access=ALL-UNNAMED \
+env -u WAYLAND_DISPLAY DISPLAY=:77 java -Dskiko.renderApi=SOFTWARE --enable-native-access=ALL-UNNAMED \
   --add-opens=java.desktop/sun.awt.X11=ALL-UNNAMED -jar <the packaged jar> --workspace <file> &
 WIN=$(DISPLAY=:77 xdotool search --name "<scratch session's name>" | head -1)   # the window whose title names the session
 
@@ -85,6 +85,17 @@ What to know:
 - The window is never shown, so the app draws late: its window title was seen a step behind
   what it had done. Read what happened from the server (`rex window ls -s <session> --json`,
   `active_window_id`) and not from the title or a screenshot.
+- Run the app with `-Dskiko.renderApi=SOFTWARE`, as above. Without it the app waits on the
+  graphics card to show a frame that is never shown, and acts on a click seconds late or
+  only when the next thing happens: a paste turned up one click after the click that asked
+  for it. With it the app answered in under a second (backlog-004, 2026-11-18), and
+  `import -window root` showed the window as it was.
+- Positions for `xdotool mousemove --window` count from the window's corner in the server's
+  pixels, and the app is drawn larger than in a browser (the sidebar was 386 pixels wide,
+  not 240). Take a screenshot and measure before clicking, and keep the numbers in the
+  script: a click meant for the terminal that lands in the sidebar lands on a real session.
+- The nested server has a PRIMARY and a CLIPBOARD of its own, which the desktop's never
+  see: `xclip -selection primary` with `DISPLAY` set reads and sets them.
 - End the app first, then the scratch session, then the server. `pkill -f "Xwayland :77"`
   also matches the shell running it; find the process by its arguments and kill its number.
   Never `pkill Xwayland`: the desktop's own is one too.

@@ -52,6 +52,18 @@ There are three ways around that:
   going to a tab by number works as usual. Ctrl+W still closes the browser tab. Because that key deletes a word in
   a shell, the page asks before it closes.
 
+## The mouse
+
+A mouse's back and forward buttons go through Tono's tabs and don't take the browser off the page. The middle
+button does only what Tono does with it: the browser's own use for it on a page, such as scrolling by moving the
+mouse, is turned off.
+
+A browser has no primary selection, and a page can neither set nor read the desktop's. So with Primary Selection
+turned on (see [Selecting and copying](using-tono.md#copy-on-selection-and-pasting-with-the-middle-button)) the
+clipboard stands in for it: selecting text in a terminal copies it to the clipboard, replacing what was there,
+and a middle click pastes the clipboard, exactly as Ctrl+Shift+V does. Text you selected in another program is
+not what a middle click pastes here, unless you copied it. With both settings off, a middle click does nothing.
+
 ## On a phone
 
 <img src="images/phone.webp" width="260" alt="Tono in a phone-sized window, with a row of extra keys">
@@ -67,7 +79,7 @@ The image above was taken in a desktop browser's phone mode. Tono hasn't been ru
 
 | Browser | What's been tested |
 |---|---|
-| Chromium | Terminals, images, the palette, tooltips, paste, pasting an image and dropping files (with made-up paste and drop events, and the browser's own clipboard, without a window), selecting and copying, opening links, finding text, a program copying to the clipboard, sounds, renaming and dragging tabs, the mouse, reconnecting, and the keys described above in a real window (a tab, an app window and full screen). The phone layout and typing on it were tested in Chromium's phone emulation. |
+| Chromium | Terminals, images, the palette, tooltips, paste, pasting an image and dropping files (with made-up paste and drop events, and the browser's own clipboard, without a window), selecting and copying, copy on selection and pasting with the middle button (with the browser's own clipboard, without a window), opening links, finding text, a program copying to the clipboard, sounds, renaming and dragging tabs, the mouse, reconnecting, and the keys described above in a real window (a tab, an app window and full screen). The phone layout and typing on it were tested in Chromium's phone emulation. |
 | Firefox | Loading, typing, the palette and images. |
 | Safari, and any real phone or tablet | Not tested. The keyboard is the most likely thing to go wrong first. The sounds are Ogg files, which older versions of Safari don't play. |
 
