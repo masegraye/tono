@@ -18,8 +18,10 @@ Tono right away.
 - Tono also connects to any hosts listed in `~/.config/kotlin-test/workspace.json`. It only saves a host there when
   there's no local server to keep it.
 
-If Tono can't reach a machine, the machine's icon turns red and nothing is listed under it. Tono retries every few
-seconds until the machine answers. You can hover over the machine for a button that retries immediately, and the
+While Tono is reaching a machine for the first time, the machine's icon is dimmed and slowly pulses, and
+"Connecting…" is written under its name. If Tono can't reach a machine, the machine's icon turns red and nothing is
+listed under it. A machine that was connected and then lost says "Reconnecting…" under its name as well. Tono
+retries every few seconds until the machine answers. You can hover over the machine for a button that retries immediately, and the
 debug log says why the connection failed.
 
 A machine that goes to sleep or drops off the network never closes its connection. To catch that, Tono checks on
