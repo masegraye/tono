@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | captured |
+| Status | captured (probably fixed by backlog-008, not yet confirmed) |
 | Area | The web app |
 | Size | small |
 | Source | found by the worker on backlog-001 |
@@ -37,3 +37,7 @@ real browser window, since a headless browser's idea of focus is not a real one'
 ## Not known yet
 
 Whether it happens outside a headless browser at all.
+
+## Since then
+
+backlog-008 (commit `be372a9`) added `WatchPageFocus`: on the web, a tab counts as in front only while the page itself has focus, and `RexApp` uses that for being watched and for claiming terminals. That is what this entry asks for. What's left is to confirm it in a real browser: a page left behind another stops claiming sizes and announces activity.
